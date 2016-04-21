@@ -8,7 +8,7 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 PROJECT(mw_constrhs)
 
-include_directories($ENV{HOME}/google-benchmark/install/include)
+include_directories(/mnt/data/jwitte/mybenchmark/install/include)
 
 find_package(Threads REQUIRED)
 
@@ -17,7 +17,7 @@ ADD_EXECUTABLE(mw_constrhs main.cc)
 ADD_LIBRARY(benchmark STATIC IMPORTED)
 SET_TARGET_PROPERTIES(benchmark PROPERTIES
   IMPORTED_LOCATION
-  $ENV{HOME}/google-benchmark/install/lib/libbenchmark.a)
+  /mnt/data/jwitte/mybenchmark/install/lib/libbenchmark.a)
 target_link_libraries(mw_constrhs benchmark ${CMAKE_THREAD_LIBS_INIT})
 
 DEAL_II_SETUP_TARGET(mw_constrhs)
