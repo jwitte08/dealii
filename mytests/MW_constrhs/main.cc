@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <vector>
+#include <cstdio>
 
 // RHS INTEGRATOR
 template <int dim>
