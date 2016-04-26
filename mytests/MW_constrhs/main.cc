@@ -78,7 +78,7 @@ void mw_constrhs (benchmark::State &state)
       dof_handler.distribute_dofs(fe);
       tr_refined = true;
       prev_range_x = state.range_x();
-      std::cout << "initial refine" << std::endl;
+      //std::cout << "initial refine" << std::endl;
     }
   // re-refine for new tria
   if(prev_range_x != state.range_x() && tr_refined)
@@ -86,7 +86,7 @@ void mw_constrhs (benchmark::State &state)
       tr.refine_global(state.range_x()-prev_range_x);
       dof_handler.distribute_dofs(fe);
       prev_range_x = state.range_x();
-      std::cout << "refine again" << std::endl;
+      //std::cout << "refine again" << std::endl;
     }
       
   while(state.KeepRunning())
@@ -139,7 +139,8 @@ static void CustomArguments(benchmark::internal::Benchmark* b) {
 
 BENCHMARK(mw_constrhs)
 ->Threads(1)
-->Apply(CustomArguments)
+->ArgPair(7,1)
+//->Apply(CustomArguments)
 ->UseRealTime();
 
 BENCHMARK_MAIN()
