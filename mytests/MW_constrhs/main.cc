@@ -1,3 +1,4 @@
+#include <deal.II/base/std_cxx11/function.h>
 #include <deal.II/base/multithread_info.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/fe/fe_dgq.h>
@@ -19,22 +20,9 @@
 #include <vector>
 #include <cstdio>
 
-// RHS INTEGRATOR
+// functions
 template <int dim>
-class RHSIntegrator final : public dealii::MeshWorker::LocalIntegrator<dim>
-{
- public:
-  void cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info) const override;
-  void boundary(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info) const override;
-  void face(dealii::MeshWorker::DoFInfo<dim> &dinfo1,
-            dealii::MeshWorker::DoFInfo<dim> &dinfo2,
-            typename dealii::MeshWorker::IntegrationInfo<dim> &info1,
-            typename dealii::MeshWorker::IntegrationInfo<dim> &info2) const override;
-};
-
-// IMPLEMENTATION: RHS_INTEGRATOR
-template <int dim>
-void RHSIntegrator<dim>::cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info) const
+static void cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info)
 {
   std::vector<double> f;
   f.resize(info.fe_values(0).n_quadrature_points,1.);
@@ -43,17 +31,7 @@ void RHSIntegrator<dim>::cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename 
 				   f);
 }
 
-template <int dim>
-void RHSIntegrator<dim>::boundary(dealii::MeshWorker::DoFInfo<dim> &, typename dealii::MeshWorker::IntegrationInfo<dim> &) const
-{}
-
-template <int dim>
-void RHSIntegrator<dim>::face(dealii::MeshWorker::DoFInfo<dim> &,
-                              dealii::MeshWorker::DoFInfo<dim> &,
-                              typename dealii::MeshWorker::IntegrationInfo<dim> &,
-                              typename dealii::MeshWorker::IntegrationInfo<dim> &) const
-{}
-
+// global settings
 const unsigned int dim = 2;
 const unsigned int degree = 1;
 
@@ -110,13 +88,16 @@ void mw_constrhs (benchmark::State &state)
       data.add<dealii::Vector<double>* >(&rhs, "RHS");
       rhs_assembler.initialize(data);
       
-      RHSIntegrator<dim> rhs_integrator;
-      dealii::MeshWorker::integration_loop<dim, dim>(dof_handler.begin_active(),
-						     dof_handler.end(),
-						     dof_info, info_box,
-						     rhs_integrator, rhs_assembler);
+      dealii::MeshWorker::loop<dim, dim,
+			       dealii::MeshWorker::DoFInfo<dim>,
+			       typename dealii::MeshWorker::IntegrationInfoBox<dim> >
+	( dof_handler.begin_active(), dof_handler.end(),
+	  dof_info, info_box,
+	  cell<dim>, nullptr, nullptr,
+	  rhs_assembler );
+
+      //      rhs.print(std::cout);
     }
-  //rhs.print(std::cout);
 }
 
 static void CustomArguments(benchmark::internal::Benchmark* b) {
