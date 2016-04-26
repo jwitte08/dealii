@@ -21,6 +21,27 @@
 #include <cstdio>
 
 // functions
+// RHS INTEGRATOR
+template <int dim>
+class RHSIntegrator final : public dealii::MeshWorker::LocalIntegrator<dim>
+{
+ public:
+  RHSIntegrator() : dealii::MeshWorker::LocalIntegrator<dim>() {};
+  RHSIntegrator(bool use_cell_, bool use_bdry_, bool use_face_) : dealii::MeshWorker::LocalIntegrator<dim>(use_cell_, use_bdry_, use_face_) {};
+  void cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info) const override;
+};
+
+// IMPLEMENTATION: RHS_INTEGRATOR
+template <int dim>
+void RHSIntegrator<dim>::cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info) const
+{
+  std::vector<double> f;
+  f.resize(info.fe_values(0).n_quadrature_points,1.);
+  dealii::LocalIntegrators::L2::L2(dinfo.vector(0).block(0),
+				   info.fe_values(0),
+				   f);
+}
+
 template <int dim>
 static void cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info)
 {
@@ -43,6 +64,7 @@ const dealii::MappingQ1<dim> mapping;
 bool tr_refined = false;
 int prev_range_x = 0;
 
+const RHSIntegrator<dim> rhs_integrator;
 // MAIN
 void mw_constrhs (benchmark::State &state)
 {
@@ -88,13 +110,18 @@ void mw_constrhs (benchmark::State &state)
       data.add<dealii::Vector<double>* >(&rhs, "RHS");
       rhs_assembler.initialize(data);
       
-      dealii::MeshWorker::loop<dim, dim,
-			       dealii::MeshWorker::DoFInfo<dim>,
-			       typename dealii::MeshWorker::IntegrationInfoBox<dim> >
-	( dof_handler.begin_active(), dof_handler.end(),
-	  dof_info, info_box,
-	  cell<dim>, nullptr, nullptr,
-	  rhs_assembler );
+      RHSIntegrator<dim> rhs_integrator(true,false,false);
+      dealii::MeshWorker::integration_loop<dim, dim>(dof_handler.begin_active(),
+						     dof_handler.end(),
+						     dof_info, info_box,
+						     rhs_integrator, rhs_assembler);
+      // dealii::MeshWorker::loop<dim, dim,
+      // 			       dealii::MeshWorker::DoFInfo<dim>,
+      // 			       typename dealii::MeshWorker::IntegrationInfoBox<dim> >
+      // 	( dof_handler.begin_active(), dof_handler.end(),
+      // 	  dof_info, info_box,
+      // 	  nullptr, nullptr, nullptr,
+      // 	  rhs_assembler );
 
       //      rhs.print(std::cout);
     }

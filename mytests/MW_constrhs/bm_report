@@ -61,3 +61,17 @@ Benchmark                             Time(ns)    CPU(ns) Iterations
 mw_constrhs/7/1/real_time/threads:1   12401281   12405945       6174    
 mw_constrhs/7/1/real_time/threads:1   11864563   11868688       6431  
 mw_constrhs/7/1/real_time/threads:1   12381272   12385846       6172    
+
+#############################################################
+######################### BM_TEST03 #########################
+#############################################################
+
+jwitte@simserv02:/mnt/data/jwitte/mydealii/source/mytests/MW_constrhs/build$ ./mw_constrhs --benchmark_min_time=60
+Run on (160 X 1064 MHz CPU s)
+2016-04-26 15:04:04
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+Benchmark                             Time(ns)    CPU(ns) Iterations
+--------------------------------------------------------------------
+mw_constrhs/7/1/real_time/threads:1   13664745   13670188       5653
+mw_constrhs/7/1/real_time/threads:1   13014600   13019907       5917 
+mw_constrhs/7/1/real_time/threads:1   12748952   12752602       6027 
