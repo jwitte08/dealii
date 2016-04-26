@@ -1,0 +1,35 @@
+jwitte@simserv02:/mnt/data/jwitte/mydealii/source/mytests/MW_constrhs/build$ ./mw_constrhs --benchmark_min_time=300 --color_print=false
+Run on (160 X 1064 MHz CPU s)
+2016-04-25 20:48:56
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+Benchmark                               Time(ns)    CPU(ns) Iterations
+----------------------------------------------------------------------
+initial refine
+mw_constrhs/6/1/real_time/threads:1     16090027   16096394      25969                                 
+mw_constrhs/6/2/real_time/threads:1     13253453   26209426      31235                                 
+mw_constrhs/6/3/real_time/threads:1     10081807   28949908      39173                                 
+mw_constrhs/6/4/real_time/threads:1      6639231   24742800      46862                                 
+mw_constrhs/6/6/real_time/threads:1      7841000   40748544      65346  <<                               
+refine again
+mw_constrhs/8/1/real_time/threads:1    252484373  252587265       1648                                 
+mw_constrhs/8/2/real_time/threads:1    180652256  360888459       2327                                 
+mw_constrhs/8/3/real_time/threads:1    129805643  387769131       4091                                 
+mw_constrhs/8/4/real_time/threads:1    101877323  404724925       4863                                 
+mw_constrhs/8/6/real_time/threads:1     92956971  548234757       5023                                 
+mw_constrhs/8/8/real_time/threads:1     89858983  688735912       4472  <<                               
+refine again
+mw_constrhs/10/4/real_time/threads:1  1702238238 6800966041        220                                 
+mw_constrhs/10/6/real_time/threads:1  1531607776 9120954942        278                                 
+mw_constrhs/10/8/real_time/threads:1  1451994781 11275893427        279  <<                               
+mw_constrhs/10/10/real_time/threads:1 1468918542 13976097714        290                                 
+refine again
+mw_constrhs/12/4/real_time/threads:1  28925068448 115159547071         14                                 
+mw_constrhs/12/6/real_time/threads:1  26652230612 158076523437         16                                 
+mw_constrhs/12/8/real_time/threads:1  25213601420 195123315176         17                                 
+mw_constrhs/12/10/real_time/threads:1 23277339068 222146635500         18                                 
+mw_constrhs/12/12/real_time/threads:1 21885395671 250184209000         20  <<                               
+mw_constrhs/12/16/real_time/threads:1 23158320541 349775252722         18                                 
+mw_constrhs/12/20/real_time/threads:1 25500007576 477069552937         16                                 
+mw_constrhs/12/24/real_time/threads:1 35061778240 757353486250         12
+
+mw_constrhs/refines/thread_limit/
