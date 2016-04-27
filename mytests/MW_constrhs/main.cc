@@ -20,7 +20,6 @@
 #include <vector>
 #include <cstdio>
 
-// functions
 // RHS INTEGRATOR
 template <int dim>
 class RHSIntegrator final : public dealii::MeshWorker::LocalIntegrator<dim>
@@ -42,16 +41,6 @@ void RHSIntegrator<dim>::cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename 
 				   f);
 }
 
-template <int dim>
-static void cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info)
-{
-  std::vector<double> f;
-  f.resize(info.fe_values(0).n_quadrature_points,1.);
-  dealii::LocalIntegrators::L2::L2(dinfo.vector(0).block(0),
-				   info.fe_values(0),
-				   f);
-}
-
 // global settings
 const unsigned int dim = 2;
 const unsigned int degree = 1;
@@ -60,11 +49,14 @@ dealii::Triangulation<2> tr;
 const dealii::FE_DGQ<dim> fe{degree};
 dealii::DoFHandler<dim> dof_handler{tr};
 const dealii::MappingQ1<dim> mapping;
+const RHSIntegrator<dim> rhs_integrator{true,false,false};
+
+dealii::MeshWorker::IntegrationInfoBox<dim> info_box;
+std::unique_ptr<dealii::MeshWorker::DoFInfo<dim> > dof_info;
 
 bool tr_refined = false;
 int prev_range_x = 0;
 
-const RHSIntegrator<dim> rhs_integrator;
 // MAIN
 void mw_constrhs (benchmark::State &state)
 {
@@ -78,6 +70,12 @@ void mw_constrhs (benchmark::State &state)
       dof_handler.distribute_dofs(fe);
       tr_refined = true;
       prev_range_x = state.range_x();
+
+      info_box.initialize_gauss_quadrature(degree+1, 0, 0);
+      dealii::UpdateFlags update_flags = dealii::update_quadrature_points | dealii::update_values ;
+      info_box.add_update_flags(update_flags, true, false, false, false);
+      info_box.initialize(fe, mapping);
+      dof_info.reset(new dealii::MeshWorker::DoFInfo<dim> {dof_handler});
       //std::cout << "initial refine" << std::endl;
     }
   // re-refine for new tria
@@ -86,6 +84,7 @@ void mw_constrhs (benchmark::State &state)
       tr.refine_global(state.range_x()-prev_range_x);
       dof_handler.distribute_dofs(fe);
       prev_range_x = state.range_x();
+      dof_info.reset(new dealii::MeshWorker::DoFInfo<dim> {dof_handler});
       //std::cout << "refine again" << std::endl;
     }
       
@@ -93,36 +92,16 @@ void mw_constrhs (benchmark::State &state)
     {
       dealii::Vector<double> rhs;
       rhs.reinit(dof_handler.n_dofs());
-
-      dealii::MeshWorker::IntegrationInfoBox<dim> info_box;
-      info_box.initialize_gauss_quadrature(degree+1,
-					   degree+1,
-					   degree+1);
-      dealii::UpdateFlags update_flags = dealii::update_quadrature_points |
-	dealii::update_values | dealii::update_gradients;
-      info_box.add_update_flags(update_flags, true, true, true, true);
-      info_box.initialize(fe, mapping);
-      
-      dealii::MeshWorker::DoFInfo<dim> dof_info(dof_handler);
       
       dealii::MeshWorker::Assembler::ResidualSimple<dealii::Vector<double> > rhs_assembler;
       dealii::AnyData data;
       data.add<dealii::Vector<double>* >(&rhs, "RHS");
       rhs_assembler.initialize(data);
       
-      RHSIntegrator<dim> rhs_integrator(true,false,false);
       dealii::MeshWorker::integration_loop<dim, dim>(dof_handler.begin_active(),
 						     dof_handler.end(),
-						     dof_info, info_box,
+						     *dof_info, info_box,
 						     rhs_integrator, rhs_assembler);
-      // dealii::MeshWorker::loop<dim, dim,
-      // 			       dealii::MeshWorker::DoFInfo<dim>,
-      // 			       typename dealii::MeshWorker::IntegrationInfoBox<dim> >
-      // 	( dof_handler.begin_active(), dof_handler.end(),
-      // 	  dof_info, info_box,
-      // 	  nullptr, nullptr, nullptr,
-      // 	  rhs_assembler );
-
       //      rhs.print(std::cout);
     }
 }
@@ -148,6 +127,11 @@ static void CustomArguments(benchmark::internal::Benchmark* b) {
 BENCHMARK(mw_constrhs)
 ->Threads(1)
 ->ArgPair(7,1)
+->ArgPair(7,2)
+->ArgPair(7,4)
+->ArgPair(8,1)
+->ArgPair(8,2)
+->ArgPair(8,4)
 //->Apply(CustomArguments)
 ->UseRealTime();
 
