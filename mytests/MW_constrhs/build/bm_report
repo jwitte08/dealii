@@ -1,0 +1,21 @@
+Run on (160 X 1064 MHz CPU s)
+2016-04-25 20:24:05
+***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+Benchmark                               Time(ns)    CPU(ns) Iterations
+----------------------------------------------------------------------
+mw_constrhs/6/1/real_time/threads:1     18539513   18602974         38                                 
+mw_constrhs/6/2/real_time/threads:1     12356460   24291842         57                                 
+mw_constrhs/6/3/real_time/threads:1      9809085   27836966         89                                 
+mw_constrhs/6/4/real_time/threads:1      9404713   34507603         73                                 
+mw_constrhs/6/6/real_time/threads:1      9793264   51474864         81                                 
+mw_constrhs/8/1/real_time/threads:1    290423318  290574500          2                                 
+mw_constrhs/8/2/real_time/threads:1    174251438  347884500          4                                 
+mw_constrhs/8/3/real_time/threads:1    146323823  437393600          5                                 
+mw_constrhs/8/4/real_time/threads:1    106897672  423419571          7                                 
+mw_constrhs/8/6/real_time/threads:1     97491396  574198500         10                                 
+mw_constrhs/8/8/real_time/threads:1     93790884  716951429          7                                 
+mw_constrhs/10/4/real_time/threads:1  1575375961 6238062000          1                                 
+mw_constrhs/10/6/real_time/threads:1  2011807334 11846444000          1                                 
+mw_constrhs/10/8/real_time/threads:1  1546523340 11956950000          1                                 
+mw_constrhs/10/10/real_time/threads:1 1531202116 14544770000          1                                 
+mw_constrhs/10/12/real_time/threads:1 1230447534 14101739000          1                                 
