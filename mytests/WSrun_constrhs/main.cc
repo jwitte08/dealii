@@ -31,8 +31,7 @@
 // 				   f);
 // }
 
-// RHS INTEGRATOR                                                                                                                     
-  
+// RHS INTEGRATOR                                                                                                                    
 template <int dim>
 class RHSIntegrator final : public dealii::MeshWorker::LocalIntegrator<dim>
 {
@@ -43,8 +42,7 @@ class RHSIntegrator final : public dealii::MeshWorker::LocalIntegrator<dim>
   void cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info) const override;
 };
 
-// IMPLEMENTATION: RHS_INTEGRATOR                                                                                                      
-
+// IMPLEMENTATION: RHS_INTEGRATOR                                                                                                    
 template <int dim>
 void RHSIntegrator<dim>::cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info) const
 {
@@ -56,9 +54,9 @@ void RHSIntegrator<dim>::cell(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename 
 }
 
 // MAIN
-void mw_constrhs (benchmark::State &state)
+void mw_constrhs(benchmark::State &state)
 {
-  dealii::MultithreadInfo::set_thread_limit (state.range_y());
+  dealii::MultithreadInfo::set_thread_limit (state.range_y());  
   const unsigned int dim = 2;
   const unsigned int degree = 1;
 
@@ -119,20 +117,20 @@ void mw_constrhs (benchmark::State &state)
       dealii::WorkStream::run(dof_handler.begin_active(), dof_handler.end(),
       			      std::bind(&dealii::MeshWorker::cell_action<INFOBOX,DOFINFO,dim,dim,ITERATOR>,
       					std::placeholders::_1,  std::placeholders::_3,  std::placeholders::_2,
-					[&rhs_integrator](DOFINFO& dinfo, dealii::MeshWorker::IntegrationInfo<dim,dim>& info)
-					{rhs_integrator.cell(dinfo,info);},
-					nullptr, nullptr, lctrl),
+      					[&rhs_integrator](DOFINFO& dinfo, dealii::MeshWorker::IntegrationInfo<dim,dim>& info)
+      					{rhs_integrator.cell(dinfo,info);},
+      					nullptr, nullptr, lctrl),
       			      std::bind(&dealii::internal::assemble<dim,DOFINFO,ASSEMBLER>, std::placeholders::_1, &rhs_assembler),
       			      info_box, dinfo_box) ;
 #else
-      for (ITERATOR cell = begin; cell != end; ++cell)
-        {
-	  dealii::WorkStream::cell_action<INFOBOX,DOFINFO,dim,spacedim>(cell,
-									dinfo_box, info_box,
-									ccell_worker, nullptr, nullptr,
-									lctrl);
-          dinfo_box.assemble(assembler);
-        }
+      // for (ITERATOR cell = begin; cell != end; ++cell)
+      //   {
+      // 	  dealii::WorkStream::cell_action<INFOBOX,DOFINFO,dim,spacedim>(cell,
+      // 									dinfo_box, info_box,
+      // 									nullptr, nullptr, nullptr,
+      // 									lctrl);
+      //     dinfo_box.assemble(assembler);
+      //   }
 #endif
       //      rhs.print(std::cout);
     }

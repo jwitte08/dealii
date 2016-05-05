@@ -8,7 +8,7 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 PROJECT(wsrun_constrhs)
 
-include_directories(/mnt/data/jwitte/mybenchmark/install/include)
+include_directories($ENV{MYBENCHMARK_DIR}/include)
 
 find_package(Threads REQUIRED)
 
@@ -17,7 +17,7 @@ ADD_EXECUTABLE(wsrun_constrhs main.cc)
 ADD_LIBRARY(benchmark STATIC IMPORTED)
 SET_TARGET_PROPERTIES(benchmark PROPERTIES
   IMPORTED_LOCATION
-  /mnt/data/jwitte/mybenchmark/install/lib/libbenchmark.a)
+  $ENV{MYBENCHMARK_DIR}/lib/libbenchmark.a)
 target_link_libraries(wsrun_constrhs benchmark ${CMAKE_THREAD_LIBS_INIT})
 
 DEAL_II_SETUP_TARGET(wsrun_constrhs)
