@@ -34,7 +34,7 @@
 #include <memory>
 
 //benchmark
-#include <benchmark/benchmark_api.h>
+#include "/home/jwitte/mybenchmark/install/include/benchmark/benchmark_api.h"
 
 //c++
 #include <iostream>
@@ -283,88 +283,40 @@ namespace WorkStream
       };
     } // end namespace Implementation3
   } // end namespace internal
+} // end namespace WorkStream
 
-  // Implementation 3:                                                                                                               
-  template <typename Worker,
-	    typename Copier,
-	    typename Iterator,
-	    typename ScratchData,
-	    typename CopyData>
-  void
-  run (const std::vector<std::vector<Iterator> > &colored_iterators,
-       Worker                                     worker,
-       Copier                                     copier,
-       const ScratchData                         &sample_scratch_data,
-       const CopyData                            &sample_copy_data,
-       const unsigned int                         queue_length,
-       const unsigned int                         chunk_size)
+// CellWorkerAndCopier
+template <typename INTEGRATOR,
+	  typename ITERATOR,
+	  typename SDATA,
+	  typename CDATA>
+class CellWorkerAndCopier
+{
+public:
+  CellWorkerAndCopier (const SDATA  &sample_scratch_data_,
+		       const CDATA  &sample_copy_data_)
+    :
+    sample_scratch_data (sample_scratch_data_),
+    sample_copy_data (sample_copy_data_)
+  {}
+
+  void operator() (const tbb::blocked_range<typename std::vector<ITERATOR>::const_iterator> &range) const
   {
-    Assert (queue_length > 0,
-	    ExcMessage ("The queue length must be at least one, and preferably "
-			"larger than the number of processors on this system."));
- 
-   (void)queue_length; // removes -Wunused-parameter warning in optimized mode                                                       
-    Assert (chunk_size > 0,
-	    ExcMessage ("The chunk_size must be at least one."));
-    (void)chunk_size; // removes -Wunused-parameter warning in optimized mode                                                        
-
-    // we want to use TBB if we have support and if it is not disabled at                                                            
-    // runtime:                                                                                                                      
-#ifdef DEAL_II_WITH_THREADS
-    if (MultithreadInfo::n_threads()==1)
-#endif
-      {
-	// need to copy the sample since it is marked const                                                                          
-	ScratchData scratch_data = sample_scratch_data;
-	CopyData    copy_data    = sample_copy_data;
-
-	for (unsigned int color=0; color<colored_iterators.size(); ++color)
-	  for (typename std::vector<Iterator>::const_iterator p = colored_iterators[color].begin();
-	       p != colored_iterators[color].end(); ++p)
-	    {
-	      // need to check if the function is not the zero function. To                                                          
-	      // check zero-ness, create a C++ function out of it and check that                                                     
-	      if (static_cast<const std_cxx11::function<void (const Iterator &,
-							      ScratchData &,
-							      CopyData &)>& >(worker))
-		worker (*p, scratch_data, copy_data);
-	      if (static_cast<const std_cxx11::function<void (const CopyData &)>& >(copier))
-		copier (copy_data);
-	    }
-      }
-#ifdef DEAL_II_WITH_THREADS
-    else // have TBB and use more than one thread                                                                                    
-      {
-	// loop over the various colors of what we're given                                                                          
-	for (unsigned int color=0; color<colored_iterators.size(); ++color)
-	  if (colored_iterators[color].size() > 0)
-	    {
-              typedef
-		internal::Implementation3::WorkerAndCopier<Iterator,ScratchData,CopyData>
-		WorkerAndCopier;
-
-              typedef
-		typename std::vector<Iterator>::const_iterator
-		RangeType;
-
-              WorkerAndCopier worker_and_copier (worker,
-                                                 copier,
-                                                 sample_scratch_data,
-                                                 sample_copy_data);
-
-	      tbb::parallel_for (tbb::blocked_range<RangeType>
-                                 (colored_iterators[color].begin(),
-                                  colored_iterators[color].end(),
-                                  /*grain_size=*/chunk_size),
-                                 std_cxx11::bind (&WorkerAndCopier::operator(),
-                                                  std_cxx11::ref(worker_and_copier),
-                                                  std_cxx11::_1),
-                                 tbb::auto_partitioner());
-	    }
-      }
-#endif
+    
   }
-}
+private:
+  typedef
+  typename WorkStream::internal::Implementation3::ScratchAndCopyDataObjects<ITERATOR,SDATA,CDATA>
+  ScratchAndCopyDataObjects;
+
+  typedef std::list<ScratchAndCopyDataObjects> ScratchAndCopyDataList;
+
+  dealii::Threads::ThreadLocalStorage<ScratchAndCopyDataList> data;
+  
+  const SDATA   &sample_scratch_data;
+  const CDATA   &sample_copy_data;
+  const INTEGRATOR integrator;
+};
 
 // MAIN
 void mw_constrhs(benchmark::State &state)
@@ -464,6 +416,11 @@ void mw_constrhs(benchmark::State &state)
       const CopyData& sample_copy_data = dinfo_box;
       const unsigned int  queue_length = 2 * dealii::MultithreadInfo::n_threads();
       const unsigned int  chunk_size = 8;
+
+      // NEW... templated::run
+      
+      CellWorkerAndCopier<RHSIntegrator<dim>,ITERATOR,ScratchData,CopyData> cellworker_and_copier{sample_scratch_data,sample_copy_data};
+
 
       {
 	Assert (queue_length > 0,
