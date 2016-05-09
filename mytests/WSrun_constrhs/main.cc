@@ -285,97 +285,122 @@ template <typename INTEGRATOR,
 class CellWorkerAndCopier
 {
 public:
-  CellWorkerAndCopier (ASSEMBLER  &assembler, 
+  CellWorkerAndCopier (ASSEMBLER  &assembler_, 
 		       const SDATA  &sample_scratch_data_,
 		       const dealii::MeshWorker::DoFInfoBox<dim,DOFINFO>  &sample_copy_data_)
     :
+    assembler(assembler_),
     sample_scratch_data (sample_scratch_data_),
     sample_copy_data (sample_copy_data_)
   {}
-
-  void operator() (const tbb::blocked_range<typename std::vector<ITERATOR>::const_iterator> &range) const
+  
+  void operator() (const tbb::blocked_range<typename std::vector<ITERATOR>::const_iterator> &range)
   {
-	  // // we need to find an unused scratch and corresponding copy                                                                
-	  // // data object in the list that corresponds to the current                                                                 
-	  // // thread and then mark it as used. If we can't find one,                                                                  
-	  // // create one as discussed in the discussion of the documentation                                                          
-	  // // of the IteratorRangeToItemStream::scratch_data variable,                                                                
-	  // // there is no need to synchronize access to this variable                                                                 
-	  // // using a mutex as long as we have no yield-point in between.                                                             
-	  // // This means that we can't take an iterator into the list                                                                 
-	  // // now and expect it to still be valid after calling the worker,                                                           
-	  // // but we at least do not have to lock the following section.                                                              
+    // we need to find an unused scratch and corresponding copy                                                                
+    // data object in the list that corresponds to the current                                                                 
+    // thread and then mark it as used. If we can't find one,                                                                  
+    // create one as discussed in the discussion of the documentation                                                          
+    // of the IteratorRangeToItemStream::scratch_data variable,                                                                
+    // there is no need to synchronize access to this variable                                                                 
+    // using a mutex as long as we have no yield-point in between.                                                             
+    // This means that we can't take an iterator into the list                                                                 
+    // now and expect it to still be valid after calling the worker,                                                           
+    // but we at least do not have to lock the following section.                                                              
  
-	  // ScratchData *scratch_data = 0;
-	  // CopyData    *copy_data    = 0;
-	  // {
-	  //   ScratchAndCopyDataList &scratch_and_copy_data_list = data.get();
+    SDATA    *scratch_data = 0;
+    CDATA    *copy_data    = 0;
+    {
+      ScratchAndCopyDataList &scratch_and_copy_data_list = data.get();
 
-	  //   // see if there is an unused object. if so, grab it and mark                                                             
-	  //   // it as used                                                                                                            
-	  //   for (typename ScratchAndCopyDataList::iterator
-	  // 	   p = scratch_and_copy_data_list.begin();
-	  // 	 p != scratch_and_copy_data_list.end(); ++p)
-	  //     if (p->currently_in_use == false)
-	  // 	{
-	  // 	  scratch_data = p->scratch_data.get();
-	  // 	  copy_data    = p->copy_data.get();
-	  // 	  p->currently_in_use = true;
-	  // 	  break;
-	  // 	}
+      // see if there is an unused object. if so, grab it and mark                                                             
+      // it as used                                                                                                            
+      for (typename ScratchAndCopyDataList::iterator
+	     p = scratch_and_copy_data_list.begin();
+	   p != scratch_and_copy_data_list.end(); ++p)
+	if (p->currently_in_use == false)
+	  {
+	    scratch_data = p->scratch_data.get();
+	    copy_data    = p->copy_data.get();
+	    p->currently_in_use = true;
+	    break;
+	  }
 
-	  //   // if no element in the list was found, create one and mark it as used                                                   
-	  //   if (scratch_data == 0)
-	  //     {
-	  // 	Assert (copy_data==0, ExcInternalError());
-	  // 	scratch_data = new ScratchData(sample_scratch_data);
-	  // 	copy_data    = new CopyData(sample_copy_data);
+      // if no element in the list was found, create one and mark it as used                                                   
+      if (scratch_data == 0)
+	{
+	  Assert (copy_data==0, ExcInternalError());
+	  scratch_data = new SDATA(sample_scratch_data);
+	  copy_data    = new CDATA(sample_copy_data);
+	  
+	  typename ScratchAndCopyDataList::value_type
+	    new_scratch_object (scratch_data, copy_data, true);
+	  scratch_and_copy_data_list.push_back (new_scratch_object);
+	}
+    }
+    
+    // then call the worker and copier functions on each                                                                       
+    // element of the chunk we were given.                                                                                     
+    for (typename std::vector<ITERATOR>::const_iterator p=range.begin();
+	 p != range.end(); ++p)
+      {
+	try
+	  {
+	    const bool ignore_subdomain = ((*p)->get_triangulation().locally_owned_subdomain()
+					   == dealii::numbers::invalid_subdomain_id);
+	    
+	    dealii::types::subdomain_id csid = ((*p)->is_level_cell())
+	      ? (*p)->level_subdomain_id()
+	      : (*p)->subdomain_id();
+	    
+	    const bool own_cell = ignore_subdomain || (csid == (*p)->get_triangulation().locally_owned_subdomain());
+	    
+	    copy_data->reset();
 
-	  // 	typename ScratchAndCopyDataList::value_type
-	  // 	  new_scratch_object (scratch_data, copy_data, true);
-	  // 	scratch_and_copy_data_list.push_back (new_scratch_object);
-	  //     }
-	  // }
+	    if ((!ignore_subdomain) && (csid == dealii::numbers::artificial_subdomain_id))
+	      return;
+	    
+	    copy_data->cell.reinit(*p);
+	    copy_data->cell_valid = true;
+	    
+	    const bool integrate_cell          = true;
 
-	  // // then call the worker and copier functions on each                                                                       
-	  // // element of the chunk we were given.                                                                                     
-	  // for (typename std::vector<Iterator>::const_iterator p=range.begin();
-	  //      p != range.end(); ++p)
-	  //   {
-	  //     try
-	  // 	{
-	  // 	  if (worker)
-	  // 	    worker (*p,
-	  // 		    *scratch_data,
-	  // 		    *copy_data);
-	  // 	  if (copier)
-	  // 	    copier (*copy_data);
-	  // 	}
-	  //     catch (const std::exception &exc)
-	  // 	{
-	  // 	  Threads::internal::handle_std_exception (exc);
-	  // 	}
-	  //     catch (...)
-	  // 	{
-	  // 	  Threads::internal::handle_unknown_exception ();
-	  // 	}
-	  //   }
+	    if (integrate_cell)
+	      scratch_data->cell.reinit(copy_data->cell);
+	    // Execute this, if cells
+	    // have to be dealt with
+	    // before faces
+	    if (integrate_cell && loop_control.cells_first &&
+		((loop_control.own_cells && own_cell) || (loop_control.ghost_cells && !own_cell)))
+	      integrator.cell(copy_data->cell, scratch_data->cell);
+	    
+	    //copier
+	    assembler.assemble(copy_data->cell);
+	  }
+	catch (const std::exception &exc)
+	  {
+	    dealii::Threads::internal::handle_std_exception (exc);
+	  }
+	catch (...)
+	  {
+	    dealii::Threads::internal::handle_unknown_exception ();
+	  }
+      }
 
-	  // // finally mark the scratch object as unused again. as above, there                                                        
-	  // // is no need to lock anything here since the object we work on                                                            
-	  // // is thread-local                                                                                                         
-	  // {
-	  //   ScratchAndCopyDataList &scratch_and_copy_data_list = data.get();
+    // finally mark the scratch object as unused again. as above, there                                                        
+    // is no need to lock anything here since the object we work on                                                            
+    // is thread-local                                                                                                         
+    {
+      ScratchAndCopyDataList &scratch_and_copy_data_list = data.get();
 
-	  //   for (typename ScratchAndCopyDataList::iterator p =
-	  // 	   scratch_and_copy_data_list.begin(); p != scratch_and_copy_data_list.end();
-	  // 	 ++p)
-	  //     if (p->scratch_data.get() == scratch_data)
-	  // 	{
-	  // 	  Assert(p->currently_in_use == true, ExcInternalError());
-	  // 	  p->currently_in_use = false;
-	  // 	}
-	  // }
+      for (typename ScratchAndCopyDataList::iterator p =
+	     scratch_and_copy_data_list.begin(); p != scratch_and_copy_data_list.end();
+	   ++p)
+	if (p->scratch_data.get() == scratch_data)
+	  {
+	    Assert(p->currently_in_use == true, ExcInternalError());
+	    p->currently_in_use = false;
+	  }
+    }
     
   }
 private:
@@ -393,6 +418,7 @@ private:
   ASSEMBLER  &assembler;
   const SDATA  &sample_scratch_data;
   const CDATA  &sample_copy_data;
+  const dealii::MeshWorker::LoopControl loop_control;
 };
 
 // MAIN
@@ -495,16 +521,6 @@ void mw_constrhs(benchmark::State &state)
       const unsigned int  queue_length = 2 * dealii::MultithreadInfo::n_threads();
       const unsigned int  chunk_size = 8;
 
-      // NEW... templated::run
-      
-      CellWorkerAndCopier<INTEGRATOR,
-			  ASSEMBLER,
-			  DOFINFO,
-			  dim,
-			  ITERATOR,
-			  ScratchData>
-	cellworker_and_copier{sample_scratch_data,sample_copy_data};
-
       {
 	Assert (queue_length > 0,
 		ExcMessage ("The queue length must be at least one, and preferably "
@@ -547,27 +563,53 @@ void mw_constrhs(benchmark::State &state)
 	    for (unsigned int color=0; color<colored_iterators.size(); ++color)
 	      if (colored_iterators[color].size() > 0)
 		{
-              typedef
-		WorkStream::internal::Implementation3::WorkerAndCopier<Iterator,ScratchData,CopyData>
-		WorkerAndCopier;
+		  // NEW... 
+		  
+		  CellWorkerAndCopier<INTEGRATOR,
+				      ASSEMBLER,
+				      DOFINFO,
+				      dim,
+				      ITERATOR,
+				      ScratchData>
+		    cellworker_and_copier{rhs_assembler,sample_scratch_data,sample_copy_data};
+		  
+		  typedef
+		    typename std::vector<Iterator>::const_iterator
+		    RangeType;
+		  
+		  tbb::parallel_for (tbb::blocked_range<RangeType>
+		  		     (colored_iterators[color].begin(),
+		  		      colored_iterators[color].end(),
+		  		      /*grain_size=*/chunk_size),
+				     /*cellworker_and_copier*/
+		  		     dealii::std_cxx11::bind (&CellWorkerAndCopier<INTEGRATOR,
+							      ASSEMBLER,DOFINFO,dim,ITERATOR,ScratchData>::operator(),
+							      dealii::std_cxx11::ref(cellworker_and_copier),
+							      dealii::std_cxx11::_1),
+		  		     tbb::auto_partitioner());
+		  
+		  // OLD...
+		  // typedef
+		  //   WorkStream::internal::Implementation3::WorkerAndCopier<Iterator,ScratchData,CopyData>
+		  //   WorkerAndCopier;
 
-              typedef
-		typename std::vector<Iterator>::const_iterator
-		RangeType;
+		  // typedef
+		  //   typename std::vector<Iterator>::const_iterator
+		  //   RangeType;
+		  
+		  // WorkerAndCopier worker_and_copier (worker,
+		  // 				     copier,
+		  // 				     sample_scratch_data,
+		  // 				     sample_copy_data);
 
-              WorkerAndCopier worker_and_copier (worker,
-                                                 copier,
-                                                 sample_scratch_data,
-                                                 sample_copy_data);
-
-	      tbb::parallel_for (tbb::blocked_range<RangeType>
-                                 (colored_iterators[color].begin(),
-                                  colored_iterators[color].end(),
-                                  /*grain_size=*/chunk_size),
-                                 dealii::std_cxx11::bind (&WorkerAndCopier::operator(),
-							  dealii::std_cxx11::ref(worker_and_copier),
-							  dealii::std_cxx11::_1),
-                                 tbb::auto_partitioner());
+		  // tbb::parallel_for (tbb::blocked_range<RangeType>
+		  // 		     (colored_iterators[color].begin(),
+		  // 		      colored_iterators[color].end(),
+		  // 		      /*grain_size=*/chunk_size),
+		  // 		     dealii::std_cxx11::bind (&WorkerAndCopier::operator(),
+		  // 					      dealii::std_cxx11::ref(worker_and_copier),
+		  // 					      dealii::std_cxx11::_1),
+		  // 		     tbb::auto_partitioner());
 		}
 	  }
 #endif
@@ -585,7 +627,7 @@ void mw_constrhs(benchmark::State &state)
 #endif
       //output
       //rhs.print(std::cout);
-      //std::cout << rhs[0] << std::endl;
+      std::cout << rhs[0] << " " << rhs[rhs.size()-1] << std::endl;
     }
 }
 
