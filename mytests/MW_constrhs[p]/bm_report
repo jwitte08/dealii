@@ -1,0 +1,25 @@
+######################### BM_TEST02 #########################
+Description:
+"parallel assembling but still using std::functions"
+- 11x refined unit square
+- THREAD_LIMIT = 4
+- measured in real time
+- 1 thread starts BENCHMARK_MAIN
+
+jwitte@simserv02:/mnt/data/jwitte/mydealii/source/mytests/MW_constrhs[p]/build$ ./mw_constrhs --benchmark_repetitions=10 --benchmark_min_time=25
+Run on (160 X 2395 MHz CPU s)
+2016-05-09 11:29:31
+Benchmark                                     Time(ns)    CPU(ns) Iterations
+----------------------------------------------------------------------------
+mw_constrhs/11/4/real_time/threads:1        2553231580 10168906000         14                                 
+mw_constrhs/11/4/real_time/threads:1        2815889427 11182373429         14                                 
+mw_constrhs/11/4/real_time/threads:1        3016260062 11990659857         14                                 
+mw_constrhs/11/4/real_time/threads:1        2921995146 11576918714         14                                 
+mw_constrhs/11/4/real_time/threads:1        1951767359 7747418714         14                                 
+mw_constrhs/11/4/real_time/threads:1        1929539204 7675336429         14                                 
+mw_constrhs/11/4/real_time/threads:1        3003288797 11976835143         14                                 
+mw_constrhs/11/4/real_time/threads:1        2119561860 8435977786         14                                 
+mw_constrhs/11/4/real_time/threads:1        2622400216 10425949357         14                                 
+mw_constrhs/11/4/real_time/threads:1        2334695356 9263896429         14                                 
+mw_constrhs/11/4/real_time/threads:1_mean   2526862901 10044427186         14                                 
+mw_constrhs/11/4/real_time/threads:1_stddev  400790807 1594104917          0    

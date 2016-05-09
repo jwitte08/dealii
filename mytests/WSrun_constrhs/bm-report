@@ -1,45 +1,26 @@
-######################### BM_TEST01 #########################
+######################### BM_TEST02 #########################
+Description:
+"parallel assembling but still using std::functions"
+- 11x refined unit square
+- THREAD_LIMIT = 4
+- measured in real time
+- 1 thread starts BENCHMARK_MAIN
 
-julius@jwitte:~/mydealii/source/mytests/WSrun_constrhs/build$ ./wsrun_constrhs --benchmark_repetitions=10 --benchmark_min_time=20 --v=9
--- LOG(1): Reading /proc/self/cputime_ns failed. Using getrusage().
--- LOG(1): Using std::chrono to provide walltime::Now().
-Run on (4 X 799.968 MHz CPU s)
-2016-05-04 00:34:42
-***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
+Results:
+jwitte@simserv02:/mnt/data/jwitte/mydealii/source/mytests/WSrun_constrhs/build$ ./wsrun_constrhs --benchmark_repetitions=10 --benchmark_min_time=25
+Run on (160 X 2395 MHz CPU s)
+2016-05-09 10:14:07
 Benchmark                                     Time(ns)    CPU(ns) Iterations
 ----------------------------------------------------------------------------
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 1
--- LOG(2): Ran in 7.12/2.03549
--- LOG(3): Next iters: 13.7559, 13.7559
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 101.964/25.5459
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 102.524/25.9708
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 101.664/25.5618
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 101.876/25.5861
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 102.028/25.5965
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 102.024/25.6472
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 101.952/25.5845
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 101.924/25.5662
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 101.732/25.5342
--- LOG(2): Running mw_constrhs/11/4/real_time/threads:1 for 14
--- LOG(2): Ran in 102.46/25.753
-mw_constrhs/11/4/real_time/threads:1        1824704042 7283142857         14                                 
-mw_constrhs/11/4/real_time/threads:1        1855057202 7323142857         14                                 
-mw_constrhs/11/4/real_time/threads:1        1825841269 7261714286         14                                 
-mw_constrhs/11/4/real_time/threads:1        1827579145 7276857143         14                                 
-mw_constrhs/11/4/real_time/threads:1        1828321651 7287714286         14                                 
-mw_constrhs/11/4/real_time/threads:1        1831941916 7287428571         14                                 
-mw_constrhs/11/4/real_time/threads:1        1827465912 7282285714         14                                 
-mw_constrhs/11/4/real_time/threads:1        1826159621 7280285714         14                                 
-mw_constrhs/11/4/real_time/threads:1        1823868474 7266571429         14                                 
-mw_constrhs/11/4/real_time/threads:1        1839501600 7318571429         14                                 
-mw_constrhs/11/4/real_time/threads:1_mean   1831044083 7286771429         14                                 
-mw_constrhs/11/4/real_time/threads:1_stddev    9076338   18828138          0 
+mw_constrhs/11/4/real_time/threads:1        1142506345 4065527690         29                                 
+mw_constrhs/11/4/real_time/threads:1        1170585558 4184228276         29                                 
+mw_constrhs/11/4/real_time/threads:1        1241748793 4442464172         29                                 
+mw_constrhs/11/4/real_time/threads:1        1216310419 4349431517         29                                 
+mw_constrhs/11/4/real_time/threads:1        1219112141 4357028448         29                                 
+mw_constrhs/11/4/real_time/threads:1        1139785446 4063688517         29                                 
+mw_constrhs/11/4/real_time/threads:1        1210114865 4336307207         29                                 
+mw_constrhs/11/4/real_time/threads:1        1130540248 4031522828         29                                 
+mw_constrhs/11/4/real_time/threads:1        1155738165 4114887000         29                                 
+mw_constrhs/11/4/real_time/threads:1        1213190868 4318562379         29                                 
+mw_constrhs/11/4/real_time/threads:1_mean   1183963285 4226364803         29                                 
+mw_constrhs/11/4/real_time/threads:1_stddev   38287207  142829759          0  

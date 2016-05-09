@@ -34,23 +34,13 @@
 #include <memory>
 
 //benchmark
-#include "/home/jwitte/mybenchmark/install/include/benchmark/benchmark_api.h"
+#include <benchmark/benchmark_api.h>
 
 //c++
 #include <iostream>
 #include <vector>
 #include <cstdio>
 #include <functional>
-
-// template <int dim>
-// void cell_worker(dealii::MeshWorker::DoFInfo<dim> &dinfo, typename dealii::MeshWorker::IntegrationInfo<dim> &info)
-// {
-//   std::vector<double> f;
-//   f.resize(info.fe_values(0).n_quadrature_points,1.);
-//   dealii::LocalIntegrators::L2::L2(dinfo.vector(0).block(0),
-// 				   info.fe_values(0),
-// 				   f);
-// }
 
 // RHS INTEGRATOR                                                                                                                    
 template <int dim>
@@ -287,14 +277,17 @@ namespace WorkStream
 
 // CellWorkerAndCopier
 template <typename INTEGRATOR,
+	  typename ASSEMBLER,
+	  typename DOFINFO,
+	  int dim,
 	  typename ITERATOR,
-	  typename SDATA,
-	  typename CDATA>
+	  typename SDATA>
 class CellWorkerAndCopier
 {
 public:
-  CellWorkerAndCopier (const SDATA  &sample_scratch_data_,
-		       const CDATA  &sample_copy_data_)
+  CellWorkerAndCopier (ASSEMBLER  &assembler, 
+		       const SDATA  &sample_scratch_data_,
+		       const dealii::MeshWorker::DoFInfoBox<dim,DOFINFO>  &sample_copy_data_)
     :
     sample_scratch_data (sample_scratch_data_),
     sample_copy_data (sample_copy_data_)
@@ -302,9 +295,92 @@ public:
 
   void operator() (const tbb::blocked_range<typename std::vector<ITERATOR>::const_iterator> &range) const
   {
+	  // // we need to find an unused scratch and corresponding copy                                                                
+	  // // data object in the list that corresponds to the current                                                                 
+	  // // thread and then mark it as used. If we can't find one,                                                                  
+	  // // create one as discussed in the discussion of the documentation                                                          
+	  // // of the IteratorRangeToItemStream::scratch_data variable,                                                                
+	  // // there is no need to synchronize access to this variable                                                                 
+	  // // using a mutex as long as we have no yield-point in between.                                                             
+	  // // This means that we can't take an iterator into the list                                                                 
+	  // // now and expect it to still be valid after calling the worker,                                                           
+	  // // but we at least do not have to lock the following section.                                                              
+ 
+	  // ScratchData *scratch_data = 0;
+	  // CopyData    *copy_data    = 0;
+	  // {
+	  //   ScratchAndCopyDataList &scratch_and_copy_data_list = data.get();
+
+	  //   // see if there is an unused object. if so, grab it and mark                                                             
+	  //   // it as used                                                                                                            
+	  //   for (typename ScratchAndCopyDataList::iterator
+	  // 	   p = scratch_and_copy_data_list.begin();
+	  // 	 p != scratch_and_copy_data_list.end(); ++p)
+	  //     if (p->currently_in_use == false)
+	  // 	{
+	  // 	  scratch_data = p->scratch_data.get();
+	  // 	  copy_data    = p->copy_data.get();
+	  // 	  p->currently_in_use = true;
+	  // 	  break;
+	  // 	}
+
+	  //   // if no element in the list was found, create one and mark it as used                                                   
+	  //   if (scratch_data == 0)
+	  //     {
+	  // 	Assert (copy_data==0, ExcInternalError());
+	  // 	scratch_data = new ScratchData(sample_scratch_data);
+	  // 	copy_data    = new CopyData(sample_copy_data);
+
+	  // 	typename ScratchAndCopyDataList::value_type
+	  // 	  new_scratch_object (scratch_data, copy_data, true);
+	  // 	scratch_and_copy_data_list.push_back (new_scratch_object);
+	  //     }
+	  // }
+
+	  // // then call the worker and copier functions on each                                                                       
+	  // // element of the chunk we were given.                                                                                     
+	  // for (typename std::vector<Iterator>::const_iterator p=range.begin();
+	  //      p != range.end(); ++p)
+	  //   {
+	  //     try
+	  // 	{
+	  // 	  if (worker)
+	  // 	    worker (*p,
+	  // 		    *scratch_data,
+	  // 		    *copy_data);
+	  // 	  if (copier)
+	  // 	    copier (*copy_data);
+	  // 	}
+	  //     catch (const std::exception &exc)
+	  // 	{
+	  // 	  Threads::internal::handle_std_exception (exc);
+	  // 	}
+	  //     catch (...)
+	  // 	{
+	  // 	  Threads::internal::handle_unknown_exception ();
+	  // 	}
+	  //   }
+
+	  // // finally mark the scratch object as unused again. as above, there                                                        
+	  // // is no need to lock anything here since the object we work on                                                            
+	  // // is thread-local                                                                                                         
+	  // {
+	  //   ScratchAndCopyDataList &scratch_and_copy_data_list = data.get();
+
+	  //   for (typename ScratchAndCopyDataList::iterator p =
+	  // 	   scratch_and_copy_data_list.begin(); p != scratch_and_copy_data_list.end();
+	  // 	 ++p)
+	  //     if (p->scratch_data.get() == scratch_data)
+	  // 	{
+	  // 	  Assert(p->currently_in_use == true, ExcInternalError());
+	  // 	  p->currently_in_use = false;
+	  // 	}
+	  // }
     
   }
 private:
+  typedef typename dealii::MeshWorker::DoFInfoBox<dim,DOFINFO> CDATA;
+ 
   typedef
   typename WorkStream::internal::Implementation3::ScratchAndCopyDataObjects<ITERATOR,SDATA,CDATA>
   ScratchAndCopyDataObjects;
@@ -313,9 +389,10 @@ private:
 
   dealii::Threads::ThreadLocalStorage<ScratchAndCopyDataList> data;
   
-  const SDATA   &sample_scratch_data;
-  const CDATA   &sample_copy_data;
-  const INTEGRATOR integrator;
+  const INTEGRATOR  integrator;
+  ASSEMBLER  &assembler;
+  const SDATA  &sample_scratch_data;
+  const CDATA  &sample_copy_data;
 };
 
 // MAIN
@@ -360,6 +437,7 @@ void mw_constrhs(benchmark::State &state)
       typedef dealii::MeshWorker::IntegrationInfoBox<dim> INFOBOX ;
       typedef dealii::MeshWorker::Assembler::ResidualSimple<dealii::Vector<double> > ASSEMBLER ;
       typedef typename dealii::DoFHandler<dim>::active_cell_iterator ITERATOR ;
+      typedef RHSIntegrator<dim> INTEGRATOR;
 
       // ITERATOR begin{dof_handler.begin_active()} ;
       // typename dealii::identity<ITERATOR>::type end{dof_handler.end()};
@@ -419,8 +497,13 @@ void mw_constrhs(benchmark::State &state)
 
       // NEW... templated::run
       
-      CellWorkerAndCopier<RHSIntegrator<dim>,ITERATOR,ScratchData,CopyData> cellworker_and_copier{sample_scratch_data,sample_copy_data};
-
+      CellWorkerAndCopier<INTEGRATOR,
+			  ASSEMBLER,
+			  DOFINFO,
+			  dim,
+			  ITERATOR,
+			  ScratchData>
+	cellworker_and_copier{sample_scratch_data,sample_copy_data};
 
       {
 	Assert (queue_length > 0,
