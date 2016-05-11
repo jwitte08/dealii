@@ -1,0 +1,24 @@
+############################## BM_TEST01 ##############################
+#######################################################################
+
+descr:
+-11 refines
+-4 threads
+-"dealii::MeshWorker::loop() used with sequential assembling"
+
+results:
+jwitte@simserv02:/mnt/data/jwitte/mydealii/source/mytests/MyLoop/build$ ./myloop --benchmark_repetitions=8 --benchmark_min_time=25
+Run on (160 X 2395 MHz CPU s)
+2016-05-11 15:00:01
+Benchmark                                     Time(ns)    CPU(ns) Iterations
+----------------------------------------------------------------------------
+mw_constrhs/11/4/real_time/threads:1        10104394992 39793217667          3                                 
+mw_constrhs/11/4/real_time/threads:1        10242016713 40302642333          3                                 
+mw_constrhs/11/4/real_time/threads:1        10541756630 41511018000          3                                 
+mw_constrhs/11/4/real_time/threads:1        10344957352 40800321667          3                                 
+mw_constrhs/11/4/real_time/threads:1        10345109622 40739532333          3                                 
+mw_constrhs/11/4/real_time/threads:1        9887957017 38830542333          3                                 
+mw_constrhs/11/4/real_time/threads:1        10154859622 39807033667          3                                 
+mw_constrhs/11/4/real_time/threads:1        10396022638 40999453000          3                                 
+mw_constrhs/11/4/real_time/threads:1_mean   10252134323 40347970125          3                                 
+mw_constrhs/11/4/real_time/threads:1_stddev  189031149  793729915          0  

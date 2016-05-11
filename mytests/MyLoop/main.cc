@@ -108,7 +108,7 @@ void mw_constrhs(benchmark::State &state)
       dealii::AnyData dst_data;
       dst_data.add<dealii::Vector<double>* >(&dst, "dst");
       assembler.initialize(dst_data);
-      std::cout << "BEFORE:dst(10)=" << dst[10] << " ,src(10)=" << src[10] << std::endl;
+      //std::cout << "BEFORE:dst(10)=" << dst[10] << " ,src(10)=" << src[10] << std::endl;
 
       info_box.initialize(fe, mapping, src_data, src);
       
@@ -131,6 +131,8 @@ void mw_constrhs(benchmark::State &state)
 
       colored_loop<dim,dim,ITERATOR,DOFINFO,INFOBOX,ASSEMBLER>
       	(all_iterators,
+      // dealii::MeshWorker::loop<dim,dim,DOFINFO,INFOBOX,ASSEMBLER,ITERATOR>
+      // 	(dof_handler.begin_active(),dof_handler.end(),
       	 *dof_info, info_box,
 	 
 	 [](DOFINFO& dinfo, typename INFOBOX::CellInfo& info)

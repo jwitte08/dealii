@@ -1,0 +1,24 @@
+############################## BM_TEST01 ##############################
+#######################################################################
+
+descr:
+-11 refines
+-4 threads
+-"colored_loop() used without caring about any race conditions"
+
+results:
+jwitte@simserv02:/mnt/data/jwitte/mydealii/source/mytests/MyLoop/build$ ./myloop --benchmark_repetitions=8 --benchmark_min_time=25
+Run on (160 X 2395 MHz CPU s)
+2016-05-11 15:11:23
+Benchmark                                     Time(ns)    CPU(ns) Iterations
+----------------------------------------------------------------------------
+mw_constrhs/11/4/real_time/threads:1        7631354213 29793876250          4                                 
+mw_constrhs/11/4/real_time/threads:1        8306208014 32428621750          4                                 
+mw_constrhs/11/4/real_time/threads:1        8036550760 31287906000          4                                 
+mw_constrhs/11/4/real_time/threads:1        8265420496 32220237500          4                                 
+mw_constrhs/11/4/real_time/threads:1        7929898739 30921601500          4                                 
+mw_constrhs/11/4/real_time/threads:1        8160212517 31882472500          4                                 
+mw_constrhs/11/4/real_time/threads:1        7987475753 31233371500          4                                 
+mw_constrhs/11/4/real_time/threads:1        8041827500 31449073000          4                                 
+mw_constrhs/11/4/real_time/threads:1_mean   8044868499 31402145000          4                                 
+mw_constrhs/11/4/real_time/threads:1_stddev  199320796  775792504          0  
