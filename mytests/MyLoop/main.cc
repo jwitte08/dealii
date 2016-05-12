@@ -36,7 +36,7 @@ void colored_loop(const std::vector<std::vector<ITERATOR> > colored_iterators,
 		  ASSEMBLER  &assembler,
 		  const dealii::MeshWorker::LoopControl &lctrl = dealii::MeshWorker::LoopControl())
 {
-  dealii::MeshWorker::DoFInfoBox<dim, DOFINFO> dinfo_box(dof_info);
+   dealii::MeshWorker::DoFInfoBox<dim, DOFINFO> dinfo_box(dof_info);
 
   assembler.initialize_info(dinfo_box.cell, false);
   for (unsigned int i=0; i<dealii::GeometryInfo<dim>::faces_per_cell; ++i)
@@ -45,7 +45,7 @@ void colored_loop(const std::vector<std::vector<ITERATOR> > colored_iterators,
       assembler.initialize_info(dinfo_box.exterior[i], true);
     }
 
-  // Loop over all cells                                                                                                              
+  //  Loop over all cells                                                                                                              
 #ifdef DEAL_II_MESHWORKER_PARALLEL
   dealii::WorkStream::run(colored_iterators,
 			  dealii::std_cxx11::bind(&dealii::MeshWorker::cell_action<INFOBOX, DOFINFO, dim, spacedim, ITERATOR>,
@@ -53,16 +53,18 @@ void colored_loop(const std::vector<std::vector<ITERATOR> > colored_iterators,
 						  cell_worker, boundary_worker, face_worker, lctrl),
 			  dealii::std_cxx11::bind(&dealii::internal::assemble<dim,DOFINFO,ASSEMBLER>,
 						  dealii::std_cxx11::_1, &assembler),
-			  info, dinfo_box);
+			  info, dinfo_box,
+			  2,8);
 #else
-  // for (ITERATOR cell = begin; cell != end; ++cell)
-  //   {
-  //     cell_action<INFOBOX,DOFINFO,dim,spacedim>(cell, dinfo_box,
-  // 						info, cell_worker,
-  // 						boundary_worker, face_worker,
-  // 						lctrl);
-  //     dinfo_box.assemble(assembler);
-  //   }
+  for (unsigned int color=0; color<colored_iterators.size(); ++color)
+    for (typename std::vector<ITERATOR>::const_iterator p = colored_iterators[color].begin();
+	 p != colored_iterators[color].end(); ++p)
+      {
+	dealii::MeshWorker::cell_action<INFOBOX,DOFINFO,dim,spacedim>(*p, dinfo_box, info,
+								      cell_worker, boundary_worker, face_worker,
+								      lctrl);
+	dinfo_box.assemble(assembler);
+      }
 #endif
 }
 
@@ -73,13 +75,21 @@ void mw_constrhs(benchmark::State &state)
   const unsigned int dim = 2;
   const unsigned int degree = 1;
 
+ //template definitions
+  typedef dealii::MeshWorker::DoFInfo<dim> DOFINFO ;
+  typedef dealii::MeshWorker::IntegrationInfoBox<dim> INFOBOX ;
+  typedef dealii::MeshWorker::Assembler::ResidualSimple<dealii::Vector<double> > ASSEMBLER ;
+  typedef typename dealii::DoFHandler<dim>::active_cell_iterator ITERATOR ;
+  
   dealii::Triangulation<2> tr;
   const dealii::FE_DGQ<dim> fe{degree};
   dealii::DoFHandler<dim> dof_handler{tr};
   const dealii::MappingQ1<dim> mapping;
   
-  dealii::MeshWorker::IntegrationInfoBox<dim> info_box;
-  std::unique_ptr<dealii::MeshWorker::DoFInfo<dim> > dof_info;
+  INFOBOX info_box;
+  std::unique_ptr<DOFINFO> dof_info;
+  dealii::MeshWorker::LoopControl loop_control;
+  loop_control.own_faces = dealii::MeshWorker::LoopControl::one;
   
   dealii::GridGenerator::hyper_cube (tr,0.,1.);
   tr.refine_global(state.range_x());
@@ -89,11 +99,29 @@ void mw_constrhs(benchmark::State &state)
   dealii::UpdateFlags update_flags = dealii::update_JxW_values | dealii::update_quadrature_points 
     | dealii::update_values | dealii::update_gradients;
   info_box.add_update_flags(update_flags, true, true, true, true);
-  info_box.add_update_flags(update_flags, true, true, true, true);
   info_box.cell_selector.add("src", true, true, false);
   info_box.boundary_selector.add("src", true, true, false);
   info_box.face_selector.add("src", true, true, false);
 
+  // build_colored_iterators
+  ITERATOR begin{dof_handler.begin_active()} ;
+  typename dealii::identity<ITERATOR>::type end{dof_handler.end()};
+  
+  // only one color
+  std::vector<std::vector<ITERATOR> >  all_iterators(1);
+  for (ITERATOR p=begin; p!=end; ++p)
+    all_iterators[0].push_back(p);
+  
+  // two colors
+  std::vector<std::vector<ITERATOR> >  colored_iterators(2);
+  for (ITERATOR p=begin; p!=end; ++p)
+    {colored_iterators[0].push_back(p); ++p;}
+  for (ITERATOR p=begin; p!=end; ++p)
+    {++p; colored_iterators[1].push_back(p);}
+  //  std::cout << colored_iterators[0].size() + colored_iterators[1].size() << std::endl;
+  
+  // std::cout << "n_cells= " << tr.n_active_cells() << std::endl;
+  // std::cout << "n_dofs= " << dof_handler.n_dofs() << std::endl;
   while(state.KeepRunning())
     {
       dealii::Vector<double> src;
@@ -112,22 +140,7 @@ void mw_constrhs(benchmark::State &state)
 
       info_box.initialize(fe, mapping, src_data, src);
       
-      dof_info.reset(new dealii::MeshWorker::DoFInfo<dim> {dof_handler});
-      
-      //template definitions
-      typedef dealii::MeshWorker::DoFInfo<dim> DOFINFO ;
-      typedef dealii::MeshWorker::IntegrationInfoBox<dim> INFOBOX ;
-      typedef dealii::MeshWorker::Assembler::ResidualSimple<dealii::Vector<double> > ASSEMBLER ;
-      typedef typename dealii::DoFHandler<dim>::active_cell_iterator ITERATOR ;
-
-      // build_colored_iterators
-      ITERATOR begin{dof_handler.begin_active()} ;
-      typename dealii::identity<ITERATOR>::type end{dof_handler.end()};
-
-      // only one color
-      std::vector<std::vector<ITERATOR> >  all_iterators(1);
-      for (ITERATOR p=begin; p!=end; ++p)
-	all_iterators[0].push_back (p);
+      dof_info.reset(new DOFINFO{dof_handler});
 
       colored_loop<dim,dim,ITERATOR,DOFINFO,INFOBOX,ASSEMBLER>
       	(all_iterators,
@@ -136,26 +149,26 @@ void mw_constrhs(benchmark::State &state)
       	 *dof_info, info_box,
 	 
 	 [](DOFINFO& dinfo, typename INFOBOX::CellInfo& info)
-	 {dealii::LocalIntegrators::Laplace::cell_residual
+	 { dealii::LocalIntegrators::Laplace::cell_residual
 	     (dinfo.vector(0).block(0),info.fe_values(0),info.gradients[0][0]);},
-
+	 
 	 [](DOFINFO& dinfo, typename INFOBOX::CellInfo& info)
-	 {std::vector<double> bdry_data;
+	 { std::vector<double> bdry_data;
 	   bdry_data.resize(dinfo.vector(0).block(0).size(),0.);
 	   dealii::LocalIntegrators::Laplace::nitsche_residual
 	     (dinfo.vector(0).block(0), info.fe_values(0),info.values[0][0],info.gradients[0][0],bdry_data,
 	      dealii::LocalIntegrators::Laplace::compute_penalty(dinfo, dinfo, degree, degree));},
-
+	 
 	 [](DOFINFO& dinfo1, DOFINFO& dinfo2,
 	    typename INFOBOX::CellInfo& info1, typename INFOBOX::CellInfo& info2)
-	 {dealii::LocalIntegrators::Laplace::ip_residual
+	 { dealii::LocalIntegrators::Laplace::ip_residual
 	     (dinfo1.vector(0).block(0), dinfo2.vector(0).block(0),
 	      info1.fe_values(0), info2.fe_values(0),
-	      info1.values[0][0],info1.gradients[0][0],
-	      info2.values[0][0],info2.gradients[0][0],
+	      info1.values[0][0], info1.gradients[0][0],
+	      info2.values[0][0], info2.gradients[0][0],
 	      dealii::LocalIntegrators::Laplace::
 	      compute_penalty(dinfo1, dinfo2, degree, degree));},
-      	 assembler);
+      	 assembler, loop_control);
       
       //output
       //dst.print(std::cout);
@@ -165,7 +178,7 @@ void mw_constrhs(benchmark::State &state)
 
 BENCHMARK(mw_constrhs)
 ->Threads(1)
-->ArgPair(11,4)
+->ArgPair(9,2)
 ->UseRealTime();
 
 BENCHMARK_MAIN()
