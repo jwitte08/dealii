@@ -233,6 +233,11 @@ namespace internal
       AlignedVector<Number> hessians_within_subface[2];
 
       /**
+       * The one-dimensional quadrature formula underlying this object.
+       */
+      Quadrature<1> quadrature;
+
+      /**
        * Renumbering from deal.II's numbering of cell degrees of freedom to
        * lexicographic numbering used inside the FEEvaluation schemes of the
        * underlying element in the DoFHandler. For vector-valued elements, the
