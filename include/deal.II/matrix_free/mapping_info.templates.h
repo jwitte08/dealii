@@ -217,6 +217,7 @@ namespace internal
       face_data_by_cells.clear();
       cell_type.clear();
       face_type.clear();
+      mapping = nullptr;
     }
 
 
@@ -283,6 +284,7 @@ namespace internal
       const UpdateFlags update_flags_faces_by_cells)
     {
       clear();
+      this->mapping = &mapping;
 
       // Could call these functions in parallel, but not useful because the
       // work inside is nicely split up already
