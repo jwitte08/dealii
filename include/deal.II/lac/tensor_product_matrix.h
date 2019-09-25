@@ -74,6 +74,9 @@ template <int dim, typename Number, int size = -1>
 class TensorProductMatrixSymmetricSumBase
 {
 public:
+  using value_type                 = Number;
+  static constexpr int static_size = size;
+
   /**
    * Return the number of rows of the tensor product matrix
    * resulting from the Kronecker product of 1D matrices, which is described
