@@ -1310,6 +1310,22 @@ public:
                     const unsigned int dof_handler_index = 0) const;
 
   /**
+   * This returns the cell index in deal.II speak to a given cell in the
+   * renumbering of this structure.
+   *
+   * Note that the cell loop of this class works on an index set of
+   * so-called macro cells. This is because several cells in deal.II
+   * are gathered in a macro cell and worked on together
+   * (vectorization, here characterized by @p vector_number), and
+   * since cells with neighbors on different MPI processors need to be
+   * accessed at a certain time when accessing remote data and
+   * overlapping communication with computation.
+   */
+  int
+  get_cell_index(const unsigned int macro_cell_number,
+                 const unsigned int vector_number) const;
+
+  /**
    * This returns the cell iterator in deal.II speak to a given cell in the
    * renumbering of this structure. This function returns an exception in case
    * the structure was not constructed based on an hp::DoFHandler.
