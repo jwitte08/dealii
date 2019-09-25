@@ -56,7 +56,6 @@ namespace parallel
            ExcMessage("You compiled deal.II without MPI support, for "
                       "which parallel::TriangulationBase is not available."));
 #endif
-    number_cache.n_locally_owned_active_cells.resize(n_subdomains);
   }
 
 
@@ -99,8 +98,6 @@ namespace parallel
       MemoryConsumption::memory_consumption(mpi_communicator) +
       MemoryConsumption::memory_consumption(my_subdomain) +
       MemoryConsumption::memory_consumption(
-        number_cache.n_locally_owned_active_cells) +
-      MemoryConsumption::memory_consumption(
         number_cache.n_global_active_cells) +
       MemoryConsumption::memory_consumption(number_cache.n_global_levels);
     return mem;
@@ -117,7 +114,7 @@ namespace parallel
 
   template <int dim, int spacedim>
   TriangulationBase<dim, spacedim>::NumberCache::NumberCache()
-    : n_global_active_cells(0)
+    : n_locally_owned_active_cells(0)
     , n_global_levels(0)
   {}
 
@@ -125,7 +122,7 @@ namespace parallel
   unsigned int
   TriangulationBase<dim, spacedim>::n_locally_owned_active_cells() const
   {
-    return number_cache.n_locally_owned_active_cells[my_subdomain];
+    return number_cache.n_locally_owned_active_cells;
   }
 
   template <int dim, int spacedim>
@@ -143,11 +140,32 @@ namespace parallel
   }
 
   template <int dim, int spacedim>
-  const std::vector<unsigned int> &
-  TriangulationBase<dim, spacedim>::n_locally_owned_active_cells_per_processor()
-    const
+  std::vector<unsigned int>
+  TriangulationBase<dim, spacedim>::
+    compute_n_locally_owned_active_cells_per_processor() const
   {
-    return number_cache.n_locally_owned_active_cells;
+    ;
+#ifdef DEAL_II_WITH_MPI
+    std::vector<unsigned int> n_locally_owned_active_cells_per_processor(
+      Utilities::MPI::n_mpi_processes(this->mpi_communicator), 0);
+
+    if (this->n_levels() > 0)
+      {
+        const int ierr =
+          MPI_Allgather(&number_cache.n_locally_owned_active_cells,
+                        1,
+                        MPI_UNSIGNED,
+                        n_locally_owned_active_cells_per_processor.data(),
+                        1,
+                        MPI_UNSIGNED,
+                        this->mpi_communicator);
+        AssertThrowMPI(ierr);
+      }
+
+    return n_locally_owned_active_cells_per_processor;
+#else
+    return {number_cache.n_locally_owned_active_cells};
+#endif
   }
 
   template <int dim, int spacedim>
@@ -162,16 +180,9 @@ namespace parallel
   void
   TriangulationBase<dim, spacedim>::update_number_cache()
   {
-    Assert(number_cache.n_locally_owned_active_cells.size() ==
-             Utilities::MPI::n_mpi_processes(this->mpi_communicator),
-           ExcInternalError());
-
-    std::fill(number_cache.n_locally_owned_active_cells.begin(),
-              number_cache.n_locally_owned_active_cells.end(),
-              0);
-
     number_cache.ghost_owners.clear();
     number_cache.level_ghost_owners.clear();
+    number_cache.n_locally_owned_active_cells = 0;
 
     if (this->n_levels() == 0)
       {
@@ -206,25 +217,11 @@ namespace parallel
            cell != this->end();
            ++cell)
         if (cell->subdomain_id() == my_subdomain)
-          ++number_cache.n_locally_owned_active_cells[my_subdomain];
-
-    unsigned int send_value =
-      number_cache.n_locally_owned_active_cells[my_subdomain];
-    const int ierr =
-      MPI_Allgather(&send_value,
-                    1,
-                    MPI_UNSIGNED,
-                    number_cache.n_locally_owned_active_cells.data(),
-                    1,
-                    MPI_UNSIGNED,
-                    this->mpi_communicator);
-    AssertThrowMPI(ierr);
+          ++number_cache.n_locally_owned_active_cells;
 
     number_cache.n_global_active_cells =
-      std::accumulate(number_cache.n_locally_owned_active_cells.begin(),
-                      number_cache.n_locally_owned_active_cells.end(),
-                      /* ensure sum is computed with correct data type:*/
-                      static_cast<types::global_dof_index>(0));
+      Utilities::MPI::sum(number_cache.n_locally_owned_active_cells,
+                          this->mpi_communicator);
     number_cache.n_global_levels =
       Utilities::MPI::max(this->n_levels(), this->mpi_communicator);
   }
@@ -362,35 +359,159 @@ namespace parallel
   TriangulationBase<dim, spacedim>::compute_vertices_with_ghost_neighbors()
     const
   {
-    // TODO: we are not treating periodic neighbors correctly here. If we do
-    // we can remove the overriding implementation for p::d::Triangulation
-    // that is currently using a p4est callback to get correct ghost neighbors
-    // over periodic faces.
-    Assert(this->get_periodic_face_map().size() == 0, ExcNotImplemented());
+    // 1) collect for each vertex on periodic faces all vertices it coincides
+    //    with
+    std::map<unsigned int, std::vector<unsigned int>> coinciding_vertex_groups;
+    std::map<unsigned int, unsigned int> vertex_to_coinciding_vertex_group;
 
+    {
+      static const int lookup_table_2d[2][2] =
+        //           flip:
+        {
+          {0, 1}, // false
+          {1, 0}  // true
+        };
 
+      static const int lookup_table_3d[2][2][2][4] =
+        //                   orientation flip  rotation
+        {{{
+            {0, 2, 1, 3}, // false       false false
+            {2, 3, 0, 1}  // false       false true
+          },
+          {
+            {3, 1, 2, 0}, // false       true  false
+            {1, 0, 3, 2}  // false       true  true
+          }},
+         {{
+            {0, 1, 2, 3}, // true        false false
+            {1, 3, 0, 2}  // true        false true
+          },
+          {
+            {3, 2, 1, 0}, // true        true  false
+            {2, 0, 3, 1}  // true        true  true
+          }}};
+
+      // loop over all periodic face pairs
+      for (const auto &pair : this->get_periodic_face_map())
+        {
+          const auto face_a = pair.first.first->face(pair.first.second);
+          const auto face_b =
+            pair.second.first.first->face(pair.second.first.second);
+          const auto mask = pair.second.second;
+
+          // loop over all vertices on face
+          for (unsigned int i = 0; i < GeometryInfo<dim>::vertices_per_face;
+               ++i)
+            {
+              const bool face_orientation = mask[0];
+              const bool face_flip        = mask[1];
+              const bool face_rotation    = mask[2];
+
+              // find the right local vertex index for the second face
+              unsigned int j = 0;
+              switch (dim)
+                {
+                  case 1:
+                    j = i;
+                    break;
+                  case 2:
+                    j = lookup_table_2d[face_flip][i];
+                    break;
+                  case 3:
+                    j = lookup_table_3d[face_orientation][face_flip]
+                                       [face_rotation][i];
+                    break;
+                  default:
+                    AssertThrow(false, ExcNotImplemented());
+                }
+
+              // get vertex indices and store in map
+              const auto   vertex_a = face_a->vertex_index(i);
+              const auto   vertex_b = face_b->vertex_index(j);
+              unsigned int temp     = std::min(vertex_a, vertex_b);
+
+              auto it_a = vertex_to_coinciding_vertex_group.find(vertex_a);
+              if (it_a != vertex_to_coinciding_vertex_group.end())
+                temp = std::min(temp, it_a->second);
+
+              auto it_b = vertex_to_coinciding_vertex_group.find(vertex_b);
+              if (it_b != vertex_to_coinciding_vertex_group.end())
+                temp = std::min(temp, it_b->second);
+
+              if (it_a != vertex_to_coinciding_vertex_group.end())
+                it_a->second = temp;
+              else
+                vertex_to_coinciding_vertex_group[vertex_a] = temp;
+
+              if (it_b != vertex_to_coinciding_vertex_group.end())
+                it_b->second = temp;
+              else
+                vertex_to_coinciding_vertex_group[vertex_b] = temp;
+            }
+        }
+
+      // 1b) compress map: let vertices point to the coinciding vertex with
+      //     the smallest index
+      for (auto &p : vertex_to_coinciding_vertex_group)
+        {
+          if (p.first == p.second)
+            continue;
+          unsigned int temp = p.second;
+          while (temp != vertex_to_coinciding_vertex_group[temp])
+            temp = vertex_to_coinciding_vertex_group[temp];
+          p.second = temp;
+        }
+
+      // 1c) create a map: smallest index of coinciding index -> all
+      // coinciding indices
+      for (auto p : vertex_to_coinciding_vertex_group)
+        coinciding_vertex_groups[p.second] = {};
+
+      for (auto p : vertex_to_coinciding_vertex_group)
+        coinciding_vertex_groups[p.second].push_back(p.first);
+    }
+
+    // 2) collect vertices belonging to local cells
     std::vector<bool> vertex_of_own_cell(this->n_vertices(), false);
-
     for (const auto &cell : this->active_cell_iterators())
       if (cell->is_locally_owned())
         for (unsigned int v = 0; v < GeometryInfo<dim>::vertices_per_cell; ++v)
           vertex_of_own_cell[cell->vertex_index(v)] = true;
 
-    std::map<unsigned int, std::set<dealii::types::subdomain_id>> result;
+    // 3) for each vertex belonging to a locally owned cell all ghost
+    //    neighbors (including the periodic own)
+    std::map<unsigned int, std::set<types::subdomain_id>> result;
+
+    // loop over all active ghost cells
     for (const auto &cell : this->active_cell_iterators())
       if (cell->is_ghost())
         {
           const types::subdomain_id owner = cell->subdomain_id();
+
+          // loop over all its vertices
           for (unsigned int v = 0; v < GeometryInfo<dim>::vertices_per_cell;
                ++v)
             {
+              // set owner if vertex belongs to a local cell
               if (vertex_of_own_cell[cell->vertex_index(v)])
                 result[cell->vertex_index(v)].insert(owner);
+
+              // mark also nodes coinciding due to periodicity
+              auto coinciding_vertex_group =
+                vertex_to_coinciding_vertex_group.find(cell->vertex_index(v));
+              if (coinciding_vertex_group !=
+                  vertex_to_coinciding_vertex_group.end())
+                for (auto coinciding_vertex :
+                     coinciding_vertex_groups[coinciding_vertex_group->second])
+                  if (vertex_of_own_cell[coinciding_vertex])
+                    result[coinciding_vertex].insert(owner);
             }
         }
 
     return result;
   }
+
+
 
   template <int dim, int spacedim>
   DistributedTriangulationBase<dim, spacedim>::DistributedTriangulationBase(

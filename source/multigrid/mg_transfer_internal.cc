@@ -180,17 +180,6 @@ namespace internal
 #ifdef DEAL_II_WITH_MPI
       if (tria)
         {
-          // TODO: Searching the owner for every single DoF becomes quite
-          // inefficient. Please fix this, Timo.
-          // The list of neighbors is symmetric (our neighbors have us as a
-          // neighbor), so we can use it to send and to know how many messages
-          // we will get.
-          std::vector<std::vector<IndexSet>>
-            locally_owned_mg_dofs_per_processor;
-          for (unsigned int l = 0; l < tria->n_global_levels(); ++l)
-            locally_owned_mg_dofs_per_processor.push_back(
-              mg_dof.compute_locally_owned_mg_dofs_per_processor(l));
-
           const std::set<types::subdomain_id> &neighbors =
             tria->level_ghost_owners();
           std::map<int, std::vector<DoFPair>> send_data;
@@ -388,8 +377,7 @@ namespace internal
       std::vector<types::global_dof_index> &      ghosted_level_dofs,
       const MPI_Comm &                            communicator,
       LinearAlgebra::distributed::Vector<Number> &ghosted_level_vector,
-      std::vector<std::pair<unsigned int, unsigned int>>
-        &copy_indices_global_mine)
+      Table<2, unsigned int> &                    copy_indices_global_mine)
     {
       std::sort(ghosted_level_dofs.begin(), ghosted_level_dofs.end());
       IndexSet ghosted_dofs(locally_owned.size());
@@ -405,10 +393,11 @@ namespace internal
           // partitioner that we are going to use for the vector
           const auto &part = ghosted_level_vector.get_partitioner();
           ghosted_dofs.add_indices(part->ghost_indices());
-          for (auto &indices : copy_indices_global_mine)
-            indices.second = locally_owned.n_elements() +
-                             ghosted_dofs.index_within_set(
-                               part->local_to_global(indices.second));
+          for (unsigned int i = 0; i < copy_indices_global_mine.n_cols(); ++i)
+            copy_indices_global_mine(1, i) =
+              locally_owned.n_elements() +
+              ghosted_dofs.index_within_set(
+                part->local_to_global(copy_indices_global_mine(1, i)));
         }
       ghosted_level_vector.reinit(locally_owned, ghosted_dofs, communicator);
     }
@@ -603,8 +592,7 @@ namespace internal
       std::vector<unsigned int> &n_owned_level_cells,
       std::vector<std::vector<std::vector<unsigned short>>> &dirichlet_indices,
       std::vector<std::vector<Number>> &                     weights_on_refined,
-      std::vector<std::vector<std::pair<unsigned int, unsigned int>>>
-        &copy_indices_global_mine,
+      std::vector<Table<2, unsigned int>> &copy_indices_global_mine,
       MGLevelObject<LinearAlgebra::distributed::Vector<Number>>
         &ghosted_level_vector)
     {

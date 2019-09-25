@@ -30,8 +30,13 @@
 
 DEAL_II_NAMESPACE_OPEN
 
+// Forward declarations for friends
+// TODO: We may be able to modify these classes so they aren't
+// required to be friends
 template <int dim>
 class TensorProductPolynomialsBubbles;
+template <int dim>
+class TensorProductPolynomialsConst;
 
 /**
  * @addtogroup Polynomials
@@ -236,6 +241,12 @@ protected:
    * so we declare it as a friend class.
    */
   friend class TensorProductPolynomialsBubbles<dim>;
+
+  /**
+   * TensorProductPolynomialsConst has a TensorProductPolynomials class
+   * so we declare it as a friend class.
+   */
+  friend class TensorProductPolynomialsConst<dim>;
 };
 
 
@@ -399,7 +410,8 @@ private:
    * <tt>i</tt>.
    */
   void
-  compute_index(const unsigned int i, unsigned int (&indices)[dim]) const;
+  compute_index(const unsigned int i,
+                unsigned int (&indices)[(dim > 0 ? dim : 1)]) const;
 
   /**
    * Given the input to the constructor, compute <tt>n_pols</tt>.

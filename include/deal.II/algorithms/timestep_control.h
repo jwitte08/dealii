@@ -56,27 +56,6 @@ namespace Algorithms
   {
   public:
     /**
-     * The time stepping strategies. These are controlled by the value of
-     * tolerance() and start_step().
-     */
-    enum Strategy
-    {
-      /**
-       * Choose a uniform time step size. The step size is determined by
-       * start_step(), tolerance() is ignored.
-       */
-      uniform,
-      /**
-       * Start with the time step size given by start_step() and double it in
-       * every step. tolerance() is ignored.
-       *
-       * This strategy is intended for pseudo-timestepping schemes computing a
-       * stationary limit.
-       */
-      doubling
-    };
-
-    /**
      * Constructor setting default values
      */
     TimestepControl(double start      = 0.,
@@ -91,8 +70,13 @@ namespace Algorithms
      */
     static void
     declare_parameters(ParameterHandler &param);
+
     /**
      * Read the control parameters from a parameter handler.
+     *
+     * This function also calls restart() to reset all other internal
+     * parameters of this class to their appropriate values based on
+     * the parameters just read.
      */
     void
     parse_parameters(ParameterHandler &param);
@@ -147,10 +131,6 @@ namespace Algorithms
      */
     void
     tolerance(double);
-    /**
-     * Set strategy.
-     */
-    void strategy(Strategy);
 
     /**
      * Set size of the first step. This may be overwritten by the time
@@ -174,79 +154,71 @@ namespace Algorithms
      */
     void
     restart();
+
     /**
      * Return true if this timestep should be written to disk.
      */
     bool
     print();
-    /**
-     * Set the output name template.
-     */
-    void
-    file_name_format(const char *);
-    /**
-     * Return the output name template.
-     */
-    const char *
-    file_name_format();
 
   private:
     /**
      * The beginning of the time interval.
      */
     double start_val;
+
     /**
      *The end of the time interval.
      */
     double final_val;
+
     /**
      * The tolerance value controlling the time steps.
      */
     double tolerance_val;
-    /**
-     * Time-stepping strategy.
-     */
-    Strategy strategy_val;
+
     /**
      * The size of the first step.
      */
     double start_step_val;
+
     /**
      * The maximum step size.
      */
     double max_step_val;
+
     /**
      * The minimum step size.
      */
     double min_step_val;
+
     /**
      * The size of the current time step. This may differ from @p step_val, if
      * we aim at @p final_val.
      */
     double current_step_val;
+
     /**
      * The size of the current time step determined by the strategy. This may
      * differ from @p current_step_val, if we aim at @p final_val.
      */
     double step_val;
+
     /**
      * The current time.
      */
     double now_val;
+
     /**
      * Determines the approximate time interval between generated outputs.
      * If negative, output will be generated at all time steps.
      */
     double print_step;
+
     /**
      * If current time exceeds this value, it is time to generate the output.
      */
     double next_print_val;
-
-    /**
-     * Output file name template.
-     */
-    char format[30];
   };
 
 
@@ -307,13 +279,6 @@ namespace Algorithms
 
 
   inline void
-  TimestepControl::strategy(Strategy t)
-  {
-    strategy_val = t;
-  }
-
-
-  inline void
   TimestepControl::start_step(const double t)
   {
     start_step_val = t;
@@ -339,19 +304,6 @@ namespace Algorithms
       next_print_val = now_val - 1.;
   }
 
-
-  inline void
-  TimestepControl::file_name_format(const char *fmt)
-  {
-    strcpy(format, fmt);
-  }
-
-
-  inline const char *
-  TimestepControl::file_name_format()
-  {
-    return format;
-  }
 } // namespace Algorithms
 
 DEAL_II_NAMESPACE_CLOSE

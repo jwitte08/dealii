@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2008 - 2018 by the deal.II authors
+// Copyright (C) 2008 - 2019 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -40,8 +40,37 @@ namespace parallel
 {
   /**
    * This class describes the interface for all triangulation classes that
-   * work in parallel, namely parallel::distributed::Triangulation and
+   * work in parallel, namely parallel::distributed::Triangulation,
+   * parallel::fullydistributed::Triangulation, and
    * parallel::shared::Triangulation.
+   *
+   * It is, consequently, a class that can be used to test whether a
+   * pointer of reference to a triangulation object refers to a
+   * sequential triangulation, or whether the triangulation is in fact
+   * parallel. In other words, one could write a function like this:
+   * @code
+   *   template <int dim, int spacedim>
+   *   bool is_parallel (const dealii::Triangulation<dim,spacedim> &tria)
+   *   {
+   *     if (dynamic_cast<const parallel::TriangulationBase<dim,spacedim>*>
+   *                     (&tria)
+   *         != nullptr)
+   *       return true;
+   *     else
+   *       return false;
+   *   }
+   * @endcode
+   *
+   * All parallel triangulations share certain traits, such as the fact that
+   * they communicate via @ref GlossMPICommunicator "MPI communicators" or
+   * that they have
+   * @ref GlossLocallyOwnedCell "locally owned",
+   * @ref GlossGhostCell "ghost", and possibly
+   * @ref GlossArtificialCell "artificial cells". This class provides
+   * a number of member functions that allows querying some information
+   * about the triangulation that is independent of how exactly a
+   * parallel triangulation is implemented (i.e., which of the various
+   * classes derived from the current one it actually is).
    */
   template <int dim, int spacedim = dim>
   class TriangulationBase : public dealii::Triangulation<dim, spacedim>
@@ -79,10 +108,11 @@ namespace parallel
      * that contribute to this triangulation. The element of this vector
      * indexed by locally_owned_subdomain() equals the result of
      * n_locally_owned_active_cells().
+     *
+     * @note This function involves global communication!
      */
-    const std::vector<unsigned int> &
-    n_locally_owned_active_cells_per_processor() const;
-
+    std::vector<unsigned int>
+    compute_n_locally_owned_active_cells_per_processor() const;
 
     /**
      * Return the number of active cells in the triangulation that are locally
@@ -144,7 +174,7 @@ namespace parallel
      * ghost cell adjacent to the cells of the local processor. In other
      * words, this is the set of subdomain_id() for all ghost cells.
      *
-     * @note: If @p i is contained in the list of processor @p j, then @p j
+     * @note If @p i is contained in the list of processor @p j, then @p j
      * will also be contained in the list of processor @p i.
      */
     const std::set<types::subdomain_id> &
@@ -156,7 +186,7 @@ namespace parallel
      * other words, this is the set of level_subdomain_id() for all level
      * ghost cells.
      *
-     * @note: If @p i is contained in the list of processor @p j, then @p j
+     * @note If @p i is contained in the list of processor @p j, then @p j
      * will also be contained in the list of processor @p i.
      */
     const std::set<types::subdomain_id> &
@@ -195,10 +225,9 @@ namespace parallel
     struct NumberCache
     {
       /**
-       * This vector stores the number of locally owned active cells per MPI
-       * rank.
+       * Number of locally owned active cells of this MPI rank.
        */
-      std::vector<unsigned int> n_locally_owned_active_cells;
+      unsigned int n_locally_owned_active_cells;
       /**
        * The total number of active cells (sum of @p
        * n_locally_owned_active_cells).
@@ -246,10 +275,48 @@ namespace parallel
   template <int dim, int spacedim = dim>
   using Triangulation DEAL_II_DEPRECATED = TriangulationBase<dim, spacedim>;
 
+
+
   /**
-   * A base class for distributed triangulations. It can be used to test
-   * (via <tt>dynamic_cast</tt>) whether a particular triangulation object
-   * is able to distribute meshes between processes.
+   * A base class for distributed triangulations, i.e., triangulations that
+   * do not store all cells on all processors. This implies that not
+   * every detail of a triangulation may be known on each processor.
+   * In particular, you have to expect that triangulations of classes
+   * derived from this one only store some of the active cells (namely,
+   * the @ref GlossLocallyOwnedCell "locally owned cells"), along
+   * with @ref GlossGhostCell "ghost cells" and possibly
+   * @ref GlossArtificialCell "artificial cells". In contrast to the classes
+   * derived from parallel::TriangulationBase, it is certain that the
+   * classes derived from the current class will not store the entire
+   * triangulation as long as it has a large enough number of cells. (The
+   * difference to parallel::TriangulationBase is that the
+   * parallel::shared::Triangulation is derived from
+   * parallel::TriangulationBase, but not from the current class.) The
+   * distinction is not large in practice: Everything that is difficult for
+   * parallel distributed triangulation is generally also difficult for any
+   * other kind of parallel triangulation classes; however, this intermediate
+   * base class allows to further differentiate between the different kinds of
+   * classes providing parallel mesh functionality.
+   *
+   * This class can, then, be used to test whether a
+   * pointer or reference to a triangulation object refers to any kind of
+   * parallel triangulation, or whether the triangulation is in fact
+   * parallel distributed. In other words, one could write a function like
+   * this:
+   * @code
+   *   template <int dim, int spacedim>
+   *   bool
+   *   is_parallel_distributed(const dealii::Triangulation<dim,spacedim> &tria)
+   *   {
+   *     if(dynamic_cast<const
+   *                     parallel::DistributedTriangulationBase<dim,spacedim>*>
+   *                    (&tria)
+   *        != nullptr)
+   *       return true;
+   *     else
+   *       return false;
+   *   }
+   * @endcode
    */
   template <int dim, int spacedim = dim>
   class DistributedTriangulationBase
