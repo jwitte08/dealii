@@ -124,8 +124,12 @@ space $H({\textrm{div}})=\{{\mathbf w}\in L^2(\Omega)^d:\ {\textrm{div}}\ {\math
 for $\mathbf u$,$\mathbf v$, and $L^2$ for $p,q$. It is a well-known fact stated in
 almost every book on finite element theory that if one chooses discrete finite
 element spaces for the approximation of ${\mathbf u},p$ inappropriately, then the
-resulting discrete saddle-point problem is instable and the discrete solution
-will not converge to the exact solution.
+resulting discrete problem is instable and the discrete solution
+will not converge to the exact solution. (Some details on the problem
+considered here -- which falls in the class of "saddle-point problems"
+-- can be found on the Wikipedia page on the <a
+href="https://en.wikipedia.org/wiki/Ladyzhenskaya%E2%80%93Babu%C5%A1ka%E2%80%93Brezzi_condition">Ladyzhenskaya-Babuska-Brezzi
+(LBB) condition</a>.)
 
 To overcome this, a number of different finite element pairs for ${\mathbf u},p$
 have been developed that lead to a stable discrete problem. One such pair is
@@ -559,11 +563,11 @@ we can write:
 @code
     const auto op_M = linear_operator(M);
 
-    PreconditionJacobi<> preconditioner_M;
+    PreconditionJacobi<SparseMatrix<double>> preconditioner_M;
     preconditioner_M.initialize(M);
 
     ReductionControl reduction_control_M(2000, 1.0e-18, 1.0e-10);
-    SolverCG<>    solver_M(reduction_control_M);
+    SolverCG<Vector<double>>    solver_M(reduction_control_M);
 
     const auto op_M_inv = inverse_operator(op_M, solver_M, preconditioner_M);
 @endcode
@@ -675,7 +679,7 @@ With these prerequisites at hand, solving for $P$ and $U$ is a matter of
 creating another solver and inverse:
 @code
     SolverControl solver_control_S(2000, 1.e-12);
-    SolverCG<>    solver_S(solver_control_S);
+    SolverCG<Vector<double>>    solver_S(solver_control_S);
     PreconditionIdentity preconditioner_S;
 
     const auto op_S_inv = inverse_operator(op_S, solver_S, preconditioner_S);
@@ -747,7 +751,7 @@ using an IterationNumberControl that allows us to fix the number of CG
 iterations that are performed to a fixed small number (in our case 30):
 @code
     IterationNumberControl iteration_number_control_aS(30, 1.e-18);
-    SolverCG<>           solver_aS(iteration_number_control_aS);
+    SolverCG<Vector<double>>           solver_aS(iteration_number_control_aS);
     PreconditionIdentity preconditioner_aS;
     const auto preconditioner_S =
       inverse_operator(op_aS, solver_aS, preconditioner_aS);

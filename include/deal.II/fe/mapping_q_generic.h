@@ -24,7 +24,6 @@
 #include <deal.II/base/table.h>
 #include <deal.II/base/vectorization.h>
 
-#include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/mapping.h>
 
 #include <deal.II/grid/tria_iterator.h>
@@ -411,8 +410,8 @@ public:
      * Unit tangential vectors. Used for the computation of boundary forms and
      * normal vectors.
      *
-     * This array has (dim-1)*GeometryInfo::faces_per_cell entries. The first
-     * GeometryInfo::faces_per_cell contain the vectors in the first
+     * This array has (dim-1)*GeometryInfo%<dim%>::%faces_per_cell entries. The
+     * first GeometryInfo::faces_per_cell contain the vectors in the first
      * tangential direction for each face; the second set of
      * GeometryInfo::faces_per_cell entries contain the vectors in the second
      * tangential direction (only in 3d, since there we have 2 tangential
@@ -609,13 +608,6 @@ protected:
    * FE_Q<1>(this->degree).
    */
   QGaussLobatto<1> line_support_points;
-
-  /**
-   * An FE_Q object which is only needed in 3D, since it knows how to reorder
-   * shape functions/DoFs on non-standard faces. This is used to reorder
-   * support points in the same way.
-   */
-  const std::unique_ptr<FE_Q<dim>> fe_q;
 
   /**
    * A vector of tables of weights by which we multiply the locations of the

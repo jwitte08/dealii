@@ -235,7 +235,7 @@ namespace Step57
 
     {
       SolverControl solver_control(1000, 1e-6 * src.block(1).l2_norm());
-      SolverCG<>    cg(solver_control);
+      SolverCG<Vector<double>> cg(solver_control);
 
       dst.block(1) = 0.0;
       cg.solve(pressure_mass_matrix,
@@ -708,7 +708,7 @@ namespace Step57
   //
   // This function will provide us with an initial guess by using a
   // continuation method as we discussed in the introduction. The Reynolds
-  // number is increased step-by-step until we reach the target value. By
+  // number is increased \step-by-step until we reach the target value. By
   // experiment, the solution to Stokes is good enough to be the initial guess
   // of NSE with Reynolds number 1000 so we start there.  To make sure the
   // solution from previous problem is close enough to the next one, the step
@@ -838,7 +838,6 @@ int main()
 {
   try
     {
-      using namespace dealii;
       using namespace Step57;
 
       StationaryNavierStokes<2> flow(/* degree = */ 1);

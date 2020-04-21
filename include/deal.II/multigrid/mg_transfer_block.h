@@ -22,7 +22,6 @@
 
 #include <deal.II/dofs/dof_handler.h>
 
-#include <deal.II/lac/block_matrix_array.h>
 #include <deal.II/lac/block_sparsity_pattern.h>
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/sparsity_pattern.h>
@@ -73,15 +72,6 @@ public:
    * Constructor with constraint matrices as well as mg_constrained_dofs.
    */
   MGTransferBlockBase(const MGConstrainedDoFs &mg_constrained_dofs);
-
-  /**
-   * Constructor with constraint matrices as well as mg_constrained_dofs.
-   *
-   * @deprecated @p constraints is unused.
-   */
-  DEAL_II_DEPRECATED
-  MGTransferBlockBase(const AffineConstraints<double> &constraints,
-                      const MGConstrainedDoFs &        mg_constrained_dofs);
 
   /**
    * Memory used by this object.
@@ -353,15 +343,6 @@ public:
   MGTransferBlockSelect(const MGConstrainedDoFs &mg_constrained_dofs);
 
   /**
-   * Constructor with constraint matrices as well as mg_constrained_dofs.
-   *
-   * @deprecated @p constraints is unused.
-   */
-  DEAL_II_DEPRECATED
-  MGTransferBlockSelect(const AffineConstraints<double> &constraints,
-                        const MGConstrainedDoFs &        mg_constrained_dofs);
-
-  /**
    * Destructor.
    */
   virtual ~MGTransferBlockSelect() override = default;
@@ -386,6 +367,8 @@ public:
    * This function is a front-end for the same function in
    * MGTransferBlockBase.
    *
+   * @param dof The DoFHandler for the active degrees of freedom to use.
+   * @param mg_dof The DoFHandler for the level degrees of freedom to use.
    * @param selected Number of the block of the global vector to be copied from
    * and to the multilevel vector.
    *

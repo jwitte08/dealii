@@ -32,6 +32,7 @@ namespace PETScWrappers
 {
   namespace internal
   {
+#  ifndef DOXYGEN
     VectorReference::operator PetscScalar() const
     {
       AssertIndexRange(index, vector.size());
@@ -109,6 +110,7 @@ namespace PETScWrappers
 
       return value;
     }
+#  endif
   } // namespace internal
 
   VectorBase::VectorBase()
@@ -820,16 +822,6 @@ namespace PETScWrappers
     AssertThrow(ierr == 0, ExcPETScError(ierr));
 
     *this *= a;
-  }
-
-
-
-  void
-  VectorBase::ratio(const VectorBase &a, const VectorBase &b)
-  {
-    Assert(!has_ghost_elements(), ExcGhostsPresent());
-    const PetscErrorCode ierr = VecPointwiseDivide(vector, a, b);
-    AssertThrow(ierr == 0, ExcPETScError(ierr));
   }
 
 

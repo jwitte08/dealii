@@ -1048,7 +1048,7 @@ namespace MatrixFreeOperators
                                             fe_degree,
                                             n_components,
                                             VectorizedArrayType>::
-      apply(fe_eval.get_shape_info().inverse_shape_values_eo,
+      apply(fe_eval.get_shape_info().data.front().inverse_shape_values_eo,
             inverse_coefficients,
             n_actual_components,
             in_array,
@@ -1077,7 +1077,7 @@ namespace MatrixFreeOperators
                                             n_components,
                                             VectorizedArrayType>::
       transform_from_q_points_to_basis(
-        fe_eval.get_shape_info().inverse_shape_values_eo,
+        fe_eval.get_shape_info().data.front().inverse_shape_values_eo,
         n_actual_components,
         in_array,
         out_array);
@@ -1101,8 +1101,8 @@ namespace MatrixFreeOperators
     Assert(data.get() != nullptr, ExcNotInitialized());
     typename Base<dim, VectorType, VectorizedArrayType>::size_type total_size =
       0;
-    for (unsigned int i = 0; i < selected_rows.size(); ++i)
-      total_size += data->get_vector_partitioner(selected_rows[i])->size();
+    for (const unsigned int selected_row : selected_rows)
+      total_size += data->get_vector_partitioner(selected_row)->size();
     return total_size;
   }
 
@@ -1115,8 +1115,8 @@ namespace MatrixFreeOperators
     Assert(data.get() != nullptr, ExcNotInitialized());
     typename Base<dim, VectorType, VectorizedArrayType>::size_type total_size =
       0;
-    for (unsigned int i = 0; i < selected_columns.size(); ++i)
-      total_size += data->get_vector_partitioner(selected_columns[i])->size();
+    for (const unsigned int selected_column : selected_columns)
+      total_size += data->get_vector_partitioner(selected_column)->size();
     return total_size;
   }
 
@@ -2034,7 +2034,7 @@ namespace MatrixFreeOperators
     bool
     non_negative(const VectorizedArrayType &n)
     {
-      for (unsigned int v = 0; v < VectorizedArrayType::n_array_elements; ++v)
+      for (unsigned int v = 0; v < VectorizedArrayType::size(); ++v)
         if (n[v] < 0.)
           return false;
 

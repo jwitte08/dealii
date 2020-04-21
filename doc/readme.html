@@ -62,8 +62,8 @@
         <acronym>deal.II</acronym> supports at least the following platforms:
     </p>
     <ul>
-        <li>GNU/Linux: GCC version 4.8 or later; Clang version 3.3 or later; ICC versions 15 or later</li>
-        <li>Mac OS X: GCC version 4.8 or later; Clang version 3.3 or later. Please see the <a href="https://github.com/dealii/dealii/wiki/MacOSX" target="_top">deal.II Wiki</a> for installation instructions.</li>
+        <li>GNU/Linux: GCC version 4.9 or later; Clang version 4.0 or later; ICC versions 15 or later</li>
+        <li>Mac OS X: GCC version 4.9 or later; Clang version 4.0 or later. Please see the <a href="https://github.com/dealii/dealii/wiki/MacOSX" target="_top">deal.II Wiki</a> for installation instructions.</li>
         <li>Windows: experimental support for Visual Studio 2017. Please have a look at the
             <a href="https://github.com/dealii/dealii/wiki/Frequently-Asked-Questions#can-i-use-dealii-on-a-windows-platform">
       FAQ</a> and at the <a href="https://github.com/dealii/dealii/wiki/Windows" target="_top">deal.II Wiki</a> for more information and alternative solutions.</li>
@@ -123,7 +123,7 @@
                 <code>gnuplot</code> and a postscript viewer (for <code>eps</code>) should be available almost everywhere. In the last few years, most new visualization programs have moved to support
                 <code>vtk</code>/<code>vtu</code> format. There are a number of excellent programs that can read <code>vtk</code> and
                 <code>vtu</code>, such as
-                <a href="http://www.llnl.gov/visit/" target="_top">Visit</a>,
+                <a href="http://www.llnl.gov/visit/" target="_top">VisIt</a>,
                 <a href="http://www.paraview.org/" target="_top">ParaView</a>, as well as others. Povray is freely available for almost all platforms. AVS is a commercial program available for most Unix flavors. Tecplot is a commercial program available
                 for Windows and most Unix platforms.
             </p>
@@ -209,7 +209,7 @@
         </li>
 
         <li> If you are changing part of the <acronym>deal.II</acronym> code itself, you can re-compile the library using only the last two commands above in the previously created build directory. It is also possible to change the configuration used in this
-            directory by calling <code>cmake</code> a second time, possibly with different arguments. However, this sometimes leads to surprising results and you may not get exactly what you were hoping for. For more information, see <a href="users/cmake.html">here</a>.
+            directory by calling <code>cmake</code> a second time, possibly with different arguments. However, this sometimes leads to surprising results and you may not get exactly what you were hoping for. For more information, see <a href="users/cmake_dealii.html">here</a>.
         </li>
 
         <li>
@@ -298,7 +298,7 @@
     <p>
         <acronym>deal.II</acronym> has a large number of optional interfaces to other libraries. <b>By default, <code>cmake</code> will automatically
       enable support  for all external libraries it can find in default
-      paths.</b> However, this behavior can be changed using command line switches to the initial call to <code>cmake</code>. A detailed description can be found here: <a href="users/cmake.html">Detailed build system description</a>.
+      paths.</b> However, this behavior can be changed using command line switches to the initial call to <code>cmake</code>. A detailed description can be found here: <a href="users/cmake_dealii.html">Detailed build system description</a>.
     </p>
 
     <p>
@@ -435,7 +435,7 @@
                 <a href="http://www.netlib.org/lapack/" target="_top">LAPACK</a> (
                 <i>Linear Algebra Package</i>) are two packages that support low-level linear algebra operations on vectors and dense matrices. Both libraries should be packaged by almost all Linux distributions and found automatically whenever available.
                 (You might have to install development versions of the libraries for <acronym>deal.II</acronym> being able to use them). For details on how to set up <acronym>deal.II</acronym> with a non standard BLAS/LAPACK implementation, see the
-                <a href="users/cmake.html#advanced">advanced
+                <a href="users/cmake_dealii.html#advanced">advanced
             setup</a> section in the CMake ReadME.
             </p>
         </dd>
@@ -712,8 +712,8 @@
 
     <p>
         The <acronym>deal.II</acronym> <code>cmake</code> system allows far greater control over what exactly is configured or built than just the outline above. If you want to learn more about this, take a look
-        <a href="users/cmake.html">here</a>. You might also be interested in
-        <a href="users/cmakelists.html">CMake for user projects</a> or
+        <a href="users/cmake_dealii.html">here</a>. You might also be interested in
+        <a href="users/cmake_user.html">CMake for user projects</a> or
         <a href="developers/cmake-internals.html">build system internals</a>.
     </p>
 

@@ -66,7 +66,6 @@
 #include "../tests.h"
 namespace Step18
 {
-  using namespace dealii;
   template <int dim>
   struct PointHistory
   {
@@ -206,10 +205,8 @@ namespace Step18
     const unsigned int                   n_mpi_processes;
     const unsigned int                   this_mpi_process;
     ConditionalOStream                   pcout;
-    std::vector<types::global_dof_index> local_dofs_per_process;
     IndexSet                             locally_owned_dofs;
     IndexSet                             locally_relevant_dofs;
-    unsigned int                         n_local_cells;
     static const SymmetricTensor<4, dim> stress_strain_tensor;
     int                                  monitored_vertex_first_dof;
   };
@@ -372,10 +369,6 @@ namespace Step18
     dof_handler.distribute_dofs(fe);
     locally_owned_dofs = dof_handler.locally_owned_dofs();
     DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant_dofs);
-    n_local_cells = GridTools::count_cells_with_subdomain_association(
-      triangulation, triangulation.locally_owned_subdomain());
-    local_dofs_per_process =
-      dof_handler.compute_n_locally_owned_dofs_per_processor();
     hanging_node_constraints.clear();
     DoFTools::make_hanging_node_constraints(dof_handler,
                                             hanging_node_constraints);
@@ -386,7 +379,7 @@ namespace Step18
                                     hanging_node_constraints,
                                     /*keep constrained dofs*/ false);
     SparsityTools::distribute_sparsity_pattern(sparsity_pattern,
-                                               local_dofs_per_process,
+                                               locally_owned_dofs,
                                                mpi_communicator,
                                                locally_relevant_dofs);
     system_matrix.reinit(locally_owned_dofs,
@@ -796,13 +789,11 @@ namespace Step18
 int
 main(int argc, char **argv)
 {
-  std::ofstream logfile("output");
+  initlog();
   deallog << std::setprecision(3);
-  deallog.attach(logfile);
 
   try
     {
-      using namespace dealii;
       using namespace Step18;
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
       TopLevel<3>                      elastic_problem;

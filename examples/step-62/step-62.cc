@@ -66,7 +66,7 @@
 #include <deal.II/numerics/vector_tools.h>
 
 // We need this header for the function GridTools::find_active_cell_around_point
-// that we use in the function `ElasticWave<dim>::store_frequency_step_data()`
+// that we use in the function `ElasticWave::store_frequency_step_data()`
 #include <deal.II/grid/grid_tools.h>
 
 namespace step62
@@ -764,11 +764,10 @@ namespace step62
     DynamicSparsityPattern dsp(locally_relevant_dofs);
 
     DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false);
-    SparsityTools::distribute_sparsity_pattern(
-      dsp,
-      dof_handler.compute_n_locally_owned_dofs_per_processor(),
-      mpi_communicator,
-      locally_relevant_dofs);
+    SparsityTools::distribute_sparsity_pattern(dsp,
+                                               locally_owned_dofs,
+                                               mpi_communicator,
+                                               locally_relevant_dofs);
 
     system_matrix.reinit(locally_owned_dofs,
                          locally_owned_dofs,
@@ -1105,17 +1104,10 @@ namespace step62
     // been described in step-40.
     if (parameters.save_vtu_files)
       {
-        std::vector<std::string> solution_names(1, "displacement_x");
-        if (dim >= 2)
-          {
-            solution_names.emplace_back("displacement_y");
-          }
-        if (dim == 3)
-          {
-            solution_names.emplace_back("displacement_z");
-          }
+        std::vector<std::string> solution_names(dim, "displacement");
         std::vector<DataComponentInterpretation::DataComponentInterpretation>
-          interpretation(dim, DataComponentInterpretation::component_is_scalar);
+          interpretation(
+            dim, DataComponentInterpretation::component_is_part_of_vector);
 
         DataOut<dim> data_out;
         data_out.add_data_vector(dof_handler,

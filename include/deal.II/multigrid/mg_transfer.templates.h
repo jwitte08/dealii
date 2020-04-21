@@ -120,8 +120,8 @@ namespace internal
                   MGLevelObject<TrilinosWrappers::MPI::Vector> &v)
     {
       const dealii::parallel::TriangulationBase<dim, spacedim> *tria =
-        (dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
-          &dof_handler.get_triangulation()));
+        (dynamic_cast<const dealii::parallel::TriangulationBase<dim, spacedim>
+                        *>(&dof_handler.get_triangulation()));
       AssertThrow(
         tria != nullptr,
         ExcMessage(
@@ -148,8 +148,8 @@ namespace internal
                   MGLevelObject<PETScWrappers::MPI::Vector> &v)
     {
       const dealii::parallel::TriangulationBase<dim, spacedim> *tria =
-        (dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
-          &dof_handler.get_triangulation()));
+        (dynamic_cast<const dealii::parallel::TriangulationBase<dim, spacedim>
+                        *>(&dof_handler.get_triangulation()));
       AssertThrow(
         tria != nullptr,
         ExcMessage(
@@ -247,17 +247,13 @@ MGLevelGlobalTransfer<VectorType>::copy_to_mg(
       VectorType &dst_level = dst[level];
 
       // first copy local unknowns
-      for (dof_pair_iterator i = copy_indices[level].begin();
-           i != copy_indices[level].end();
-           ++i)
-        dst_level(i->second) = src(i->first);
+      for (const auto &copy_index : copy_indices[level])
+        dst_level(copy_index.second) = src(copy_index.first);
 
       // Do the same for the indices where the global index is local, but the
       // local index is not
-      for (dof_pair_iterator i = copy_indices_global_mine[level].begin();
-           i != copy_indices_global_mine[level].end();
-           ++i)
-        dst_level(i->second) = src(i->first);
+      for (const auto &copy_index : copy_indices_global_mine[level])
+        dst_level(copy_index.second) = src(copy_index.first);
 
       dst_level.compress(VectorOperation::insert);
 
@@ -314,17 +310,13 @@ MGLevelGlobalTransfer<VectorType>::copy_from_mg(
       const VectorType &src_level = src[level];
 
       // First copy all indices local to this process
-      for (dof_pair_iterator i = copy_indices[level].begin();
-           i != copy_indices[level].end();
-           ++i)
-        dst(i->first) = src_level(i->second);
+      for (const auto &copy_index : copy_indices[level])
+        dst(copy_index.first) = src_level(copy_index.second);
 
       // Do the same for the indices where the level index is local, but the
       // global index is not
-      for (dof_pair_iterator i = copy_indices_level_mine[level].begin();
-           i != copy_indices_level_mine[level].end();
-           ++i)
-        dst(i->first) = src_level(i->second);
+      for (const auto &copy_index : copy_indices_level_mine[level])
+        dst(copy_index.first) = src_level(copy_index.second);
 
 #ifdef DEBUG_OUTPUT
       {
@@ -366,17 +358,13 @@ MGLevelGlobalTransfer<VectorType>::copy_from_mg_add(
       const VectorType &src_level = src[level];
 
       // First add all indices local to this process
-      for (dof_pair_iterator i = copy_indices[level].begin();
-           i != copy_indices[level].end();
-           ++i)
-        dst(i->first) += src_level(i->second);
+      for (const auto &copy_index : copy_indices[level])
+        dst(copy_index.first) += src_level(copy_index.second);
 
       // Do the same for the indices where the level index is local, but the
       // global index is not
-      for (dof_pair_iterator i = copy_indices_level_mine[level].begin();
-           i != copy_indices_level_mine[level].end();
-           ++i)
-        dst(i->first) += src_level(i->second);
+      for (const auto &copy_index : copy_indices_level_mine[level])
+        dst(copy_index.first) += src_level(copy_index.second);
     }
   dst.compress(VectorOperation::add);
 }
@@ -455,8 +443,9 @@ MGLevelGlobalTransfer<LinearAlgebra::distributed::Vector<Number>>::copy_to_mg(
           dst[level].reinit(ghosted_level_vector[level], false);
         else
           {
-            const parallel::TriangulationBase<dim, spacedim> *tria =
-              (dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
+            const dealii::parallel::TriangulationBase<dim, spacedim> *tria =
+              (dynamic_cast<
+                const dealii::parallel::TriangulationBase<dim, spacedim> *>(
                 &dof_handler.get_triangulation()));
             dst[level].reinit(dof_handler.locally_owned_mg_dofs(level),
                               tria != nullptr ? tria->get_communicator() :

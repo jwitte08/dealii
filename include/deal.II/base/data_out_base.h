@@ -1168,8 +1168,8 @@ namespace DataOutBase
      * polynomials rather than simply linear or bilinear is a feature that was
      * only introduced in VTK sometime in 2017 or 2018. You will need at least
      * Paraview version 5.5 (released in the spring of 2018) or a similarly
-     * recent version of Visit for this feature to work (for example,
-     * Visit 2.13.2, released in May 2018, does not yet support this feature).
+     * recent version of VisIt for this feature to work (for example,
+     * VisIt 2.13.2, released in May 2018, does not yet support this feature).
      * Older versions of these programs are likely going to result in errors
      * when trying to read files generated with this flag set to @p true.
      * Experience with these programs shows that these error messages are likely
@@ -3167,15 +3167,13 @@ private:
  * This second use scenario is explained in some detail in the step-18 example
  * program.
  *
- * Both these applications are implemented in the step-19 example program.
- * There, a slight complication is also explained: in order to read data back
- * into this object, you have to know the template parameters for the space
- * dimension which were used when writing the data. If this knowledge is
- * available at compile time, then this is no problem. However, if it is not
- * (such as in a simple format converter), then it needs to be figured out at
- * run time, even though the compiler already needs it at compile time. A way
- * around using the DataOutBase::determine_intermediate_format_dimensions()
- * function is explained in step-19.
+ * In order to read data back into this object, you have to know the template
+ * parameters for the space dimension which were used when writing the
+ * data. If this knowledge is available at compile time, then this is no
+ * problem. However, if it is not (such as in a simple format converter), then
+ * it needs to be figured out at run time, even though the compiler already
+ * needs it at compile time. A way around using the
+ * DataOutBase::determine_intermediate_format_dimensions() function.
  *
  * Note that the intermediate format is what its name suggests: a direct
  * representation of internal data. It isn't standardized and will change
@@ -3218,8 +3216,6 @@ public:
    *
    * This function will fail if either this or the other object did not yet
    * set up any patches.
-   *
-   * The use of this function is demonstrated in step-19.
    */
   void
   merge(const DataOutReader<dim, spacedim> &other);

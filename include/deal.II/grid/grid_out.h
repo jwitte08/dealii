@@ -921,12 +921,23 @@ namespace GridOutFlags
 
   /**
    * Flags for grid output in Vtu format. These flags are the same as those
-   * declared in DataOutBase::VtkFlags.
+   * declared in DataOutBase::VtkFlags, with the addition of a flag that
+   * determines if you want to add a entry in the vtu file (which is really
+   * a xml file) containing the entire serialization of the triangulation.
    *
    * @ingroup output
    */
   struct Vtu : public DataOutBase::VtkFlags
-  {};
+  {
+    Vtu(const bool serialize_triangulation = false)
+      : serialize_triangulation(serialize_triangulation)
+    {}
+
+    /**
+     * Add to the vtu file also the serialized triangulation.
+     */
+    bool serialize_triangulation;
+  };
 } // namespace GridOutFlags
 
 
@@ -1314,7 +1325,7 @@ public:
 
   /**
    * Write triangulation in VTU format for each processor, and add a .pvtu file
-   * for visualization in Visit or Paraview that describes the collection of VTU
+   * for visualization in VisIt or Paraview that describes the collection of VTU
    * files as all part of the same simulation. The output is in the form
    * <tt>filename_without_extension.proc000*.vtu</tt> where * is
    * 0,1,...,n_proc-1 and <tt>filename_without_extension.pvtu</tt>. The input
@@ -1685,6 +1696,11 @@ private:
   write_msh_lines(const Triangulation<1, 2> &tria,
                   const unsigned int         next_element_index,
                   std::ostream &             out) const;
+
+  /**
+   * Declaration of the specialization of above function for 1d, 3sd. Does
+   * nothing.
+   */
   unsigned int
   write_msh_lines(const Triangulation<1, 3> &tria,
                   const unsigned int         next_element_index,
@@ -1804,6 +1820,10 @@ private:
   write_ucd_lines(const Triangulation<1, 2> &tria,
                   const unsigned int         next_element_index,
                   std::ostream &             out) const;
+  /**
+   * Declaration of the specialization of above function for 1d, 3sd. Does
+   * nothing.
+   */
   unsigned int
   write_ucd_lines(const Triangulation<1, 3> &tria,
                   const unsigned int         next_element_index,
@@ -1856,6 +1876,11 @@ private:
    */
   unsigned int
   n_boundary_faces(const Triangulation<1, 2> &tria) const;
+
+  /**
+   * Declaration of the specialization of above function for 1d, 3sd. Simply
+   * returns zero.
+   */
   unsigned int
   n_boundary_faces(const Triangulation<1, 3> &tria) const;
 
@@ -1888,6 +1913,11 @@ private:
    */
   unsigned int
   n_boundary_lines(const Triangulation<1, 2> &tria) const;
+
+  /**
+   * Declaration of the specialization of above function for 1d, 3sd. Simply
+   * returns zero.
+   */
   unsigned int
   n_boundary_lines(const Triangulation<1, 3> &tria) const;
 

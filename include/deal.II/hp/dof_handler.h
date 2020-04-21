@@ -361,21 +361,6 @@ namespace hp
     static const bool is_hp_dof_handler = true;
 
     /**
-     * When the arrays holding the DoF indices are set up, but before they are
-     * filled with actual values, they are set to an invalid value, in order
-     * to monitor possible problems. This invalid value is the constant
-     * defined here.
-     *
-     * Please note that you should not rely on it having a certain value, but
-     * rather take its symbolic name.
-     *
-     * @deprecated Use numbers::invalid_dof_index instead.
-     */
-    DEAL_II_DEPRECATED
-    static const types::global_dof_index invalid_dof_index =
-      numbers::invalid_dof_index;
-
-    /**
      * The default index of the finite element to be used on a given cell. For
      * the usual, non-hp dealii::DoFHandler class that only supports the same
      * finite element to be used on all cells, the index of the finite element
@@ -954,16 +939,6 @@ namespace hp
      */
     DEAL_II_DEPRECATED const std::vector<IndexSet> &
                              locally_owned_mg_dofs_per_processor(const unsigned int level) const;
-
-    /**
-     * Return a constant reference to the set of finite element objects that
-     * are used by this @p DoFHandler.
-     *
-     * @deprecated Use get_fe_collection() instead.
-     */
-    DEAL_II_DEPRECATED
-    const hp::FECollection<dim, spacedim> &
-    get_fe() const;
 
     /**
      * Return a constant reference to the indexth finite element object that is
@@ -1716,18 +1691,6 @@ namespace hp
     else
       return mg_number_cache[level].get_locally_owned_dofs_per_processor(
         MPI_COMM_SELF);
-  }
-
-
-
-  template <int dim, int spacedim>
-  inline const hp::FECollection<dim, spacedim> &
-  DoFHandler<dim, spacedim>::get_fe() const
-  {
-    Assert(fe_collection.size() > 0,
-           ExcMessage("No finite element collection is associated with "
-                      "this DoFHandler"));
-    return fe_collection;
   }
 
 

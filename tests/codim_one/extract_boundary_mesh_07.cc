@@ -24,6 +24,7 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 
+#include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/mapping_q_eulerian.h>
@@ -45,8 +46,6 @@
 
 namespace Step38
 {
-  using namespace dealii;
-
   template <int spacedim>
   class Extract_Mesh_Test
   {
@@ -117,7 +116,6 @@ main()
   initlog();
 
   {
-    using namespace dealii;
     using namespace Step38;
 
     Extract_Mesh_Test<2> Test;

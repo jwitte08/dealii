@@ -1260,9 +1260,6 @@ namespace hp
   const unsigned int DoFHandler<dim, spacedim>::dimension;
 
   template <int dim, int spacedim>
-  const types::global_dof_index DoFHandler<dim, spacedim>::invalid_dof_index;
-
-  template <int dim, int spacedim>
   const unsigned int DoFHandler<dim, spacedim>::default_fe_index;
 
 
@@ -1520,8 +1517,8 @@ namespace hp
        MemoryConsumption::memory_consumption(number_cache) +
        MemoryConsumption::memory_consumption(vertex_dofs) +
        MemoryConsumption::memory_consumption(vertex_dof_offsets));
-    for (unsigned int i = 0; i < levels.size(); ++i)
-      mem += MemoryConsumption::memory_consumption(*levels[i]);
+    for (const auto &level : levels)
+      mem += MemoryConsumption::memory_consumption(*level);
     mem += MemoryConsumption::memory_consumption(*faces);
 
     return mem;
@@ -2120,7 +2117,7 @@ namespace hp
 
         // Unpack active_fe_indices.
         active_fe_index_transfer->active_fe_indices.resize(
-          tria->n_active_cells(), numbers::invalid_unsigned_int);
+          get_triangulation().n_active_cells(), numbers::invalid_unsigned_int);
         active_fe_index_transfer->cell_data_transfer->unpack(
           active_fe_index_transfer->active_fe_indices);
 
@@ -2207,10 +2204,13 @@ namespace hp
              "if deal.II was configured to use p4est, but cmake did not find a "
              "valid p4est library."));
 #else
-    Assert(active_fe_index_transfer != nullptr, ExcInternalError());
+    if (fe_collection.size() > 0)
+      {
+        Assert(active_fe_index_transfer != nullptr, ExcInternalError());
 
-    // Free memory.
-    active_fe_index_transfer.reset();
+        // Free memory.
+        active_fe_index_transfer.reset();
+      }
 #endif
   }
 
@@ -2260,7 +2260,7 @@ namespace hp
 
         // Unpack active_fe_indices.
         active_fe_index_transfer->active_fe_indices.resize(
-          tria->n_active_cells(), numbers::invalid_unsigned_int);
+          get_triangulation().n_active_cells(), numbers::invalid_unsigned_int);
         active_fe_index_transfer->cell_data_transfer->deserialize(
           active_fe_index_transfer->active_fe_indices);
 
@@ -2314,8 +2314,8 @@ namespace hp
     levels.clear();
     faces.reset();
 
-    vertex_dofs        = std::move(std::vector<types::global_dof_index>());
-    vertex_dof_offsets = std::move(std::vector<unsigned int>());
+    vertex_dofs        = std::vector<types::global_dof_index>();
+    vertex_dof_offsets = std::vector<unsigned int>();
   }
 } // namespace hp
 

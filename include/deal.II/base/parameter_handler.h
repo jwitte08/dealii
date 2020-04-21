@@ -53,10 +53,8 @@ class MultipleParameterLoop;
  * Input may be sorted into subsection trees in order to give the input a
  * logical structure, and input files may include other files.
  *
- * The ParameterHandler class is discussed in detail in the
- * @ref step_19 "step-19"
- * example program, and is used in more realistic situations in step-29,
- * step-33 and step-34.
+ * The ParameterHandler class is discussed in in step-29,
+ * step-33, and step-34.
  *
  * <h3>Declaring entries</h3>
  *
@@ -886,7 +884,19 @@ public:
      * Write input for ParameterHandler without comments or changed default
      * values.
      */
-    ShortText = 193
+    ShortText = 193,
+
+    /**
+     * Write input for ParameterHandler without comments or changed default
+     * values as a XML file.
+     */
+    ShortXML = 194,
+
+    /**
+     * Write input for ParameterHandler without comments or changed default
+     * values as a JSON file.
+     */
+    ShortJSON = 195
   };
 
 
@@ -955,52 +965,31 @@ public:
               const bool         skip_undefined = false);
 
   /**
-   * Parse the given file to provide values for known parameter fields. The
-   * PathSearch class "PARAMETERS" is used to find the file.
+   * Parse input from a specified parameter file @p filename independently
+   * of the type of input file (prm, xml, json) being used. The code path
+   * selected by this function is extracted from the ending of the filename,
+   * so the user has to make sure that the content of the input file is
+   * consistent with its name.
    *
-   * The function in essence reads the entire file into a stream and
-   * then calls the other parse_input() function with that stream. See
-   * there for more information.
+   * The parameter @p last_line will only be used for parameter files of .prm type.
+   * See the other parse_input function for documentation.
    *
-   * Previous versions of deal.II included a similar function named
-   * <code>read_input</code> which, if the parameter file could not be found
-   * by PathSearch::find, would not modify the calling ParameterHandler (i.e.,
-   * the parameters would all be set to their default values) and would
-   * (optionally) create a parameter file with default values. In order to
-   * obtain that behavior one should catch the PathSearch::ExcFileNotFound
-   * exception and then optionally call ParameterHandler::print_parameters,
-   * e.g.,
+   * The user can specify whether parameters in the input file not added to the
+   * parameter handler will be skipped by @p skip_undefined (enables partial
+   * parsing), and whether the code will assert that all parameters of the
+   * parameter handler declared with flag `has_to_be_set=true` are indeed found
+   * in the input file.
    *
-   * @code
-   * const std::string filename = "parameters.prm";
-   * const bool print_default_prm_file = true;
-   * try
-   *   {
-   *     parameter_handler.parse_input (filename);
-   *   }
-   * catch (const PathSearch::ExcFileNotFound &)
-   *   {
-   *     std::cerr << "ParameterHandler::parse_input: could not open file <"
-   *               << filename
-   *               << "> for reading."
-   *               << std::endl;
-   *     if (print_default_prm_file)
-   *       {
-   *         std::cerr << "Trying to make file <"
-   *                   << filename
-   *                   << "> with default values for you."
-   *                   << std::endl;
-   *         std::ofstream output (filename);
-   *         parameter_handler.print_parameters(
-   *           output, ParameterHandler::OutputStyle::Text);
-   *       }
-   *   }
-   * @endcode
+   * If the function is called with `skip_undefined=true`, it is recommended to
+   * also set `assert_mandatory_entries_are_found=true`. For example, this
+   * ensures that parameters with typos in the input file will not be skipped,
+   * while such mistakes would otherwise remain unrecognized.
    */
   virtual void
   parse_input(const std::string &filename,
-              const std::string &last_line      = "",
-              const bool         skip_undefined = false);
+              const std::string &last_line                          = "",
+              const bool         skip_undefined                     = false,
+              const bool         assert_mandatory_entries_are_found = false);
 
   /**
    * Parse input from a string to populate known parameter fields. The lines
@@ -1046,17 +1035,23 @@ public:
    * Declare a new entry with name <tt>entry</tt>, default and for which any
    * input has to match the <tt>pattern</tt> (default: any pattern).
    *
-   * The last parameter defaulting to an empty string is used to add a
-   * documenting text to each entry which will be printed as a comment when
-   * this class is asked to write out all declarations to a stream using the
-   * print_parameters() function.
-   *
    * The function generates an exception of type ExcValueDoesNotMatchPattern
    * if the default value doesn't match the given pattern, using the C++ throw
    * mechanism. However, this exception is only generated <i>after</i> the
    * entry has been created; if you have code where no sensible default value
    * for a parameter is possible, you can then catch and ignore this
    * exception.
+   *
+   * The parameter @p documentation defaulting to an empty string is used
+   * to add a documenting text to each entry which will be printed as a comment
+   * when this class is asked to write out all declarations to a stream using
+   * the print_parameters() function.
+   *
+   * The parameter @p has_to_be_set can be used in order to declare this
+   * parameter as a parameter whose default value has to be overwritten by
+   * one of the methods provided by this class. Whether a parameter has been set
+   * succesfully can be queried by the functions get_entries_wrongly_not_set()
+   * and assert_that_entries_have_been_set().
    *
    * @note An entry can be declared more than once without generating an
    * error, for example to override an earlier default value.
@@ -1065,7 +1060,8 @@ public:
   declare_entry(const std::string &          entry,
                 const std::string &          default_value,
                 const Patterns::PatternBase &pattern = Patterns::Anything(),
-                const std::string &          documentation = "");
+                const std::string &          documentation = "",
+                const bool                   has_to_be_set = false);
 
   /**
    * Attach an action to the parameter with name @p entry in the current
@@ -1122,6 +1118,12 @@ public:
    *
    * By default, the pattern to use is obtained by calling the function
    * Patterns::Tools::Convert<T>::to_pattern(), but a custom one can be used.
+   *
+   * The parameter @p has_to_be_set can be used in order to declare this
+   * parameter as a parameter whose default value has to be overwritten by
+   * one of the methods provided by this class. Whether a parameter has been set
+   * succesfully can be queried by the functions get_entries_wrongly_not_set()
+   * and assert_that_entries_have_been_set().
    */
   template <class ParameterType>
   void
@@ -1129,7 +1131,8 @@ public:
                 ParameterType &              parameter,
                 const std::string &          documentation = "",
                 const Patterns::PatternBase &pattern =
-                  *Patterns::Tools::Convert<ParameterType>::to_pattern());
+                  *Patterns::Tools::Convert<ParameterType>::to_pattern(),
+                const bool has_to_be_set = false);
 
   /**
    * Create an alias for an existing entry. This provides a way to refer to a
@@ -1342,13 +1345,17 @@ public:
   set(const std::string &entry_name, const bool new_value);
 
   /**
-   * Print all parameters with the given style to <tt>out</tt>.
+   * Print all parameters with the given style to @p out.
    *
    * Before printing, all current parameters and subsections are sorted
    * alphabetically by default.
    * This behavior can be disabled setting the last parameter @p sort_alphabetical
-   * to @p false: in this case entries are printed in the same order
+   * to <tt>false</tt>: in this case entries are printed in the same order
    * as they have been declared.
+   *
+   * In the case of <tt>XML</tt> or <tt>JSON</tt>, a reduced tree, only
+   * containing the values and skipping the documentation, can be
+   * printed by setting @p print_documentation to <tt>false</tt>.
    *
    * In <tt>Text</tt> format, the output is formatted in such a way that it is
    * possible to use it for later input again. This is most useful to record
@@ -1412,37 +1419,6 @@ public:
                    const bool        sort_alphabetical = true) const;
 
   /**
-   * Print out the parameters of the present subsection as given by the
-   * <tt>subsection_path</tt> member variable. This variable is controlled by
-   * entering and leaving subsections through the enter_subsection() and
-   * leave_subsection() functions.
-   *
-   * If <tt>include_top_level_elements</tt> is <tt>true</tt>, also the higher
-   * subsection elements are printed. In <tt>XML</tt> format this is required
-   * to get a valid XML document and output starts with one root element
-   * <tt>ParameterHandler</tt>.
-   *
-   * Before printing, all parameters and subsections of the present subsection
-   * are sorted alphabetically by default.
-   * This behavior can be disabled setting the last parameter @p sort_alphabetical
-   * to @p false: in this case entries are printed in the same order
-   * as they have been declared.
-   *
-   * In most cases, you will not want to use this function directly, but have
-   * it called recursively by the previous function.
-   *
-   * @deprecated This function is deprecated because, even though it only
-   *   outputs information, it is not a <code>const</code> function.
-   */
-  DEAL_II_DEPRECATED
-  void
-  print_parameters_section(std::ostream &     out,
-                           const OutputStyle  style,
-                           const unsigned int indent_level,
-                           const bool include_top_level_elements = false,
-                           const bool sort_alphabetical          = true);
-
-  /**
    * Print parameters to a logstream. This function allows to print all
    * parameters into a log-file. Sections will be indented in the usual log-
    * file style.
@@ -1504,6 +1480,25 @@ public:
    */
   bool
   operator==(const ParameterHandler &prm2) const;
+
+  /**
+   * Return a set of parameter names (including subsection names) corresponding
+   * to those entries of the parameter handler that have not been set by one of
+   * the functions parsing parameters from an input file or by an explicit call
+   * to one of the set() functions, but that have been declared as mandatory
+   * parameters that must be set (through the last argument of the
+   * declare_entry() function or add_parameter() function).
+   */
+  std::set<std::string>
+  get_entries_wrongly_not_set() const;
+
+  /**
+   * Asserts that those entries of the parameter handler with flag
+   * `has_to_be_set = true` have been set. An exception is invoked
+   * if at least one of these parameters has not been set.
+   */
+  void
+  assert_that_entries_have_been_set() const;
 
   /**
    * @addtogroup Exceptions
@@ -1655,6 +1650,16 @@ private:
    * works around a problem with gcc 4.5.
    */
   std::unique_ptr<boost::property_tree::ptree> entries;
+
+  /**
+   * A map that stores a pair of boolean variables for each entry
+   * added to the parameter handler. The first bool describes whether the
+   * parameter has to be set according to the last argument of the functions
+   * declare_entry() or add_parameter(), and the second bool contains the
+   * information whether the parameter has been set by any of the functions
+   * parsing input parameters or by a set function of this class.
+   */
+  std::map<std::string, std::pair<bool, bool>> entries_set_status;
 
   /**
    * A list of patterns that are used to describe the parameters of this
@@ -2209,7 +2214,8 @@ void
 ParameterHandler::add_parameter(const std::string &          entry,
                                 ParameterType &              parameter,
                                 const std::string &          documentation,
-                                const Patterns::PatternBase &pattern)
+                                const Patterns::PatternBase &pattern,
+                                const bool                   has_to_be_set)
 {
   static_assert(std::is_const<ParameterType>::value == false,
                 "You tried to add a parameter using a type "
@@ -2219,7 +2225,8 @@ ParameterHandler::add_parameter(const std::string &          entry,
                 Patterns::Tools::Convert<ParameterType>::to_string(
                   parameter, pattern.clone()),
                 pattern,
-                documentation);
+                documentation,
+                has_to_be_set);
 
   std::string        path = get_current_full_path(entry);
   const unsigned int pattern_index =

@@ -29,9 +29,8 @@
 int
 main()
 {
-  std::ofstream logfile("output");
+  initlog();
   deallog << std::setprecision(4);
-  deallog.attach(logfile);
 
   SparsityPattern sparsity_pattern(4, 4);
   sparsity_pattern.compress();
@@ -53,7 +52,7 @@ main()
     bicgstab.solve(M, solution, rhs, PreconditionIdentity());
   }
 
-  solution.print(deallog);
+  solution.print(deallog.get_file_stream());
 
   Vector<double> res(4);
   M.residual(res, solution, rhs);
@@ -71,7 +70,7 @@ main()
     SolverBicgstab<> bicgstab(control);
     bicgstab.solve(M1, solution, rhs, PreconditionIdentity());
   }
-  solution.print(deallog);
+  solution.print(deallog.get_file_stream());
   M1.residual(res, solution, rhs);
   deallog << "residual=" << res.l2_norm() << std::endl;
 }

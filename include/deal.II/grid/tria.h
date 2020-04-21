@@ -1630,25 +1630,6 @@ public:
   set_manifold(const types::manifold_id       number,
                const Manifold<dim, spacedim> &manifold_object);
 
-
-  /**
-   * Reset those parts of the triangulation with the given manifold_id
-   * to use a FlatManifold object. This is the default state of a
-   * non-curved triangulation, and undoes assignment of a different
-   * Manifold object by the function of same name and two arguments.
-   *
-   * @ingroup manifold
-   *
-   * @deprecated This method has been deprecated. Use
-   * Triangulation::reset_manifold() instead.
-   *
-   * @see
-   * @ref GlossManifoldIndicator "Glossary entry on manifold indicators"
-   */
-  DEAL_II_DEPRECATED
-  void
-  set_manifold(const types::manifold_id number);
-
   /**
    * Reset those parts of the triangulation with the given
    * @p manifold_number to use a FlatManifold object. This is the
@@ -1727,30 +1708,32 @@ public:
 
   /**
    * Return a vector containing all boundary indicators assigned to boundary
-   * faces of this Triangulation object. Note, that each boundary indicator is
-   * reported only once. The size of the return vector will represent the
-   * number of different indicators (which is greater or equal one).
+   * faces of active cells of this Triangulation object. Note, that each
+   * boundary indicator is reported only once. The size of the return vector
+   * will represent the number of different indicators (which is greater or
+   * equal one).
    *
    * @ingroup boundary
    *
    * @see
    * @ref GlossBoundaryIndicator "Glossary entry on boundary indicators"
    */
-  std::vector<types::boundary_id>
+  virtual std::vector<types::boundary_id>
   get_boundary_ids() const;
 
   /**
    * Return a vector containing all manifold indicators assigned to the
-   * objects of this Triangulation. Note, that each manifold indicator is
-   * reported only once. The size of the return vector will represent the
-   * number of different indicators (which is greater or equal one).
+   * objects of the active cells of this Triangulation. Note, that each
+   * manifold indicator is reported only once. The size of the return vector
+   * will represent the number of different indicators (which is greater or
+   * equal one).
    *
    * @ingroup manifold
    *
    * @see
    * @ref GlossManifoldIndicator "Glossary entry on manifold indicators"
    */
-  std::vector<types::manifold_id>
+  virtual std::vector<types::manifold_id>
   get_manifold_ids() const;
 
   /**

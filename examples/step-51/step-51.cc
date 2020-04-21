@@ -969,9 +969,9 @@ namespace Step51
   template <int dim>
   void HDG<dim>::solve()
   {
-    SolverControl    solver_control(system_matrix.m() * 10,
+    SolverControl                  solver_control(system_matrix.m() * 10,
                                  1e-11 * system_rhs.l2_norm());
-    SolverBicgstab<> solver(solver_control);
+    SolverBicgstab<Vector<double>> solver(solver_control);
     solver.solve(system_matrix, solution, system_rhs, PreconditionIdentity());
 
     std::cout << "   Number of BiCGStab iterations: "
@@ -1081,9 +1081,18 @@ namespace Step51
 
     convergence_table.add_value("cells", triangulation.n_active_cells());
     convergence_table.add_value("dofs", dof_handler.n_dofs());
+
     convergence_table.add_value("val L2", L2_error);
+    convergence_table.set_scientific("val L2", true);
+    convergence_table.set_precision("val L2", 3);
+
     convergence_table.add_value("grad L2", grad_error);
+    convergence_table.set_scientific("grad L2", true);
+    convergence_table.set_precision("grad L2", 3);
+
     convergence_table.add_value("val L2-post", post_error);
+    convergence_table.set_scientific("val L2-post", true);
+    convergence_table.set_precision("val L2-post", 3);
   }
 
 
@@ -1358,15 +1367,6 @@ namespace Step51
         output_results(cycle);
       }
 
-
-
-    convergence_table.set_precision("val L2", 3);
-    convergence_table.set_scientific("val L2", true);
-    convergence_table.set_precision("grad L2", 3);
-    convergence_table.set_scientific("grad L2", true);
-    convergence_table.set_precision("val L2-post", 3);
-    convergence_table.set_scientific("val L2-post", true);
-
     // There is one minor change for the convergence table compared to step-7:
     // Since we did not refine our mesh by a factor two in each cycle (but
     // rather used the sequence 2, 3, 4, 6, 8, 12, ...), we need to tell the
@@ -1396,8 +1396,6 @@ int main()
 
   try
     {
-      using namespace dealii;
-
       // Now for the three calls to the main class in complete analogy to
       // step-7.
       {

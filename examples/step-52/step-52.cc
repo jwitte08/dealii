@@ -94,7 +94,8 @@ namespace Step52
                                           const double          tau,
                                           const Vector<double> &y);
 
-    void output_results(const unsigned int               time_step,
+    void output_results(const double                     time,
+                        const unsigned int               time_step,
                         TimeStepping::runge_kutta_method method) const;
 
     // The next three functions are the drivers for the explicit methods, the
@@ -376,7 +377,8 @@ namespace Step52
   // the number of the time step and the name of the time stepping method. Of
   // course, the (exact) result should really be the same for all time
   // stepping method, but the output here at least allows us to compare them.
-  void Diffusion::output_results(const unsigned int               time_step,
+  void Diffusion::output_results(const double                     time,
+                                 const unsigned int               time_step,
                                  TimeStepping::runge_kutta_method method) const
   {
     std::string method_name;
@@ -451,11 +453,28 @@ namespace Step52
 
     data_out.build_patches();
 
-    const std::string filename = "solution-" + method_name + "-" +
+    data_out.set_flags(DataOutBase::VtkFlags(time, time_step));
+
+    const std::string filename = "solution_" + method_name + "-" +
                                  Utilities::int_to_string(time_step, 3) +
                                  ".vtu";
     std::ofstream output(filename);
     data_out.write_vtu(output);
+
+    static std::vector<std::pair<double, std::string>> times_and_names;
+
+    static std::string method_name_prev = "";
+    static std::string pvd_filename;
+    if (method_name_prev != method_name)
+      {
+        std::cout << "Starting a new time-stepping scheme ..." << std::endl;
+        times_and_names.clear();
+        method_name_prev = method_name;
+        pvd_filename     = "solution_" + method_name + ".pvd";
+      }
+    times_and_names.emplace_back(time, filename);
+    std::ofstream pvd_output(pvd_filename);
+    DataOutBase::write_pvd_record(pvd_output, times_and_names);
   }
 
 
@@ -492,7 +511,7 @@ namespace Step52
 
     TimeStepping::ExplicitRungeKutta<Vector<double>> explicit_runge_kutta(
       method);
-    output_results(0, method);
+    output_results(time, 0, method);
     for (unsigned int i = 0; i < n_time_steps; ++i)
       {
         time = explicit_runge_kutta.evolve_one_time_step(
@@ -506,7 +525,7 @@ namespace Step52
         constraint_matrix.distribute(solution);
 
         if ((i + 1) % 10 == 0)
-          output_results(i + 1, method);
+          output_results(time, i + 1, method);
       }
   }
 
@@ -532,7 +551,7 @@ namespace Step52
 
     TimeStepping::ImplicitRungeKutta<Vector<double>> implicit_runge_kutta(
       method);
-    output_results(0, method);
+    output_results(time, 0, method);
     for (unsigned int i = 0; i < n_time_steps; ++i)
       {
         time = implicit_runge_kutta.evolve_one_time_step(
@@ -549,7 +568,7 @@ namespace Step52
         constraint_matrix.distribute(solution);
 
         if ((i + 1) % 10 == 0)
-          output_results(i + 1, method);
+          output_results(time, i + 1, method);
       }
   }
 
@@ -598,7 +617,7 @@ namespace Step52
                                     max_delta,
                                     refine_tol,
                                     coarsen_tol);
-    output_results(0, method);
+    output_results(time, 0, method);
 
     // Now for the time loop. The last time step is chosen such that the final
     // time is exactly reached.
@@ -619,7 +638,7 @@ namespace Step52
         constraint_matrix.distribute(solution);
 
         if ((n_steps + 1) % 10 == 0)
-          output_results(n_steps + 1, method);
+          output_results(time, n_steps + 1, method);
 
         time_step = embedded_explicit_runge_kutta.get_status().delta_t_guess;
         ++n_steps;
@@ -673,21 +692,21 @@ namespace Step52
                     n_time_steps,
                     initial_time,
                     final_time);
-    std::cout << "Forward Euler:            error=" << solution.l2_norm()
+    std::cout << "   Forward Euler:            error=" << solution.l2_norm()
               << std::endl;
 
     explicit_method(TimeStepping::RK_THIRD_ORDER,
                     n_time_steps,
                     initial_time,
                     final_time);
-    std::cout << "Third order Runge-Kutta:  error=" << solution.l2_norm()
+    std::cout << "   Third order Runge-Kutta:  error=" << solution.l2_norm()
               << std::endl;
 
     explicit_method(TimeStepping::RK_CLASSIC_FOURTH_ORDER,
                     n_time_steps,
                     initial_time,
                     final_time);
-    std::cout << "Fourth order Runge-Kutta: error=" << solution.l2_norm()
+    std::cout << "   Fourth order Runge-Kutta: error=" << solution.l2_norm()
               << std::endl;
     std::cout << std::endl;
 
@@ -697,28 +716,28 @@ namespace Step52
                     n_time_steps,
                     initial_time,
                     final_time);
-    std::cout << "Backward Euler:           error=" << solution.l2_norm()
+    std::cout << "   Backward Euler:           error=" << solution.l2_norm()
               << std::endl;
 
     implicit_method(TimeStepping::IMPLICIT_MIDPOINT,
                     n_time_steps,
                     initial_time,
                     final_time);
-    std::cout << "Implicit Midpoint:        error=" << solution.l2_norm()
+    std::cout << "   Implicit Midpoint:        error=" << solution.l2_norm()
               << std::endl;
 
     implicit_method(TimeStepping::CRANK_NICOLSON,
                     n_time_steps,
                     initial_time,
                     final_time);
-    std::cout << "Crank-Nicolson:           error=" << solution.l2_norm()
+    std::cout << "   Crank-Nicolson:           error=" << solution.l2_norm()
               << std::endl;
 
     implicit_method(TimeStepping::SDIRK_TWO_STAGES,
                     n_time_steps,
                     initial_time,
                     final_time);
-    std::cout << "SDIRK:                    error=" << solution.l2_norm()
+    std::cout << "   SDIRK:                    error=" << solution.l2_norm()
               << std::endl;
     std::cout << std::endl;
 
@@ -728,7 +747,7 @@ namespace Step52
                                        n_time_steps,
                                        initial_time,
                                        final_time);
-    std::cout << "Heun-Euler:               error=" << solution.l2_norm()
+    std::cout << "   Heun-Euler:               error=" << solution.l2_norm()
               << std::endl;
     std::cout << "                steps performed=" << n_steps << std::endl;
 
@@ -736,7 +755,7 @@ namespace Step52
                                        n_time_steps,
                                        initial_time,
                                        final_time);
-    std::cout << "Bogacki-Shampine:         error=" << solution.l2_norm()
+    std::cout << "   Bogacki-Shampine:         error=" << solution.l2_norm()
               << std::endl;
     std::cout << "                steps performed=" << n_steps << std::endl;
 
@@ -744,7 +763,7 @@ namespace Step52
                                        n_time_steps,
                                        initial_time,
                                        final_time);
-    std::cout << "Dopri:                    error=" << solution.l2_norm()
+    std::cout << "   Dopri:                    error=" << solution.l2_norm()
               << std::endl;
     std::cout << "                steps performed=" << n_steps << std::endl;
 
@@ -752,7 +771,7 @@ namespace Step52
                                        n_time_steps,
                                        initial_time,
                                        final_time);
-    std::cout << "Fehlberg:                 error=" << solution.l2_norm()
+    std::cout << "   Fehlberg:                 error=" << solution.l2_norm()
               << std::endl;
     std::cout << "                steps performed=" << n_steps << std::endl;
 
@@ -760,7 +779,7 @@ namespace Step52
                                        n_time_steps,
                                        initial_time,
                                        final_time);
-    std::cout << "Cash-Karp:                error=" << solution.l2_norm()
+    std::cout << "   Cash-Karp:                error=" << solution.l2_norm()
               << std::endl;
     std::cout << "                steps performed=" << n_steps << std::endl;
   }

@@ -65,8 +65,6 @@
 
 namespace Step40
 {
-  using namespace dealii;
-
   template <int dim>
   class LaplaceProblem
   {
@@ -181,11 +179,10 @@ namespace Step40
                                dof_handler.n_dofs(),
                                locally_relevant_dofs);
     DoFTools::make_sparsity_pattern(dof_handler, csp, constraints, false);
-    SparsityTools::distribute_sparsity_pattern(
-      csp,
-      dof_handler.compute_n_locally_owned_dofs_per_processor(),
-      mpi_communicator,
-      locally_relevant_dofs);
+    SparsityTools::distribute_sparsity_pattern(csp,
+                                               dof_handler.locally_owned_dofs(),
+                                               mpi_communicator,
+                                               locally_relevant_dofs);
     system_matrix.reinit(
       mpi_communicator,
       csp,
@@ -569,7 +566,6 @@ main(int argc, char *argv[])
 {
   try
     {
-      using namespace dealii;
       using namespace Step40;
 
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);

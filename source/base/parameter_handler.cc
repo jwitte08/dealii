@@ -20,6 +20,7 @@
 #include <deal.II/base/path_search.h>
 #include <deal.II/base/utilities.h>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/io/ios_state.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -473,7 +474,7 @@ ParameterHandler::parse_input(std::istream &     input,
     }
 
   // While it does not make much sense for anyone to actually do this, allow
-  // the last line to end in a backslash. to do do, we need to parse
+  // the last line to end in a backslash. To do so, we need to parse
   // whatever was left in the stash of concatenated lines
   if (is_concatenated)
     scan_line_or_cleanup(fully_concatenated_line, filename, current_line_n);
@@ -509,13 +510,30 @@ ParameterHandler::parse_input(std::istream &     input,
 void
 ParameterHandler::parse_input(const std::string &filename,
                               const std::string &last_line,
-                              const bool         skip_undefined)
+                              const bool         skip_undefined,
+                              const bool assert_mandatory_entries_are_found)
 {
-  PathSearch search("PARAMETERS");
+  std::ifstream is(filename);
+  AssertThrow(is,
+              ExcMessage("Invalid filename " + filename +
+                         " provided. File does not exist or "
+                         "can not be read from."));
 
-  std::string   openname = search.find(filename);
-  std::ifstream file_stream(openname.c_str());
-  parse_input(file_stream, filename, last_line, skip_undefined);
+  std::string file_ending = filename.substr(filename.find_last_of('.') + 1);
+  boost::algorithm::to_lower(file_ending);
+  if (file_ending == "prm")
+    parse_input(is, filename, last_line, skip_undefined);
+  else if (file_ending == "xml")
+    parse_input_from_xml(is, skip_undefined);
+  else if (file_ending == "json")
+    parse_input_from_json(is, skip_undefined);
+  else
+    AssertThrow(false,
+                ExcMessage("Unknown input file name extension. Supported types "
+                           "are .prm, .xml, and .json."));
+
+  if (assert_mandatory_entries_are_found)
+    assert_that_entries_have_been_set();
 }
 
 
@@ -612,6 +630,51 @@ namespace
           }
       }
   }
+
+  // Recursively go through the @p source tree and collapse the nodes of the
+  // format:
+  //
+  //"key":
+  //      {
+  //          "value"              : "val",
+  //          "default_value"      : "...",
+  //          "documentation"      : "...",
+  //          "pattern"            : "...",
+  //          "pattern_description": "..."
+  //      },
+  //
+  // to
+  //
+  // "key" : "val";
+  //
+  // As an example a JSON file is shown. However, this function also works for
+  // XML since both formats are build around the same BOOST data structures.
+  //
+  // This function is strongly based on read_xml_recursively().
+  void
+  recursively_remove_documentation_from_tree(
+    boost::property_tree::ptree &source)
+  {
+    for (auto &p : source)
+      {
+        if (p.second.get_optional<std::string>("value"))
+          {
+            // save the value in a temporal variable
+            const auto temp = p.second.get<std::string>("value");
+            // clear node (children and value)
+            p.second.clear();
+            // set the correct value
+            p.second.put_value<std::string>(temp);
+          }
+        else if (p.second.get_optional<std::string>("alias"))
+          {}
+        else
+          {
+            // it must be a subsection
+            recursively_remove_documentation_from_tree(p.second);
+          }
+      }
+  }
 } // namespace
 
 
@@ -695,6 +758,7 @@ void
 ParameterHandler::clear()
 {
   entries = std_cxx14::make_unique<boost::property_tree::ptree>();
+  entries_set_status.clear();
 }
 
 
@@ -703,7 +767,8 @@ void
 ParameterHandler::declare_entry(const std::string &          entry,
                                 const std::string &          default_value,
                                 const Patterns::PatternBase &pattern,
-                                const std::string &          documentation)
+                                const std::string &          documentation,
+                                const bool                   has_to_be_set)
 {
   entries->put(get_current_full_path(entry) + path_separator + "value",
                default_value);
@@ -711,6 +776,13 @@ ParameterHandler::declare_entry(const std::string &          entry,
                default_value);
   entries->put(get_current_full_path(entry) + path_separator + "documentation",
                documentation);
+
+  // initialize with false
+  const std::pair<bool, bool> set_status =
+    std::pair<bool, bool>(has_to_be_set, false);
+  entries_set_status.insert(
+    std::pair<std::string, std::pair<bool, bool>>(get_current_full_path(entry),
+                                                  set_status));
 
   patterns.reserve(patterns.size() + 1);
   patterns.emplace_back(pattern.clone());
@@ -1086,6 +1158,14 @@ ParameterHandler::set(const std::string &entry_string,
 
       // finally write the new value into the database
       entries->put(path + path_separator + "value", new_value);
+
+      auto map_iter = entries_set_status.find(path);
+      if (map_iter != entries_set_status.end())
+        map_iter->second = std::pair<bool, bool>(map_iter->second.first, true);
+      else
+        AssertThrow(false,
+                    ExcMessage("Could not find parameter " + path +
+                               " in map entries_set_status."));
     }
   else
     AssertThrow(false, ExcEntryUndeclared(entry_string));
@@ -1147,20 +1227,16 @@ ParameterHandler::print_parameters(std::ostream &    out,
   // Create entries copy and sort it, if needed.
   // In this way we ensure that the class state is never
   // modified by this function.
-  boost::property_tree::ptree  sorted_entries;
-  boost::property_tree::ptree *current_entries = entries.get();
+  boost::property_tree::ptree current_entries = *entries.get();
 
   // Sort parameters alphabetically, if needed.
   if (sort_alphabetical)
     {
-      sorted_entries  = *entries;
-      current_entries = &sorted_entries;
-
       // Dive recursively into the subsections,
       // starting from the top level.
       recursively_sort_parameters(path_separator,
                                   std::vector<std::string>(),
-                                  sorted_entries);
+                                  current_entries);
     }
 
   // we'll have to print some text that is padded with spaces;
@@ -1174,7 +1250,15 @@ ParameterHandler::print_parameters(std::ostream &    out,
   // we treat XML and JSON is one step via BOOST, whereas all of the others are
   // done recursively in our own code. take care of the two special formats
   // first
-  if (style == XML)
+
+  // explicity eliminate the documentation from the tree if requested
+  if (style == ShortXML || style == ShortJSON)
+    {
+      // modify the copy of the tree
+      recursively_remove_documentation_from_tree(current_entries);
+    }
+
+  if (style == XML || style == ShortXML)
     {
       // call the writer function and exit as there is nothing
       // further to do down in this function
@@ -1186,15 +1270,15 @@ ParameterHandler::print_parameters(std::ostream &    out,
       // single top-level node "ParameterHandler" and
       // assign the existing tree under it
       boost::property_tree::ptree single_node_tree;
-      single_node_tree.add_child("ParameterHandler", *current_entries);
+      single_node_tree.add_child("ParameterHandler", current_entries);
 
       write_xml(out, single_node_tree);
       return out;
     }
 
-  if (style == JSON)
+  if (style == JSON || style == ShortJSON)
     {
-      write_json(out, *current_entries);
+      write_json(out, current_entries);
       return out;
     }
 
@@ -1225,7 +1309,7 @@ ParameterHandler::print_parameters(std::ostream &    out,
 
   // dive recursively into the subsections
   recursively_print_parameters(
-    *current_entries,
+    current_entries,
     std::vector<std::string>(), // start at the top level
     style,
     0,
@@ -1630,468 +1714,6 @@ ParameterHandler::recursively_print_parameters(
       }
 }
 
-// Print a section in the desired style. The styles are separated into
-// several verbosity classes depending on the higher bits.
-//
-// If bit 7 (128) is set, comments are not printed.
-// If bit 6 (64) is set, default values after change are not printed.
-void
-ParameterHandler::print_parameters_section(
-  std::ostream &     out,
-  const OutputStyle  style,
-  const unsigned int indent_level,
-  const bool         include_top_level_elements,
-  const bool         sort_alphabetical)
-{
-  AssertThrow(out, ExcIO());
-
-  // Create entries copy and sort it, if needed.
-  // In this way we ensure that the class state is never
-  // modified by this function.
-  boost::property_tree::ptree  sorted_entries;
-  boost::property_tree::ptree *current_entries = entries.get();
-
-  // Sort parameters alphabetically, if needed.
-  if (sort_alphabetical)
-    {
-      sorted_entries  = *entries;
-      current_entries = &sorted_entries;
-
-      // Dive recursively into the subsections,
-      // starting from current level.
-      recursively_sort_parameters(path_separator,
-                                  subsection_path,
-                                  sorted_entries);
-    }
-
-  const boost::property_tree::ptree &current_section =
-    current_entries->get_child(get_current_path());
-
-  unsigned int overall_indent_level = indent_level;
-
-  switch (style)
-    {
-      case XML:
-        {
-          if (include_top_level_elements)
-            {
-              // call the writer function and exit as there is nothing
-              // further to do down in this function
-              //
-              // XML has a requirement that there can only be one single
-              // top-level entry, but a section has multiple entries and
-              // sections. we work around this by creating a tree just for
-              // this purpose with the single top-level node
-              // "ParameterHandler" and assign the full path of down to
-              // the current section under it
-              boost::property_tree::ptree single_node_tree;
-
-              // if there is no subsection selected, add the whole tree of
-              // entries, otherwise add a root element and the selected
-              // subsection under it
-              if (subsection_path.size() == 0)
-                {
-                  single_node_tree.add_child("ParameterHandler",
-                                             *current_entries);
-                }
-              else
-                {
-                  std::string path("ParameterHandler");
-
-                  single_node_tree.add_child(path,
-                                             boost::property_tree::ptree());
-
-                  path += path_separator + get_current_path();
-                  single_node_tree.add_child(path, current_section);
-                }
-
-              write_xml(out, single_node_tree);
-            }
-          else
-            Assert(false, ExcNotImplemented());
-
-          break;
-        }
-      case Text:
-      case ShortText:
-        {
-          // if there are top level elements to print, do it
-          if (include_top_level_elements && (subsection_path.size() > 0))
-            for (const auto &path : subsection_path)
-              {
-                out << std::setw(overall_indent_level * 2) << ""
-                    << "subsection " << demangle(path) << std::endl;
-                overall_indent_level += 1;
-              }
-
-          // first find out the longest entry name to be able to align the
-          // equal signs to do this loop over all nodes of the current
-          // tree, select the parameter nodes (and discard sub-tree nodes)
-          // and take the maximum of their lengths
-          std::size_t longest_name = 0;
-          for (const auto &p : current_section)
-            if (is_parameter_node(p.second) == true)
-              longest_name = std::max(longest_name, demangle(p.first).length());
-
-          // likewise find the longest actual value string to make sure we
-          // can align the default and documentation strings
-          std::size_t longest_value = 0;
-          for (const auto &p : current_section)
-            if (is_parameter_node(p.second) == true)
-              longest_value =
-                std::max(longest_value,
-                         p.second.get<std::string>("value").length());
-
-
-          // print entries one by one
-          bool first_entry = true;
-          for (const auto &p : current_section)
-            if (is_parameter_node(p.second) == true)
-              {
-                const std::string value = p.second.get<std::string>("value");
-
-                // if there is documentation, then add an empty line
-                // (unless this is the first entry in a subsection), print
-                // the documentation, and then the actual entry; break the
-                // documentation into readable chunks such that the whole
-                // thing is at most 78 characters wide
-                if ((!(style & 128)) &&
-                    !p.second.get<std::string>("documentation").empty())
-                  {
-                    if (first_entry == false)
-                      out << std::endl;
-                    else
-                      first_entry = false;
-
-                    const std::vector<std::string> doc_lines =
-                      Utilities::break_text_into_lines(
-                        p.second.get<std::string>("documentation"),
-                        78 - overall_indent_level * 2 - 2);
-
-                    for (const auto &doc_line : doc_lines)
-                      out << std::setw(overall_indent_level * 2) << ""
-                          << "# " << doc_line << std::endl;
-                  }
-
-
-
-                // print name and value of this entry
-                out << std::setw(overall_indent_level * 2) << ""
-                    << "set " << demangle(p.first)
-                    << std::setw(longest_name - demangle(p.first).length() + 1)
-                    << " "
-                    << "= " << value;
-
-                // finally print the default value, but only if it differs
-                // from the actual value
-                if ((!(style & 64)) &&
-                    value != p.second.get<std::string>("default_value"))
-                  {
-                    out << std::setw(longest_value - value.length() + 1) << ' '
-                        << "# ";
-                    out << "default: "
-                        << p.second.get<std::string>("default_value");
-                  }
-
-                out << std::endl;
-              }
-
-          break;
-        }
-
-      case LaTeX:
-        {
-          auto escape = [](const std::string &input) {
-            return Patterns::internal::escape(input,
-                                              Patterns::PatternBase::LaTeX);
-          };
-
-          // if there are any parameters in this section then print them
-          // as an itemized list
-          bool parameters_exist_here = false;
-          for (const auto &p : current_section)
-            if ((is_parameter_node(p.second) == true) ||
-                (is_alias_node(p.second) == true))
-              {
-                parameters_exist_here = true;
-                break;
-              }
-
-          if (parameters_exist_here)
-            {
-              out << "\\begin{itemize}" << std::endl;
-
-              // print entries one by one
-              for (const auto &p : current_section)
-                if (is_parameter_node(p.second) == true)
-                  {
-                    const std::string value =
-                      p.second.get<std::string>("value");
-
-                    // print name
-                    out << "\\item {\\it Parameter name:} {\\tt "
-                        << escape(demangle(p.first)) << "}\n"
-                        << "\\phantomsection\\label{parameters:";
-                    for (const auto &path : subsection_path)
-                      out << mangle(path) << "/";
-                    out << p.first;
-                    out << "}\n\n" << std::endl;
-
-                    out << "\\index[prmindex]{" << escape(demangle(p.first))
-                        << "}\n";
-                    out << "\\index[prmindexfull]{";
-                    for (const auto &path : subsection_path)
-                      out << escape(path) << "!";
-                    out << escape(demangle(p.first)) << "}\n";
-
-                    // finally print value and default
-                    out << "{\\it Value:} " << escape(value) << "\n\n"
-                        << std::endl
-                        << "{\\it Default:} "
-                        << escape(p.second.get<std::string>("default_value"))
-                        << "\n\n"
-                        << std::endl;
-
-                    // if there is a documenting string, print it as well
-                    if (!p.second.get<std::string>("documentation").empty())
-                      out << "{\\it Description:} "
-                          << p.second.get<std::string>("documentation")
-                          << "\n\n"
-                          << std::endl;
-
-                    // also output possible values
-                    const unsigned int pattern_index =
-                      p.second.get<unsigned int>("pattern");
-                    const std::string desc_str =
-                      patterns[pattern_index]->description(
-                        Patterns::PatternBase::LaTeX);
-                    out << "{\\it Possible values:} " << desc_str << std::endl;
-                  }
-                else if (is_alias_node(p.second) == true)
-                  {
-                    const std::string alias =
-                      p.second.get<std::string>("alias");
-
-                    // print name
-                    out << "\\item {\\it Parameter name:} {\\tt "
-                        << escape(demangle(p.first)) << "}\n"
-                        << "\\phantomsection\\label{parameters:";
-                    for (const auto &path : subsection_path)
-                      out << mangle(path) << "/";
-                    out << p.first;
-                    out << "}\n\n" << std::endl;
-
-                    out << "\\index[prmindex]{" << escape(demangle(p.first))
-                        << "}\n";
-                    out << "\\index[prmindexfull]{";
-                    for (const auto &path : subsection_path)
-                      out << escape(path) << "!";
-                    out << escape(demangle(p.first)) << "}\n";
-
-                    // finally print alias and indicate if it is deprecated
-                    out
-                      << "This parameter is an alias for the parameter ``\\texttt{"
-                      << escape(alias) << "}''."
-                      << (p.second.get<std::string>("deprecation_status") ==
-                              "true" ?
-                            " Its use is deprecated." :
-                            "")
-                      << "\n\n"
-                      << std::endl;
-                  }
-              out << "\\end{itemize}" << std::endl;
-            }
-
-          break;
-        }
-
-      case Description:
-        {
-          // if there are top level elements to print, do it
-          if (include_top_level_elements && (subsection_path.size() > 0))
-            for (const auto &path : subsection_path)
-              {
-                out << std::setw(overall_indent_level * 2) << ""
-                    << "subsection " << demangle(path) << std::endl;
-                overall_indent_level += 1;
-              };
-
-          // first find out the longest entry name to be able to align the
-          // equal signs
-          std::size_t longest_name = 0;
-          for (const auto &p : current_section)
-            if (is_parameter_node(p.second) == true)
-              longest_name = std::max(longest_name, demangle(p.first).length());
-
-          // print entries one by one
-          for (const auto &p : current_section)
-            if (is_parameter_node(p.second) == true)
-              {
-                // print name and value
-                out << std::setw(overall_indent_level * 2) << ""
-                    << "set " << demangle(p.first)
-                    << std::setw(longest_name - demangle(p.first).length() + 1)
-                    << " "
-                    << " = ";
-
-                // print possible values:
-                const unsigned int pattern_index =
-                  p.second.get<unsigned int>("pattern");
-                const std::string full_desc_str =
-                  patterns[pattern_index]->description(
-                    Patterns::PatternBase::Text);
-                const std::vector<std::string> description_str =
-                  Utilities::break_text_into_lines(
-                    full_desc_str, 78 - overall_indent_level * 2 - 2, '|');
-                if (description_str.size() > 1)
-                  {
-                    out << std::endl;
-                    for (const auto &description : description_str)
-                      out << std::setw(overall_indent_level * 2 + 6) << ""
-                          << description << std::endl;
-                  }
-                else if (description_str.empty() == false)
-                  out << "  " << description_str[0] << std::endl;
-                else
-                  out << std::endl;
-
-                // if there is a documenting string, print it as well
-                if (p.second.get<std::string>("documentation").length() != 0)
-                  out << std::setw(overall_indent_level * 2 + longest_name + 10)
-                      << ""
-                      << "(" << p.second.get<std::string>("documentation")
-                      << ")" << std::endl;
-              }
-
-          break;
-        }
-
-      default:
-        Assert(false, ExcNotImplemented());
-    }
-
-
-  // if there was text before and there are sections to come, put two
-  // newlines between the last entry and the first subsection
-  if (style != XML)
-    {
-      unsigned int n_parameters = 0;
-      unsigned int n_sections   = 0;
-      for (const auto &p : current_section)
-        if (is_parameter_node(p.second) == true)
-          ++n_parameters;
-        else if (is_alias_node(p.second) == false)
-          ++n_sections;
-
-      if ((style != Description) && (!(style & 128)) && (n_parameters != 0) &&
-          (n_sections != 0))
-        out << std::endl << std::endl;
-
-      // now transverse subsections tree
-      for (const auto &p : current_section)
-        if ((is_parameter_node(p.second) == false) &&
-            (is_alias_node(p.second) == false))
-          {
-            // first print the subsection header
-            switch (style)
-              {
-                case Text:
-                case Description:
-                case ShortText:
-                  out << std::setw(overall_indent_level * 2) << ""
-                      << "subsection " << demangle(p.first) << std::endl;
-                  break;
-                case LaTeX:
-                  {
-                    auto escape = [](const std::string &input) {
-                      return Patterns::internal::escape(
-                        input, Patterns::PatternBase::LaTeX);
-                    };
-
-                    out << std::endl
-                        << "\\subsection{Parameters in section \\tt ";
-
-                    // find the path to the current section so that we can
-                    // print it in the \subsection{...} heading
-                    for (const auto &path : subsection_path)
-                      out << escape(path) << "/";
-                    out << escape(demangle(p.first));
-
-                    out << "}" << std::endl;
-                    out << "\\label{parameters:";
-                    for (const auto &path : subsection_path)
-                      out << mangle(path) << "/";
-                    out << p.first << "}";
-                    out << std::endl;
-
-                    out << std::endl;
-                    break;
-                  }
-
-                default:
-                  Assert(false, ExcNotImplemented());
-              }
-
-            // then the contents of the subsection
-            enter_subsection(demangle(p.first));
-            print_parameters_section(out, style, overall_indent_level + 1);
-            leave_subsection();
-            switch (style)
-              {
-                case Text:
-                  // write end of subsection. one blank line after each
-                  // subsection
-                  out << std::setw(overall_indent_level * 2) << ""
-                      << "end" << std::endl
-                      << std::endl;
-
-                  // if this is a toplevel subsection, then have two
-                  // newlines
-                  if (overall_indent_level == 0)
-                    out << std::endl;
-
-                  break;
-                case Description:
-                  break;
-                case ShortText:
-                  // write end of subsection.
-                  out << std::setw(overall_indent_level * 2) << ""
-                      << "end" << std::endl;
-                  break;
-                case LaTeX:
-                  break;
-                default:
-                  Assert(false, ExcNotImplemented());
-              }
-          }
-    }
-
-  // close top level elements, if there are any
-  switch (style)
-    {
-      case XML:
-      case LaTeX:
-      case Description:
-        break;
-      case Text:
-      case ShortText:
-        {
-          if (include_top_level_elements && (subsection_path.size() > 0))
-            for (unsigned int i = 0; i < subsection_path.size(); ++i)
-              {
-                overall_indent_level -= 1;
-                out << std::setw(overall_indent_level * 2) << ""
-                    << "end" << std::endl;
-              }
-
-          break;
-        }
-
-      default:
-        Assert(false, ExcNotImplemented());
-    }
-}
-
 
 
 void
@@ -2376,6 +1998,47 @@ ParameterHandler::operator==(const ParameterHandler &prm2) const
   write_json(o1, *entries);
   write_json(o2, *prm2.entries);
   return (o1.str() == o2.str());
+}
+
+
+
+std::set<std::string>
+ParameterHandler::get_entries_wrongly_not_set() const
+{
+  std::set<std::string> entries_wrongly_not_set;
+
+  for (const auto &it : entries_set_status)
+    if (it.second.first == true && it.second.second == false)
+      entries_wrongly_not_set.insert(it.first);
+
+  return entries_wrongly_not_set;
+}
+
+
+
+void
+ParameterHandler::assert_that_entries_have_been_set() const
+{
+  const std::set<std::string> entries_wrongly_not_set =
+    this->get_entries_wrongly_not_set();
+
+  if (entries_wrongly_not_set.size() > 0)
+    {
+      std::string list_of_missing_parameters = "\n\n";
+      for (const auto &it : entries_wrongly_not_set)
+        list_of_missing_parameters += "  " + it + "\n";
+      list_of_missing_parameters += "\n";
+
+      AssertThrow(
+        entries_wrongly_not_set.size() == 0,
+        ExcMessage(
+          "Not all entries of the parameter handler that were declared with "
+          "`has_to_be_set = true` have been set. The following parameters " +
+          list_of_missing_parameters +
+          " have not been set. "
+          "A possible reason might be that you did not add these parameter to "
+          "the input file or that their spelling is not correct."));
+    }
 }
 
 

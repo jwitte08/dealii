@@ -146,15 +146,14 @@ test()
   solver.solve(func, x);
 
   deallog << "Limited memory BFGS solution:" << std::endl;
-  x.print(deallog);
+  x.print(deallog.get_file_stream());
 }
 
 int
 main()
 {
-  std::ofstream logfile("output");
+  initlog();
   deallog << std::setprecision(5);
-  deallog.attach(logfile);
 
   test<double>();
 }

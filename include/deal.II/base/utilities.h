@@ -156,7 +156,7 @@ namespace Utilities
   /**
    * If the library is configured with ZLIB, then this function assumes that the
    * input string has been compressed using the compress() function, and returns
-   * the original decompresses string.
+   * the original decompressed string.
    *
    * If the library was not configured with ZLIB enabled, the returned string
    * is identical to the input string.
@@ -170,6 +170,37 @@ namespace Utilities
    */
   std::string
   decompress(const std::string &compressed_input);
+
+  /**
+   * Encodes the binary input as a base64 string.
+   *
+   * Base64 is a group of binary-to-text encoding schemes that represent binary
+   * data in an ASCII string format by translating it into a radix-64
+   * representation. Base64 is designed to carry data stored in binary formats
+   * across channels that only reliably support text content. It is used also
+   * to store binary formats in a machine independent way.
+   *
+   * @param binary_input A vector of characters, representing your input as
+   * binary data.
+   * @return A string containing the binary input as a base64 string.
+   *
+   * @author Luca Heltai, 2020.
+   */
+  std::string
+  encode_base64(const std::vector<unsigned char> &binary_input);
+
+  /**
+   * Decodes a base64 string into a binary output.
+   *
+   * This is the inverse of the encode_base64() function above.
+   *
+   * @param base64_input A string that contains the input in base64 format.
+   * @return A vector of characters that represents your input as binary data.
+   *
+   * @author Luca Heltai, 2020.
+   */
+  std::vector<unsigned char>
+  decode_base64(const std::string &base64_input);
 
   /**
    * Convert a number @p value to a string, with as many digits as given to
@@ -436,58 +467,15 @@ namespace Utilities
   fixed_power(const T t);
 
   /**
-   * Calculate a fixed power of an integer number by a template expression
-   * where both the number <code>a</code> and the power <code>N</code> are
-   * compile-time constants. This computes the result of the power operation
-   * at compile time, enabling its use e.g. in other templates.
-   *
-   * Use this class as in <code>fixed_int_power@<5,2@>::%value</code> to
-   * compute 5<sup>2</sup>.
-   *
-   * @deprecated This template has been deprecated in favor of C++11's support
-   * for <code>constexpr</code> calculations, e.g., use
-   *
-   * @code
-   * constexpr int value = Utilities::pow(2, dim);
-   * @endcode
-   *
-   * instead of
-   *
-   * @code
-   * const int value = Utilities::fixed_int_power<2, dim>::value;
-   * @endcode
-   *
-   * to obtain a constant expression for <code>value</code>.
-   */
-  template <int a, int N>
-  struct DEAL_II_DEPRECATED fixed_int_power
-  {
-    static const int value = a * fixed_int_power<a, N - 1>::value;
-  };
-
-  /**
-   * Base case for the power operation with <code>N=0</code>, which gives the
-   * result 1.
-   *
-   * @deprecated This template is deprecated: see the note in the general
-   * version of this template for more information.
-   */
-  template <int a>
-  struct DEAL_II_DEPRECATED fixed_int_power<a, 0>
-  {
-    static const int value = 1;
-  };
-
-  /**
    * A replacement for <code>std::pow</code> that allows compile-time
-   * calculations for constant expression arguments. The exponent @p iexp
-   * must not be negative.
+   * calculations for constant expression arguments. The @p base must
+   * be an integer type and the exponent @p iexp must not be negative.
    */
-  constexpr unsigned int
-  pow(const unsigned int base, const int iexp)
+  template <typename T>
+  constexpr T
+  pow(const T base, const int iexp)
   {
-#if defined(DEBUG) && defined(DEAL_II_WITH_CXX14) && \
-  defined(DEAL_II_HAVE_CXX14_CONSTEXPR_CAN_CALL_NONCONSTEXPR)
+#if defined(DEBUG) && defined(DEAL_II_HAVE_CXX14_CONSTEXPR)
     // Up to __builtin_expect this is the same code as in the 'Assert' macro.
     // The call to __builtin_expect turns out to be problematic.
     if (!(iexp >= 0))
@@ -508,6 +496,10 @@ namespace Utilities
     // if (iexp <= 0)
     //   return 1;
     //
+    // // avoid overflow of one additional recursion with pow(base * base, 0)
+    // if (iexp == 1)
+    //   return base;
+    //
     // // if the current exponent is not divisible by two,
     // // we need to account for that.
     // const unsigned int prefactor = (iexp % 2 == 1) ? base : 1;
@@ -517,9 +509,13 @@ namespace Utilities
     // return prefactor * dealii::Utilities::pow(base*base, iexp/2);
     // </code>
 
-    return iexp <= 0 ? 1 :
-                       (((iexp % 2 == 1) ? base : 1) *
-                        dealii::Utilities::pow(base * base, iexp / 2));
+    static_assert(std::is_integral<T>::value, "Only integral types supported");
+
+    return iexp <= 0 ?
+             1 :
+             (iexp == 1 ? base :
+                          (((iexp % 2 == 1) ? base : 1) *
+                           dealii::Utilities::pow(base * base, iexp / 2)));
   }
 
   /**
@@ -813,8 +809,8 @@ namespace Utilities
     get_cpu_load();
 
     /**
-     * Return the current level of vectorization as described by
-     * DEAL_II_COMPILER_VECTORIZATION_LEVEL in vectorization.h as a string. The
+     * Return the instruction set extension for vectorization as described by
+     * DEAL_II_VECTORIZATION_WIDTH_IN_BITS in vectorization.h as a string. The
      * list of possible return values is:
      *
      * <table>
@@ -830,7 +826,7 @@ namespace Utilities
      * </tr>
      * <tr>
      *   <td>1</td>
-     *   <td>SSE2</td>
+     *   <td>SSE2/AltiVec</td>
      *   <td>128</td>
      * </tr>
      * <tr>

@@ -37,7 +37,6 @@
 
 #include "../tests.h"
 
-using namespace dealii;
 
 template <int dim,
           typename Number              = double,
@@ -106,7 +105,7 @@ public:
         for (const auto cell : cells)
           deallog << "cell:      " << cell.to_string() << std::endl;
 
-        for (const auto face : faces)
+        for (const auto &face : faces)
           deallog << "face:      " << face.first.to_string() << " "
                   << face.second.to_string() << std::endl;
 

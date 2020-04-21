@@ -641,8 +641,8 @@ namespace Step30
   template <int dim>
   void DGMethod<dim>::solve(Vector<double> &solution)
   {
-    SolverControl      solver_control(1000, 1e-12, false, false);
-    SolverRichardson<> solver(solver_control);
+    SolverControl                    solver_control(1000, 1e-12, false, false);
+    SolverRichardson<Vector<double>> solver(solver_control);
 
     PreconditionBlockSSOR<SparseMatrix<double>> preconditioner;
 
@@ -1000,7 +1000,6 @@ int main()
 {
   try
     {
-      using namespace dealii;
       using namespace Step30;
 
       // If you want to run the program in 3D, simply change the following

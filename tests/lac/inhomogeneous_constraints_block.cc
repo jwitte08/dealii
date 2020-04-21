@@ -27,6 +27,7 @@
 #include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 
+#include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
 
@@ -51,7 +52,6 @@
 
 std::ofstream logfile("output");
 
-using namespace dealii;
 
 template <int dim>
 class AdvectionProblem

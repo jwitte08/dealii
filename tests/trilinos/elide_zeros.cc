@@ -89,8 +89,6 @@
 
 namespace LinearAdvectionTest
 {
-  using namespace dealii;
-
   template <int dim>
   class AdvectionProblem
   {
@@ -171,11 +169,10 @@ namespace LinearAdvectionTest
                                          cell_integral_mask,
                                          flux_integral_mask);
 
-    SparsityTools::distribute_sparsity_pattern(
-      dynamic_sparsity_pattern,
-      dof_handler.compute_n_locally_owned_dofs_per_processor(),
-      MPI_COMM_WORLD,
-      locally_relevant_dofs);
+    SparsityTools::distribute_sparsity_pattern(dynamic_sparsity_pattern,
+                                               locally_owned_dofs,
+                                               MPI_COMM_WORLD,
+                                               locally_relevant_dofs);
 
     system_matrix.reinit(locally_owned_dofs,
                          locally_owned_dofs,
@@ -326,7 +323,6 @@ namespace LinearAdvectionTest
 int
 main(int argc, char **argv)
 {
-  using namespace dealii;
   initlog();
 
   Utilities::MPI::MPI_InitFinalize         mpi_initialization(argc, argv, 1);

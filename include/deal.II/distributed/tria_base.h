@@ -97,6 +97,12 @@ namespace parallel
     get_communicator() const;
 
     /**
+     * Return if multilevel hierarchy is supported and has been constructed.
+     */
+    virtual bool
+    is_multilevel_hierarchy_constructed() const = 0;
+
+    /**
      * Implementation of the same function as in the base class.
      *
      * @note This function copies the cells, but not the communicator,
@@ -210,6 +216,24 @@ namespace parallel
      */
     virtual std::map<unsigned int, std::set<dealii::types::subdomain_id>>
     compute_vertices_with_ghost_neighbors() const;
+
+    /**
+     * @copydoc dealii::Triangulation::get_boundary_ids()
+     *
+     * @note This function involves a global communication gathering all current
+     *   IDs from all processes.
+     */
+    virtual std::vector<types::boundary_id>
+    get_boundary_ids() const override;
+
+    /**
+     * @copydoc dealii::Triangulation::get_manifold_ids()
+     *
+     * @note This function involves a global communication gathering all current
+     *   IDs from all processes.
+     */
+    virtual std::vector<types::manifold_id>
+    get_manifold_ids() const override;
 
   protected:
     /**
@@ -343,12 +367,6 @@ namespace parallel
       const typename dealii::Triangulation<dim, spacedim>::MeshSmoothing
                  smooth_grid = (dealii::Triangulation<dim, spacedim>::none),
       const bool check_for_distorted_cells = false);
-
-    /**
-     * Return if multilevel hierarchy is supported and has been constructed.
-     */
-    virtual bool
-    is_multilevel_hierarchy_constructed() const = 0;
   };
 
 } // namespace parallel

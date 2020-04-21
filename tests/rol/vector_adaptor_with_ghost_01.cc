@@ -22,7 +22,6 @@
 
 #include "../tests.h"
 
-using namespace dealii;
 
 // Vectors are prepared similar to deal.II's test: parallel_vector_07
 template <typename VectorType>
@@ -92,9 +91,17 @@ test()
   b.compress(VectorOperation::insert);
   c.compress(VectorOperation::insert);
 
+  a.update_ghost_values();
+  b.update_ghost_values();
+  c.update_ghost_values();
+
   Teuchos::RCP<VectorType> a_rcp(new VectorType(a));
   Teuchos::RCP<VectorType> b_rcp(new VectorType(b));
   Teuchos::RCP<VectorType> c_rcp(new VectorType(c));
+
+  a_rcp->update_ghost_values();
+  b_rcp->update_ghost_values();
+  c_rcp->update_ghost_values();
 
   // --- Testing the constructor
   Rol::VectorAdaptor<VectorType> a_rol(a_rcp);

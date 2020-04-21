@@ -30,9 +30,11 @@
 
 #include <deal.II/lac/generic_linear_algebra.h>
 
-// uncomment the following #define if you have PETSc and Trilinos installed
+// uncomment the following \#define if you have PETSc and Trilinos installed
 // and you prefer using Trilinos in this example:
+// @code
 // #define FORCE_USE_OF_TRILINOS
+// @endcode
 
 // This will either import PETSc or TrilinosWrappers into the namespace
 // LA. Note that we are defining the macro USE_PETSC_LA so that we can detect
@@ -314,11 +316,10 @@ namespace Step40
     DynamicSparsityPattern dsp(locally_relevant_dofs);
 
     DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false);
-    SparsityTools::distribute_sparsity_pattern(
-      dsp,
-      dof_handler.compute_n_locally_owned_dofs_per_processor(),
-      mpi_communicator,
-      locally_relevant_dofs);
+    SparsityTools::distribute_sparsity_pattern(dsp,
+                                               dof_handler.locally_owned_dofs(),
+                                               mpi_communicator,
+                                               locally_relevant_dofs);
 
     system_matrix.reinit(locally_owned_dofs,
                          locally_owned_dofs,

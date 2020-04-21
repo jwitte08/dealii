@@ -27,8 +27,7 @@ namespace parallel
   template <int dim, int spacedim>
   CellWeights<dim, spacedim>::CellWeights(
     const hp::DoFHandler<dim, spacedim> &dof_handler,
-    const typename CellWeights<dim, spacedim>::WeightingFunction
-      &weighting_function)
+    const WeightingFunction &            weighting_function)
   {
     reinit(dof_handler, weighting_function);
   }
@@ -86,7 +85,9 @@ namespace parallel
         std::trunc(coefficients.first *
                    std::pow(future_fe.dofs_per_cell, coefficients.second));
 
-      Assert(result >= 0 && result <= std::numeric_limits<unsigned int>::max(),
+      Assert(result >= 0. &&
+               result <=
+                 static_cast<float>(std::numeric_limits<unsigned int>::max()),
              ExcMessage(
                "Cannot cast determined weight for this cell to unsigned int!"));
 
@@ -109,7 +110,9 @@ namespace parallel
         result += pair.first * std::pow(future_fe.dofs_per_cell, pair.second);
       result = std::trunc(result);
 
-      Assert(result >= 0 && result <= std::numeric_limits<unsigned int>::max(),
+      Assert(result >= 0. &&
+               result <=
+                 static_cast<float>(std::numeric_limits<unsigned int>::max()),
              ExcMessage(
                "Cannot cast determined weight for this cell to unsigned int!"));
 

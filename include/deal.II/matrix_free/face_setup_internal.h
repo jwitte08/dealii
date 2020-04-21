@@ -131,7 +131,6 @@ namespace internal
 
       std::vector<FaceCategory>          face_is_owned;
       std::vector<bool>                  at_processor_boundary;
-      std::vector<unsigned int>          cells_close_to_boundary;
       std::vector<FaceToCellTopology<1>> inner_faces;
       std::vector<FaceToCellTopology<1>> boundary_faces;
       std::vector<FaceToCellTopology<1>> inner_ghost_faces;
@@ -190,7 +189,6 @@ namespace internal
       // interesting
 
       at_processor_boundary.resize(cell_levels.size(), false);
-      cells_close_to_boundary.clear();
       face_is_owned.resize(dim > 1 ? triangulation.n_raw_faces() :
                                      triangulation.n_vertices(),
                            FaceCategory::locally_active_done_elsewhere);
@@ -298,9 +296,9 @@ namespace internal
               // looking at the length of the lists of faces
 #  if defined(DEAL_II_WITH_MPI) && defined(DEBUG)
               MPI_Comm comm = MPI_COMM_SELF;
-              if (const parallel::TriangulationBase<dim> *ptria =
-                    dynamic_cast<const parallel::TriangulationBase<dim> *>(
-                      &triangulation))
+              if (const dealii::parallel::TriangulationBase<dim> *ptria =
+                    dynamic_cast<const dealii::parallel::TriangulationBase<dim>
+                                   *>(&triangulation))
                 comm = ptria->get_communicator();
 
               MPI_Status   status;
@@ -655,12 +653,7 @@ namespace internal
                                         neighbor->level_subdomain_id());
                     }
                   else if (additional_data.hold_all_faces_to_owned_cells ==
-                           false)
-                    {
-                      // mark the cell to be close to the boundary
-                      cells_close_to_boundary.emplace_back(i);
-                    }
-                  else
+                           true)
                     {
                       // add all cells to ghost layer...
                       face_is_owned[dcell->face(f)->index()] =
@@ -730,18 +723,6 @@ namespace internal
       // cells
       for (const auto &ghost_cell : ghost_cells)
         cell_levels.push_back(ghost_cell);
-
-      // step 3: clean up the cells close to the boundary
-      std::sort(cells_close_to_boundary.begin(), cells_close_to_boundary.end());
-      cells_close_to_boundary.erase(std::unique(cells_close_to_boundary.begin(),
-                                                cells_close_to_boundary.end()),
-                                    cells_close_to_boundary.end());
-      std::vector<unsigned int> final_cells;
-      final_cells.reserve(cells_close_to_boundary.size());
-      for (unsigned int i = 0; i < cells_close_to_boundary.size(); ++i)
-        if (at_processor_boundary[cells_close_to_boundary[i]] == false)
-          final_cells.push_back(cells_close_to_boundary[i]);
-      cells_close_to_boundary = std::move(final_cells);
     }
 
 

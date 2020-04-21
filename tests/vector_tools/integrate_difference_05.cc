@@ -25,6 +25,7 @@
 
 #include <deal.II/dofs/dof_tools.h>
 
+#include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_system.h>
 
 #include <deal.II/grid/grid_generator.h>
@@ -39,7 +40,6 @@
 #include "../tests.h"
 
 
-using namespace dealii;
 
 // First dim components:
 // f_x = x^2+y(+z), f_y = x^2+y^2, f_z = z+xy

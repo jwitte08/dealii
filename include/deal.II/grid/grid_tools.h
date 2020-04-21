@@ -41,6 +41,7 @@
 
 #  include <deal.II/numerics/rtree.h>
 
+DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 #  include <boost/archive/binary_iarchive.hpp>
 #  include <boost/archive/binary_oarchive.hpp>
 #  include <boost/geometry/index/detail/serialization.hpp>
@@ -54,7 +55,7 @@
 #    include <boost/iostreams/filtering_stream.hpp>
 #    include <boost/iostreams/stream.hpp>
 #  endif
-
+DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
 #  include <bitset>
 #  include <list>
@@ -453,9 +454,12 @@ namespace GridTools
    * given angle (given in radians, rather than degrees). This function uses
    * the transform() function above, so the requirements on the triangulation
    * stated there hold for this function as well.
+   *
+   * @note This function is only supported for dim=2.
    */
+  template <int dim>
   void
-  rotate(const double angle, Triangulation<2> &triangulation);
+  rotate(const double angle, Triangulation<dim> &triangulation);
 
   /**
    * Rotate all vertices of the given @p triangulation in counter-clockwise
@@ -3128,6 +3132,19 @@ namespace GridTools
 
 
 
+  // This specialization is defined here so that the general template in the
+  // source file doesn't need to have further 1D overloads for the internal
+  // functions it calls.
+  template <>
+  inline Triangulation<1, 1>::DistortedCellList
+  fix_up_distorted_child_cells(const Triangulation<1, 1>::DistortedCellList &,
+                               Triangulation<1, 1> &)
+  {
+    return {};
+  }
+
+
+
   template <int dim, typename Predicate, int spacedim>
   void
   transform(const Predicate &             predicate,
@@ -3894,8 +3911,9 @@ namespace GridTools
 #    else
     constexpr int dim      = MeshType::dimension;
     constexpr int spacedim = MeshType::space_dimension;
-    auto tria = static_cast<const parallel::TriangulationBase<dim, spacedim> *>(
-      &mesh.get_triangulation());
+    auto          tria =
+      dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
+        &mesh.get_triangulation());
     Assert(
       tria != nullptr,
       ExcMessage(

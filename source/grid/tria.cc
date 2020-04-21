@@ -10253,14 +10253,6 @@ Triangulation<dim, spacedim>::set_manifold(
 
 template <int dim, int spacedim>
 void
-Triangulation<dim, spacedim>::set_manifold(const types::manifold_id m_number)
-{
-  reset_manifold(m_number);
-}
-
-
-template <int dim, int spacedim>
-void
 Triangulation<dim, spacedim>::reset_manifold(const types::manifold_id m_number)
 {
   AssertIndexRange(m_number, numbers::flat_manifold_id);
@@ -10405,11 +10397,11 @@ Triangulation<dim, spacedim>::get_boundary_ids() const
   else
     {
       std::set<types::boundary_id> b_ids;
-      active_cell_iterator         cell = begin_active();
-      for (; cell != end(); ++cell)
-        for (const unsigned int face : GeometryInfo<dim>::face_indices())
-          if (cell->at_boundary(face))
-            b_ids.insert(cell->face(face)->boundary_id());
+      for (auto cell : active_cell_iterators())
+        if (cell->is_locally_owned())
+          for (const unsigned int face : GeometryInfo<dim>::face_indices())
+            if (cell->at_boundary(face))
+              b_ids.insert(cell->face(face)->boundary_id());
       std::vector<types::boundary_id> boundary_ids(b_ids.begin(), b_ids.end());
       return boundary_ids;
     }
@@ -10422,15 +10414,15 @@ std::vector<types::manifold_id>
 Triangulation<dim, spacedim>::get_manifold_ids() const
 {
   std::set<types::manifold_id> m_ids;
-  active_cell_iterator         cell = begin_active();
-  for (; cell != end(); ++cell)
-    {
-      m_ids.insert(cell->manifold_id());
-      if (dim > 1)
-        for (const unsigned int face : GeometryInfo<dim>::face_indices())
-          if (cell->at_boundary(face))
-            m_ids.insert(cell->face(face)->manifold_id());
-    }
+  for (auto cell : active_cell_iterators())
+    if (cell->is_locally_owned())
+      {
+        m_ids.insert(cell->manifold_id());
+        if (dim > 1)
+          for (const unsigned int face : GeometryInfo<dim>::face_indices())
+            if (cell->at_boundary(face))
+              m_ids.insert(cell->face(face)->manifold_id());
+      }
   std::vector<types::manifold_id> manifold_indicators(m_ids.begin(),
                                                       m_ids.end());
   return manifold_indicators;

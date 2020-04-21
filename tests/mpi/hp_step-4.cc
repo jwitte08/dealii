@@ -59,8 +59,6 @@
 
 namespace Step4
 {
-  using namespace dealii;
-
   template <int dim>
   class Step4
   {
@@ -220,11 +218,10 @@ namespace Step4
 
     DoFTools::make_sparsity_pattern(dof_handler, dsp, constraints, false);
 
-    SparsityTools::distribute_sparsity_pattern(
-      dsp,
-      dof_handler.compute_n_locally_owned_dofs_per_processor(),
-      communicator,
-      locally_relevant_dofs);
+    SparsityTools::distribute_sparsity_pattern(dsp,
+                                               locally_owned_dofs,
+                                               communicator,
+                                               locally_relevant_dofs);
 
     system_matrix.reinit(locally_owned_dofs,
                          locally_owned_dofs,

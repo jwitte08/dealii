@@ -109,8 +109,8 @@ namespace parallel
      * @param[in] weighting_function The function that determines each
      *    cell's weight during load balancing.
      */
-    CellWeights(const dealii::hp::DoFHandler<dim, spacedim> &dof_handler,
-                const WeightingFunction &weighting_function);
+    CellWeights(const hp::DoFHandler<dim, spacedim> &dof_handler,
+                const WeightingFunction &            weighting_function);
 
     /**
      * Destructor.
@@ -194,22 +194,30 @@ namespace parallel
      *    determine each cell's finite element.
      */
     DEAL_II_DEPRECATED
-    CellWeights(const dealii::hp::DoFHandler<dim, spacedim> &dof_handler);
+    CellWeights(const hp::DoFHandler<dim, spacedim> &dof_handler);
 
     /**
-     * @copydoc CellWeights::constant_weighting()
+     * Choose a constant weight @p factor on each cell.
+     *
+     * @deprecated Use CellWeights::constant_weighting() instead.
      */
     DEAL_II_DEPRECATED void
     register_constant_weighting(const unsigned int factor = 1000);
 
     /**
-     * @copydoc CellWeights::ndofs_weighting()
+     * Choose a weight for each cell that is proportional to its number of
+     * degrees of freedom with a factor @p factor.
+     *
+     * @deprecated Use CellWeights::ndofs_weighting() instead.
      */
     DEAL_II_DEPRECATED void
     register_ndofs_weighting(const unsigned int factor = 1000);
 
     /**
-     * @copydoc CellWeights::ndofs_squared_weighting()
+     * Choose a weight for each cell that is proportional to its number of
+     * degrees of freedom <i>squared</i> with a factor @p factor.
+     *
+     * @deprecated Use CellWeights::ndofs_weighting() instead.
      */
     DEAL_II_DEPRECATED void
     register_ndofs_squared_weighting(const unsigned int factor = 1000);

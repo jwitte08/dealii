@@ -23,7 +23,11 @@
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/tria.h>
 
+#include <boost/archive/binary_iarchive.hpp>
 #include <boost/io/ios_state.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <boost/serialization/serialization.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -371,36 +375,41 @@ GridIn<dim, spacedim>::read_vtk(std::istream &in)
                       // Now see if we know about this type of data set,
                       // if not, just ignore everything till the next SCALARS
                       // keyword
-                      std::string set = "";
-                      in >> keyword;
-                      for (const auto &set_cmp : data_sets)
-                        if (keyword == set_cmp)
-                          {
-                            set = keyword;
-                            break;
-                          }
-                      if (set.empty())
+                      std::string field_name;
+                      in >> field_name;
+                      if (std::find(data_sets.begin(),
+                                    data_sets.end(),
+                                    field_name) == data_sets.end())
+                        // The data set here is not one of the ones we know, so
                         // keep ignoring everything until the next SCALARS
-                        // keyword
+                        // keyword.
                         continue;
 
-                      // Now we got somewhere. Proceed from here.
-                      // Ignore everything till the end of the line.
-                      // SCALARS MaterialID 1
+                      // Now we got somewhere. Proceed from here, assert
+                      // that the type of the table is int, and ignore the
+                      // rest of the line.
+                      // SCALARS MaterialID int 1
                       // (the last number is optional)
-                      in.ignore(256, '\n');
+                      std::string line;
+                      std::getline(in, line);
+                      AssertThrow(
+                        line.substr(1,
+                                    std::min(static_cast<std::size_t>(3),
+                                             line.size() - 1)) == "int",
+                        ExcMessage(
+                          "While reading VTK file, material- and manifold IDs can only have type 'int'."));
 
                       in >> keyword;
                       AssertThrow(
                         keyword == "LOOKUP_TABLE",
                         ExcMessage(
-                          "While reading VTK file, missing keyword LOOKUP_TABLE"));
+                          "While reading VTK file, missing keyword 'LOOKUP_TABLE'."));
 
                       in >> keyword;
                       AssertThrow(
                         keyword == "default",
                         ExcMessage(
-                          "While reading VTK file, missing keyword default"));
+                          "While reading VTK file, missing keyword 'default'."));
 
                       // read material or manifold ids first for all cells,
                       // then for all faces, and finally for all lines. the
@@ -409,12 +418,12 @@ GridIn<dim, spacedim>::read_vtk(std::istream &in)
                       // the order used in the following blocks makes sense
                       for (unsigned int i = 0; i < cells.size(); i++)
                         {
-                          double id;
+                          int id;
                           in >> id;
-                          if (set == "MaterialID")
+                          if (field_name == "MaterialID")
                             cells[i].material_id =
                               static_cast<types::material_id>(id);
-                          else if (set == "ManifoldID")
+                          else if (field_name == "ManifoldID")
                             cells[i].manifold_id =
                               static_cast<types::manifold_id>(id);
                           else
@@ -425,12 +434,12 @@ GridIn<dim, spacedim>::read_vtk(std::istream &in)
                         {
                           for (auto &boundary_quad : subcelldata.boundary_quads)
                             {
-                              double id;
+                              int id;
                               in >> id;
-                              if (set == "MaterialID")
+                              if (field_name == "MaterialID")
                                 boundary_quad.material_id =
                                   static_cast<types::material_id>(id);
-                              else if (set == "ManifoldID")
+                              else if (field_name == "ManifoldID")
                                 boundary_quad.manifold_id =
                                   static_cast<types::manifold_id>(id);
                               else
@@ -438,12 +447,12 @@ GridIn<dim, spacedim>::read_vtk(std::istream &in)
                             }
                           for (auto &boundary_line : subcelldata.boundary_lines)
                             {
-                              double id;
+                              int id;
                               in >> id;
-                              if (set == "MaterialID")
+                              if (field_name == "MaterialID")
                                 boundary_line.material_id =
                                   static_cast<types::material_id>(id);
-                              else if (set == "ManifoldID")
+                              else if (field_name == "ManifoldID")
                                 boundary_line.manifold_id =
                                   static_cast<types::manifold_id>(id);
                               else
@@ -454,12 +463,12 @@ GridIn<dim, spacedim>::read_vtk(std::istream &in)
                         {
                           for (auto &boundary_line : subcelldata.boundary_lines)
                             {
-                              double id;
+                              int id;
                               in >> id;
-                              if (set == "MaterialID")
+                              if (field_name == "MaterialID")
                                 boundary_line.material_id =
                                   static_cast<types::material_id>(id);
-                              else if (set == "ManifoldID")
+                              else if (field_name == "ManifoldID")
                                 boundary_line.manifold_id =
                                   static_cast<types::manifold_id>(id);
                               else
@@ -487,6 +496,34 @@ GridIn<dim, spacedim>::read_vtk(std::istream &in)
     AssertThrow(false,
                 ExcMessage(
                   "While reading VTK file, failed to find CELLS section"));
+}
+
+
+
+template <int dim, int spacedim>
+void
+GridIn<dim, spacedim>::read_vtu(std::istream &in)
+{
+  namespace pt = boost::property_tree;
+  pt::ptree tree;
+  pt::read_xml(in, tree);
+  auto section = tree.get_optional<std::string>("VTKFile.dealiiData");
+
+  AssertThrow(section,
+              ExcMessage(
+                "While reading a VTU file, failed to find dealiiData section. "
+                "Notice that we can only read grid files in .vtu format that "
+                "were created by the deal.II library, using a call to "
+                "GridOut::write_vtu(), where the flag "
+                "GridOutFlags::Vtu::serialize_triangulation is set to true."));
+
+  const auto decoded =
+    Utilities::decode_base64({section->begin(), section->end() - 1});
+  const auto string_archive =
+    Utilities::decompress({decoded.begin(), decoded.end()});
+  std::istringstream              in_stream(string_archive);
+  boost::archive::binary_iarchive ia(in_stream);
+  tria->load(ia, 0);
 }
 
 
@@ -830,8 +867,7 @@ GridIn<dim, spacedim>::read_ucd(std::istream &in,
           if (apply_all_indicators_to_manifolds)
             cells.back().manifold_id =
               static_cast<types::manifold_id>(material_id);
-          cells.back().material_id =
-            static_cast<types::material_id>(material_id);
+          cells.back().material_id = material_id;
 
           // transform from ucd to
           // consecutive numbering
@@ -1839,8 +1875,7 @@ GridIn<dim, spacedim>::read_msh(std::istream &in)
                 // numbers::invalid_material_id-1
                 AssertIndexRange(material_id, numbers::invalid_material_id);
 
-                cells.back().material_id =
-                  static_cast<types::material_id>(material_id);
+                cells.back().material_id = material_id;
 
                 // transform from ucd to
                 // consecutive numbering
@@ -3371,6 +3406,10 @@ GridIn<dim, spacedim>::read(std::istream &in, Format format)
         read_vtk(in);
         return;
 
+      case vtu:
+        read_vtu(in);
+        return;
+
       case unv:
         read_unv(in);
         return;
@@ -3425,6 +3464,8 @@ GridIn<dim, spacedim>::default_suffix(const Format format)
         return ".msh";
       case vtk:
         return ".vtk";
+      case vtu:
+        return ".vtu";
       case unv:
         return ".unv";
       case ucd:
@@ -3461,6 +3502,9 @@ GridIn<dim, spacedim>::parse_format(const std::string &format_name)
 
   if (format_name == "vtk")
     return vtk;
+
+  if (format_name == "vtu")
+    return vtu;
 
   // This is also the typical extension of Abaqus input files.
   if (format_name == "inp")
@@ -3507,7 +3551,7 @@ template <int dim, int spacedim>
 std::string
 GridIn<dim, spacedim>::get_format_names()
 {
-  return "dbmesh|msh|unv|vtk|ucd|abaqus|xda|netcdf|tecplot|assimp";
+  return "dbmesh|msh|unv|vtk|vtu|ucd|abaqus|xda|netcdf|tecplot|assimp";
 }
 
 
@@ -4032,18 +4076,18 @@ namespace
 
     // Write out node numbers
     // Loop over all nodes
-    for (unsigned int ii = 0; ii < node_list.size(); ++ii)
+    for (const auto &node : node_list)
       {
         // Node number
-        output << node_list[ii][0] << "\t";
+        output << node[0] << "\t";
 
         // Node coordinates
         output.setf(std::ios::scientific, std::ios::floatfield);
         for (unsigned int jj = 1; jj < spacedim + 1; ++jj)
           {
             // invoke tolerance -> set points close to zero equal to zero
-            if (std::abs(node_list[ii][jj]) > tolerance)
-              output << static_cast<double>(node_list[ii][jj]) << "\t";
+            if (std::abs(node[jj]) > tolerance)
+              output << static_cast<double>(node[jj]) << "\t";
             else
               output << 0.0 << "\t";
           }

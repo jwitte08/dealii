@@ -20,6 +20,7 @@
 
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_interface_values.h>
+#include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/mapping_q.h>
 
 #include <deal.II/grid/grid_generator.h>
@@ -75,14 +76,14 @@ print_norm_of_average_over_quadrature_points(const FEInterfaceValues<dim> &fiv)
     for (unsigned int i = 0; i < n_dofs; ++i)
       cell_vector(i) +=
         fiv.jump_hessian(i, qpoint).norm() * fiv.get_JxW_values()[qpoint];
-  deallog << "jump_hessian.norm(): " << cell_vector;
+  deallog << "jump_hessian.norm(): " << cell_vector << std::flush;
 
   cell_vector = 0.0;
   for (unsigned int qpoint = 0; qpoint < fiv.n_quadrature_points; ++qpoint)
     for (unsigned int i = 0; i < n_dofs; ++i)
       cell_vector(i) += fiv.jump_3rd_derivative(i, qpoint).norm() *
                         fiv.get_JxW_values()[qpoint];
-  deallog << "jump_3rd_derivative.norm(): " << cell_vector;
+  deallog << "jump_3rd_derivative.norm(): " << cell_vector << std::flush;
 }
 
 

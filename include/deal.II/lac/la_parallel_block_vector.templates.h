@@ -22,6 +22,7 @@
 #include <deal.II/lac/la_parallel_block_vector.h>
 #include <deal.II/lac/lapack_support.h>
 #include <deal.II/lac/petsc_block_vector.h>
+#include <deal.II/lac/read_write_vector.h>
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/vector.h>
 
@@ -212,6 +213,38 @@ namespace LinearAlgebra
 
 #ifdef DEAL_II_WITH_PETSC
 
+    namespace petsc_helpers
+    {
+      template <typename PETSC_Number, typename Number>
+      void
+      copy_petsc_vector(const PETSC_Number *petsc_start_ptr,
+                        const PETSC_Number *petsc_end_ptr,
+                        Number *            ptr)
+      {
+        std::copy(petsc_start_ptr, petsc_end_ptr, ptr);
+      }
+
+      template <typename PETSC_Number, typename Number>
+      void
+      copy_petsc_vector(const std::complex<PETSC_Number> *petsc_start_ptr,
+                        const std::complex<PETSC_Number> *petsc_end_ptr,
+                        std::complex<Number> *            ptr)
+      {
+        std::copy(petsc_start_ptr, petsc_end_ptr, ptr);
+      }
+
+      template <typename PETSC_Number, typename Number>
+      void
+      copy_petsc_vector(const std::complex<PETSC_Number> * /*petsc_start_ptr*/,
+                        const std::complex<PETSC_Number> * /*petsc_end_ptr*/,
+                        Number * /*ptr*/)
+      {
+        AssertThrow(false, ExcMessage("Tried to copy complex -> real"));
+      }
+    } // namespace petsc_helpers
+
+
+
     template <typename Number>
     BlockVector<Number> &
     BlockVector<Number>::
@@ -219,7 +252,38 @@ namespace LinearAlgebra
     {
       AssertDimension(this->n_blocks(), petsc_vec.n_blocks());
       for (unsigned int i = 0; i < this->n_blocks(); ++i)
-        this->block(i) = petsc_vec.block(i);
+        {
+          // We would like to use the same compact infrastructure as for the
+          // Trilinos vector below, but the interface through ReadWriteVector
+          // does not support overlapping (ghosted) PETSc vectors, which we need
+          // for backward compatibility.
+
+          Assert(petsc_vec.block(i).locally_owned_elements() ==
+                   this->block(i).locally_owned_elements(),
+                 StandardExceptions::ExcInvalidState());
+
+          // get a representation of the vector and copy it
+          PetscScalar *  start_ptr;
+          PetscErrorCode ierr =
+            VecGetArray(static_cast<const Vec &>(petsc_vec.block(i)),
+                        &start_ptr);
+          AssertThrow(ierr == 0, ExcPETScError(ierr));
+
+          const size_type vec_size = this->block(i).local_size();
+          petsc_helpers::copy_petsc_vector(start_ptr,
+                                           start_ptr + vec_size,
+                                           this->block(i).begin());
+
+          // restore the representation of the vector
+          ierr = VecRestoreArray(static_cast<const Vec &>(petsc_vec.block(i)),
+                                 &start_ptr);
+          AssertThrow(ierr == 0, ExcPETScError(ierr));
+
+          // spread ghost values between processes?
+          if (this->block(i).vector_is_ghosted ||
+              petsc_vec.block(i).has_ghost_elements())
+            this->block(i).update_ghost_values();
+        }
 
       return *this;
     }
@@ -237,7 +301,18 @@ namespace LinearAlgebra
     {
       AssertDimension(this->n_blocks(), trilinos_vec.n_blocks());
       for (unsigned int i = 0; i < this->n_blocks(); ++i)
-        this->block(i) = trilinos_vec.block(i);
+        {
+          const auto &partitioner  = this->block(i).get_partitioner();
+          IndexSet    combined_set = partitioner->locally_owned_range();
+          combined_set.add_indices(partitioner->ghost_indices());
+          ReadWriteVector<Number> rw_vector(combined_set);
+          rw_vector.import(trilinos_vec.block(i), VectorOperation::insert);
+          this->block(i).import(rw_vector, VectorOperation::insert);
+
+          if (this->block(i).has_ghost_elements() ||
+              trilinos_vec.block(i).has_ghost_elements())
+            this->block(i).update_ghost_values();
+        }
 
       return *this;
     }
@@ -391,21 +466,6 @@ namespace LinearAlgebra
 
 
     template <typename Number>
-    void
-    BlockVector<Number>::equ(const Number               a,
-                             const BlockVector<Number> &v,
-                             const Number               b,
-                             const BlockVector<Number> &w)
-    {
-      AssertDimension(this->n_blocks(), v.n_blocks());
-      AssertDimension(this->n_blocks(), w.n_blocks());
-      for (unsigned int block = 0; block < this->n_blocks(); ++block)
-        this->block(block).equ(a, v.block(block), b, w.block(block));
-    }
-
-
-
-    template <typename Number>
     BlockVector<Number> &
     BlockVector<Number>::operator+=(const VectorSpaceVector<Number> &vv)
     {
@@ -523,22 +583,6 @@ namespace LinearAlgebra
 
 
     template <typename Number>
-    void
-    BlockVector<Number>::sadd(const Number               x,
-                              const Number               a,
-                              const BlockVector<Number> &v,
-                              const Number               b,
-                              const BlockVector<Number> &w)
-    {
-      AssertDimension(this->n_blocks(), v.n_blocks());
-      AssertDimension(this->n_blocks(), w.n_blocks());
-      for (unsigned int block = 0; block < this->n_blocks(); ++block)
-        this->block(block).sadd(x, a, v.block(block), b, w.block(block));
-    }
-
-
-
-    template <typename Number>
     template <typename OtherNumber>
     void
     BlockVector<Number>::add(const std::vector<size_type> &       indices,
@@ -580,7 +624,7 @@ namespace LinearAlgebra
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
         return -Utilities::MPI::max(
-          local_result, this->block(0).partitioner->get_communicator());
+          local_result, this->block(0).partitioner->get_mpi_communicator());
       else
         return local_result;
     }
@@ -606,7 +650,7 @@ namespace LinearAlgebra
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
         return Utilities::MPI::sum(
-          local_result, this->block(0).partitioner->get_communicator());
+          local_result, this->block(0).partitioner->get_mpi_communicator());
       else
         return local_result;
     }
@@ -627,7 +671,8 @@ namespace LinearAlgebra
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
         return Utilities::MPI::sum(
-                 local_result, this->block(0).partitioner->get_communicator()) /
+                 local_result,
+                 this->block(0).partitioner->get_mpi_communicator()) /
                static_cast<real_type>(this->size());
       else
         return local_result / static_cast<real_type>(this->size());
@@ -647,7 +692,7 @@ namespace LinearAlgebra
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
         return Utilities::MPI::sum(
-          local_result, this->block(0).partitioner->get_communicator());
+          local_result, this->block(0).partitioner->get_mpi_communicator());
       else
         return local_result;
     }
@@ -666,7 +711,7 @@ namespace LinearAlgebra
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
         return Utilities::MPI::sum(
-          local_result, this->block(0).partitioner->get_communicator());
+          local_result, this->block(0).partitioner->get_mpi_communicator());
       else
         return local_result;
     }
@@ -693,10 +738,10 @@ namespace LinearAlgebra
         local_result += std::pow(this->block(i).lp_norm_local(p), p);
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
-        return std::pow(
-          Utilities::MPI::sum(local_result,
-                              this->block(0).partitioner->get_communicator()),
-          static_cast<real_type>(1.0 / p));
+        return std::pow(Utilities::MPI::sum(
+                          local_result,
+                          this->block(0).partitioner->get_mpi_communicator()),
+                        static_cast<real_type>(1.0 / p));
       else
         return std::pow(local_result, static_cast<real_type>(1.0 / p));
     }
@@ -716,7 +761,7 @@ namespace LinearAlgebra
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
         return Utilities::MPI::max(
-          local_result, this->block(0).partitioner->get_communicator());
+          local_result, this->block(0).partitioner->get_mpi_communicator());
       else
         return local_result;
     }
@@ -750,7 +795,7 @@ namespace LinearAlgebra
 
       if (this->block(0).partitioner->n_mpi_processes() > 1)
         return Utilities::MPI::sum(
-          local_result, this->block(0).partitioner->get_communicator());
+          local_result, this->block(0).partitioner->get_mpi_communicator());
       else
         return local_result;
     }

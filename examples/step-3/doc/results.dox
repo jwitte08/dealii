@@ -21,11 +21,11 @@ screen display.
 Apart from the output shown above, the program generated the file
 <code>solution.vtk</code>, which is in the VTK format that is widely
 used by many visualization programs today -- including the two
-heavy-weights <a href="https://www.llnl.gov/visit">Visit</a> and
+heavy-weights <a href="https://www.llnl.gov/visit">VisIt</a> and
 <a href="https://www.paraview.org">Paraview</a> that are the most
 commonly used programs for this purpose today.
 
-Using Visit, it is not very difficult to generate a picture of the
+Using VisIt, it is not very difficult to generate a picture of the
 solution like this:
 <table width="60%" align="center">
   <tr>
@@ -45,7 +45,7 @@ are clamped to a square frame with no vertical variation; a constant
 force density will therefore intuitively lead to a membrane that
 simply bulges upward -- like the one shown above.
 
-Visit and Paraview both allow playing with various kinds of visualizations
+VisIt and Paraview both allow playing with various kinds of visualizations
 of the solution. Several video lectures show how to use these programs.
 @dealiiVideoLectureSeeAlso{11,32}
 
@@ -428,7 +428,6 @@ This is now going to look as follows:
    </td>
  </tr>
 </table>
-<li>
 
 For plotting the converge curves we need to re-run the C++ code multiple times with different values for <code>n_refinement_steps</code>
 starting from 1.
@@ -481,16 +480,13 @@ plt <- plt+scale_x_log10()+scale_y_log10()
 print(plt)
 
 dev.off()
-
+@endcode
 This results in the following plot that shows how the errors in the
 mean value and the solution value at the chosen point nicely converge
 to zero:
-@endcode
-</ul>
- <table style="width:50%" align="center">
+<table style="width:50%" align="center">
   <tr>
-     <td><img src="https://www.dealii.org/images/steps/developer/step-3.extensions.convergence_mean.png" alt=""></td>
-     <td><img src="https://www.dealii.org/images/steps/developer/step-3.extensions.convergence_point.png" alt=""></td>
+    <td><img src="https://www.dealii.org/images/steps/developer/step-3.extensions.convergence_mean.png" alt=""></td>
+    <td><img src="https://www.dealii.org/images/steps/developer/step-3.extensions.convergence_point.png" alt=""></td>
   </tr>
- </table>
-</ul>
+</table>

@@ -335,10 +335,10 @@ void Step6<dim>::assemble_system()
 template <int dim>
 void Step6<dim>::solve()
 {
-  SolverControl solver_control(1000, 1e-12);
-  SolverCG<>    solver(solver_control);
+  SolverControl            solver_control(1000, 1e-12);
+  SolverCG<Vector<double>> solver(solver_control);
 
-  PreconditionSSOR<> preconditioner;
+  PreconditionSSOR<SparseMatrix<double>> preconditioner;
   preconditioner.initialize(system_matrix, 1.2);
 
   solver.solve(system_matrix, solution, system_rhs, preconditioner);
@@ -408,12 +408,11 @@ void Step6<dim>::refine_grid()
 {
   Vector<float> estimated_error_per_cell(triangulation.n_active_cells());
 
-  KellyErrorEstimator<dim>::estimate(
-    dof_handler,
-    QGauss<dim - 1>(fe.degree + 1),
-    std::map<types::boundary_id, const Function<dim> *>(),
-    solution,
-    estimated_error_per_cell);
+  KellyErrorEstimator<dim>::estimate(dof_handler,
+                                     QGauss<dim - 1>(fe.degree + 1),
+                                     {},
+                                     solution,
+                                     estimated_error_per_cell);
 
   // The above function returned one error indicator value for each cell in
   // the <code>estimated_error_per_cell</code> array. Refinement is now done

@@ -47,9 +47,6 @@ template <int dim, int spacedim>
 const unsigned int DoFHandler<dim, spacedim>::space_dimension;
 
 template <int dim, int spacedim>
-const types::global_dof_index DoFHandler<dim, spacedim>::invalid_dof_index;
-
-template <int dim, int spacedim>
 const unsigned int DoFHandler<dim, spacedim>::default_fe_index;
 
 
@@ -1290,16 +1287,6 @@ DoFHandler<dim, spacedim>::distribute_dofs(
   if (dynamic_cast<const parallel::DistributedTriangulationBase<dim, spacedim>
                      *>(&*tria) == nullptr)
     block_info_object.initialize(*this, false, true);
-}
-
-
-
-template <int dim, int spacedim>
-void
-DoFHandler<dim, spacedim>::distribute_mg_dofs(
-  const FiniteElement<dim, spacedim> &)
-{
-  this->distribute_mg_dofs();
 }
 
 

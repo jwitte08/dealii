@@ -55,15 +55,14 @@ test()
 
   PreconditionIdentity precond;
   solver.solve(mat, solvec, rhs, precond);
-  solvec.print(deallog);
+  solvec.print(deallog.get_file_stream());
 }
 
 int
 main()
 {
-  std::ofstream logfile("output");
+  initlog();
   deallog << std::setprecision(4);
-  deallog.attach(logfile);
 
   test<SolverGMRES<Vector<double>>>();
   test<SolverCG<Vector<double>>>();
