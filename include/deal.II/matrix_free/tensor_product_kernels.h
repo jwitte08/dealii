@@ -67,6 +67,142 @@ namespace internal
 
 
 
+  // template <int mode, int size, int n0, int n1, int n2>
+  // int
+  // collapse_sizes_pre_impl()
+  // {
+  //   static_assert(mode >= 0, "Negative mode index is not valid.");
+  //   static_assert(mode < 3, "Mode index exceeds number of size arguments.");
+  //   /* if (mode == 0) */
+  //   /*   return size; */
+  //   return mode == 0 ? size : collapse_sizes_pre_impl<(mode > 0 ? mode - 1 :
+  //   0),
+  //                                  size * n0,
+  //                                  n1,
+  //                                  n2,
+  //                                  1>();
+  // }
+
+  // template <int mode, int n0, int n1 = n0, int n2 = n0>
+  // int
+  // collapse_sizes_pre()
+  // {
+  //   return collapse_sizes_pre_impl<mode, 1, n0, n1, n2>();
+  // }
+
+  // template <int mode, int n0, int n1 = n0, int n2 = n0>
+  // int
+  // collapse_sizes_post()
+  // {
+  //   return collapse_sizes_pre_impl<2 - mode, 1, n2, n1, n0>();
+  // }
+
+  constexpr int
+  collapse_sizes_impl(const int mode,
+                      const int size,
+                      const int n0,
+                      const int n1,
+                      const int n2)
+  {
+    return (mode == 0) ? size :
+                         collapse_sizes_impl(mode - 1, size * n0, n1, n2, 1);
+  }
+
+  constexpr int
+  collapse_sizes_pre(const int mode,
+                     const int n0,
+                     const int n1 = 1,
+                     const int n2 = 1)
+  {
+    return collapse_sizes_impl(mode, 1, n0, n1, n2);
+  }
+
+  constexpr int
+  collapse_sizes_post(const int mode,
+                      const int n0,
+                      const int n1 = 1,
+                      const int n2 = 1)
+  {
+    return collapse_sizes_impl(2 - mode, 1, n2, n1, n0);
+  }
+
+  template <int dim,
+            typename Number,
+            int  n_rows,
+            int  n_columns,
+            int  direction,
+            int  n_pre,
+            int  n_post,
+            bool contract_over_rows,
+            bool add,
+            typename Number2 = Number>
+  void
+  contract_general_impl(const Number2 *DEAL_II_RESTRICT shape_data,
+                        const Number *                  in,
+                        Number *                        out)
+  {
+    Assert(shape_data != nullptr,
+           ExcMessage(
+             "The given array shape_data must not be the null pointer!"));
+    AssertIndexRange(direction, dim);
+    // AssertIndexRange(/*n_pre == 1 ? 0 : */n_pre,
+    //                  Utilities::pow(std::max(n_rows, n_columns),
+    //                  direction)+1);
+    // AssertIndexRange(/*n_post == 1 ? 0 : */n_post,
+    //                  Utilities::pow(std::max(n_rows, n_columns),
+    //                                 dim - direction - 1)+1);
+
+    constexpr int mm        = contract_over_rows ? n_rows : n_columns;
+    constexpr int nn        = contract_over_rows ? n_columns : n_rows;
+    constexpr int stride    = n_pre;
+    constexpr int n_blocks1 = n_pre;
+    constexpr int n_blocks2 = n_post;
+
+    for (int i2 = 0; i2 < n_blocks2; ++i2)
+      {
+        for (int i1 = 0; i1 < n_blocks1; ++i1)
+          {
+            Number x[mm];
+            for (int i = 0; i < mm; ++i)
+              x[i] = in[stride * i];
+            for (int col = 0; col < nn; ++col)
+              {
+                Number2 val0;
+                if (contract_over_rows == true)
+                  val0 = shape_data[col];
+                else
+                  val0 = shape_data[col * n_columns];
+                Number res0 = val0 * x[0];
+                for (int i = 1; i < mm; ++i)
+                  {
+                    if (contract_over_rows == true)
+                      val0 = shape_data[i * n_columns + col];
+                    else
+                      val0 = shape_data[col * n_columns + i];
+                    res0 += val0 * x[i];
+                  }
+                if (add == false)
+                  out[stride * col] = res0;
+                else
+                  out[stride * col] += res0;
+              }
+
+            // if (one_line == false)
+            {
+              ++in;
+              ++out;
+            }
+          }
+        // if (one_line == false)
+        {
+          in += stride * (mm - 1);
+          out += stride * (nn - 1);
+        }
+      }
+  }
+
+
+
   /**
    * Generic evaluator framework that valuates the given shape data in general
    * dimensions using the tensor product form. Depending on the particular
