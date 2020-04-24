@@ -91,7 +91,13 @@ namespace internal
        * of the unit interval 0.5 that additionally add a constant shape
        * function according to FE_Q_DG0.
        */
-      tensor_symmetric_plus_dg0 = 5
+      tensor_symmetric_plus_dg0 = 5,
+
+      /**
+       * Anisotropic vector-valued shape functions in the Raviart-Thomas
+       * fashion. TODO
+       */
+      raviart_thomas = 6
     };
 
 

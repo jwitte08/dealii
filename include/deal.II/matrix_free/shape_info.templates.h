@@ -29,6 +29,7 @@
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_poly.h>
 #include <deal.II/fe/fe_q_dg0.h>
+#include <deal.II/fe/fe_raviart_thomas_new.h>
 
 #include <deal.II/lac/householder.h>
 
@@ -88,6 +89,14 @@ namespace internal
                               const FiniteElement<dim> &fe_in,
                               const unsigned int        base_element_number)
     {
+      const auto *fe_raviart_thomas_nodal =
+        dynamic_cast<const FE_RaviartThomasNodal_new<dim> *>(&fe_in);
+      if (fe_raviart_thomas_nodal)
+        {
+          fe_raviart_thomas_nodal->fill_shape_info(*this, quad);
+          return;
+        }
+
       const FiniteElement<dim> *fe = &fe_in.base_element(base_element_number);
       n_dimensions                 = dim;
       n_components                 = fe_in.n_components();
