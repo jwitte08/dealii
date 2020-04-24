@@ -45,6 +45,7 @@ SET(_unity_include_src
   fe_rannacher_turek.cc
   fe_raviart_thomas.cc
   fe_raviart_thomas_nodal.cc
+  fe_raviart_thomas_nodal_new.cc
   fe_rt_bubbles.cc
   fe_series.cc
   fe_series_fourier.cc
@@ -113,6 +114,7 @@ SET(_inst
   fe_rannacher_turek.inst.in
   fe_raviart_thomas.inst.in
   fe_raviart_thomas_nodal.inst.in
+  fe_raviart_thomas_nodal_new.inst.in
   fe_rt_bubbles.inst.in
   fe_series_fourier.inst.in
   fe_series_legendre.inst.in
