@@ -400,33 +400,34 @@ public:
         for (std::size_t j = 0; j < n_q_points_1d; ++j)
           {
             higher.shape_values[i * n_q_points_1d + j] =
-              nodal_basis_of_low[i].value(q_points[j]);
+              nodal_basis_of_high[i].value(q_points[j]);
             higher.shape_gradients[i * n_q_points_1d + j] =
-              nodal_basis_of_low[i].derivative().value(q_points[j]);
+              nodal_basis_of_high[i].derivative().value(q_points[j]);
             higher.shape_hessians[i * n_q_points_1d + j] =
-              nodal_basis_of_low[i].derivative().derivative().value(
+              nodal_basis_of_high[i].derivative().derivative().value(
                 q_points[j]);
           }
-        higher.shape_data_on_face[0][i] = nodal_basis_of_low[i].value(0);
+        higher.shape_data_on_face[0][i] = nodal_basis_of_high[i].value(0);
         higher.shape_data_on_face[0][i + (higher.fe_degree + 1)] =
-          nodal_basis_of_low[i].derivative().value(0);
+          nodal_basis_of_high[i].derivative().value(0);
         higher.shape_data_on_face[0][i + 2 * (higher.fe_degree + 1)] =
-          nodal_basis_of_low[i].derivative().derivative().value(0);
-        higher.shape_data_on_face[1][i] = nodal_basis_of_low[i].value(1);
+          nodal_basis_of_high[i].derivative().derivative().value(0);
+        higher.shape_data_on_face[1][i] = nodal_basis_of_high[i].value(1);
         higher.shape_data_on_face[1][i + (higher.fe_degree + 1)] =
-          nodal_basis_of_low[i].derivative().value(1);
+          nodal_basis_of_high[i].derivative().value(1);
         higher.shape_data_on_face[1][i + 2 * (higher.fe_degree + 1)] =
-          nodal_basis_of_low[i].derivative().derivative().value(1);
+          nodal_basis_of_high[i].derivative().derivative().value(1);
       }
-    shape_info.data.emplace_back(lower);
+
     shape_info.data.emplace_back(higher);
+    shape_info.data.emplace_back(lower);
     shape_info.lexicographic_numbering = lexicographic_transformation;
     shape_info.element_type            = raviart_thomas;
     shape_info.n_dimensions            = dim;
     shape_info.n_components            = dim;
     shape_info.dofs_per_component_on_cell =
       (higher.fe_degree + 1) *
-      (dim > 1 ? Utilities::pow(lower.fe_degree, dim - 1) : 1);
+      (dim > 1 ? Utilities::pow(lower.fe_degree + 1, dim - 1) : 1);
     // dofs_per_component_on_face cannot be set since different faces have
     // different numbers, Maximum number is std::pow(lower.fe_degree,dim-1)
     // other faces have 0

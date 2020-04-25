@@ -153,6 +153,10 @@ FE_RaviartThomasNodal_new<dim>::initialize_support_points(
   this->generalized_support_points.resize(this->dofs_per_cell);
   this->generalized_face_support_points.resize(this->dofs_per_face);
 
+  // compute univariate shape functions
+  compute_tensor_product_basis(deg);
+  sort_generalized_support_points_lexicographically(deg);
+
   // Number of the point being entered
   unsigned int current = 0;
 
@@ -214,8 +218,6 @@ FE_RaviartThomasNodal_new<dim>::initialize_support_points(
       for (unsigned int k = 0; k < quadrature->size(); ++k)
         this->generalized_support_points[current++] = quadrature->point(k);
     }
-  compute_tensor_product_basis(deg);
-  // sort_generalized_support_points_lexicographically(deg);
   Assert(current == this->dofs_per_cell, ExcInternalError());
 }
 
