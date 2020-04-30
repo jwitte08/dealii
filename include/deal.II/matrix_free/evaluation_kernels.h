@@ -648,6 +648,631 @@ namespace internal
 
 
   /**
+   * Generic evaluator for anisotropic tensor product shape functions from the
+   * Raviart-Thomas polynomial space RT_k. Although deal.II follows the common
+   * notation of RT spaces (that is, the lowest order Raviart-Thomas space is
+   * RT_0) for the finite element class, the template parameter 'n_dofs_1d' has
+   * to be chosen by two higher than the typical RT degree 'k'. This class
+   * moderates the d-mode products ('contract_high' and 'contract_low') for
+   * finite element interpolations with tensor structure. The d-mode products
+   * are based on the convention that we contract each tensor direction in
+   * ascending order. Convenience functions are provided for values, gradients
+   * and Hessians.
+   *
+   * @tparam dim Dimension of spatial coordinates
+   * @tparam n_dofs_1d Number of degrees of freedom in one dimension, that is,
+   *                   the number of univariate shape functions of high degree
+   *                   (see the general description of this struct)
+   * @tparam n_q_points_1d Number of quadrature points in one dimension. We
+   *                       assume isotropic quadrature formulae.
+   * @tparam Number Abstract number type for input and output arrays
+   * @tparam Number2 Abstract number type for coefficient arrays (defaults to
+   *                 same type as the input/output arrays); must implement
+   *                 operator* with Number to be valid
+   */
+  template <int dim,
+            int n_dofs_1d,
+            int n_q_points_1d,
+            typename Number,
+            typename Number2 = Number>
+  struct EvaluatorRaviartThomas
+  {
+    static constexpr unsigned int n_dofs_per_component =
+      dim == 1 ? n_dofs_1d : n_dofs_1d * Utilities::pow(n_dofs_1d - 1, dim - 1);
+    static constexpr unsigned int n_q_points =
+      Utilities::pow(n_q_points_1d, dim);
+
+    /**
+     * Constructor, taking the data from ShapeInfo
+     */
+    EvaluatorRaviartThomas(
+      const MatrixFreeFunctions::ShapeInfo<Number2> &shape_info)
+      : shape_values_high(shape_info.data[0].shape_values.begin())
+      , shape_gradients_high(shape_info.data[0].shape_gradients.begin())
+      , shape_hessians_high(shape_info.data[0].shape_hessians.begin())
+      , shape_values_low(shape_info.data[1].shape_values.begin())
+      , shape_gradients_low(shape_info.data[1].shape_gradients.begin())
+      , shape_hessians_low(shape_info.data[1].shape_hessians.begin())
+    {
+      // check if the first univariate data is of higher degree than the second
+      const auto &high = shape_info.data[0];
+      const auto &low  = shape_info.data[1];
+      Assert(shape_info.element_type ==
+               MatrixFreeFunctions::ElementType::raviart_thomas,
+             ExcMessage("Mismatching shape_info"));
+      AssertDimension(shape_info.data.size(), 2);
+      // TODO Decide if FEEvaluation shall follow the definition of RT degrees
+      // in the sense that the lowest order RT element has degree 0 although
+      // high.fe_degree equals 1. IMO it is better suited and less intrusive if
+      // FEEvaluation's template parameter coincides with high.fe_degree
+      AssertDimension(high.fe_degree, n_dofs_1d - 1);
+      AssertDimension(high.fe_degree, low.fe_degree + 1);
+      // Assume isotropic quadrature rule.
+      AssertDimension(high.n_q_points_1d, n_q_points_1d);
+      AssertDimension(high.n_q_points_1d, low.n_q_points_1d);
+      AssertDimension(shape_info.n_dimensions, dim);
+      AssertDimension(shape_info.n_components, dim);
+
+      // We can enter this function either for the apply() path that has
+      // n_dofs_1d * n_q_points_1d entries or for the apply_face() path that
+      // only has n_dofs_1d * 3 entries in the array. Since we cannot decide
+      // about the use we must allow for both here.
+#ifdef DEBUG
+      constexpr int n_dofs_1d_high = n_dofs_1d;
+      Assert(high.shape_values.size() == 0 ||
+               high.shape_values.size() == n_dofs_1d_high * n_q_points_1d ||
+               high.shape_values.size() == 3 * n_dofs_1d_high,
+             ExcDimensionMismatch(high.shape_values.size(),
+                                  n_dofs_1d_high * n_q_points_1d));
+      Assert(high.shape_gradients.size() == 0 ||
+               high.shape_gradients.size() == n_dofs_1d_high * n_q_points_1d,
+             ExcDimensionMismatch(high.shape_gradients.size(),
+                                  n_dofs_1d_high * n_q_points_1d));
+      Assert(high.shape_hessians.size() == 0 ||
+               high.shape_hessians.size() == n_dofs_1d_high * n_q_points_1d,
+             ExcDimensionMismatch(high.shape_hessians.size(),
+                                  n_dofs_1d_high * n_q_points_1d));
+#endif
+    }
+
+    /*
+     * TODO !!! User has to insert correctly sized shape_data based on
+     * 'direction' and 'direction_high'
+     */
+    template <int direction_high, int direction, bool add>
+    void
+    contract(const Number2 *DEAL_II_RESTRICT shape_data,
+             const Number *                  in,
+             Number *                        out) const
+    {
+      Assert(direction_high < dim,
+             ExcMessage("direction_high exceeds number of dimensions"));
+      Assert(direction < dim,
+             ExcMessage("direction exceeds number of dimensions"));
+
+      // number of univariate dofs in direction 0/1/2
+      constexpr int n_dofs_0 =
+        0 < dim ? (0 == direction_high ? n_dofs_1d : n_dofs_1d - 1) : 1;
+      constexpr int n_dofs_1 =
+        1 < dim ? (1 == direction_high ? n_dofs_1d : n_dofs_1d - 1) : 1;
+      constexpr int n_dofs_2 =
+        2 < dim ? (2 == direction_high ? n_dofs_1d : n_dofs_1d - 1) : 1;
+      // collapse tensor indices before and after the current mode 'direction'
+      constexpr int n_post =
+        collapse_sizes_post(direction, n_dofs_0, n_dofs_1, n_dofs_2);
+      constexpr int n_pre =
+        0 == direction ? 1 : Utilities::pow(n_q_points_1d, direction);
+      constexpr int n_dofs_1d_actual =
+        direction == direction_high ? n_dofs_1d : n_dofs_1d - 1;
+
+      contract_general_impl<dim,
+                            Number,
+                            n_dofs_1d_actual,
+                            n_q_points_1d,
+                            direction,
+                            n_pre,
+                            n_post,
+                            true,
+                            add>(shape_data, in, out);
+    }
+
+    template <int direction_high, int direction, bool add>
+    void
+    values(const Number in[], Number out[]) const
+    {
+      contract<direction_high, direction, add>(direction == direction_high ?
+                                                 shape_values_high :
+                                                 shape_values_low,
+                                               in,
+                                               out);
+    }
+
+    template <int direction_high, int direction, bool add>
+    void
+    gradients(const Number in[], Number out[]) const
+    {
+      contract<direction_high, direction, add>(direction == direction_high ?
+                                                 shape_gradients_high :
+                                                 shape_gradients_low,
+                                               in,
+                                               out);
+    }
+
+    template <int direction_high, int direction, bool add>
+    void
+    hessians(const Number in[], Number out[]) const
+    {
+      contract<direction_high, direction, add>(direction == direction_high ?
+                                                 shape_hessians_high :
+                                                 shape_hessians_low,
+                                               in,
+                                               out);
+    }
+
+    const Number2 *shape_values_high;
+    const Number2 *shape_gradients_high;
+    const Number2 *shape_hessians_high;
+    const Number2 *shape_values_low;
+    const Number2 *shape_gradients_low;
+    const Number2 *shape_hessians_low;
+  };
+
+
+
+  /**
+   * TODO !!! specialization for Raviart-Thomas
+   */
+  template <int dim, int fe_degree, int n_q_points_1d, typename Number>
+  struct FEEvaluationImpl<MatrixFreeFunctions::ElementType::raviart_thomas,
+                          dim,
+                          fe_degree,
+                          n_q_points_1d,
+                          dim,
+                          Number>
+  {
+    static void
+    evaluate(const MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
+             const Number *                                values_dofs_actual,
+             Number *                                      values_quad,
+             Number *                                      gradients_quad,
+             Number *                                      hessians_quad,
+             Number *                                      scratch_data,
+             const bool                                    evaluate_values,
+             const bool                                    evaluate_gradients,
+             const bool                                    evaluate_hessians)
+    {
+      if (evaluate_values == false && evaluate_gradients == false &&
+          evaluate_hessians == false)
+        return;
+
+      using Evaluator =
+        EvaluatorRaviartThomas<dim, fe_degree + 1, n_q_points_1d, Number>;
+      Evaluator eval(shape_info);
+
+      const unsigned int temp_size =
+        Evaluator::n_dofs_per_component == numbers::invalid_unsigned_int ?
+          0 :
+          (Evaluator::n_dofs_per_component > Evaluator::n_q_points ?
+             Evaluator::n_dofs_per_component :
+             Evaluator::n_q_points);
+      Number *    temp1;
+      Number *    temp2;
+      const auto &data_high = shape_info.data.front();
+      if (temp_size == 0)
+        {
+          temp1 = scratch_data;
+          temp2 =
+            temp1 +
+            std::max(Utilities::fixed_power<dim>(data_high.fe_degree + 1),
+                     Utilities::fixed_power<dim>(data_high.n_q_points_1d));
+        }
+      else
+        {
+          temp1 = scratch_data;
+          temp2 = temp1 + temp_size;
+        }
+
+      const unsigned int n_q_points =
+        temp_size == 0 ?
+          shape_info.n_q_points :
+          Evaluator::n_q_points; // ??? what's conditional statement for?
+      const Number *values_dofs = values_dofs_actual;
+
+      constexpr int n_dofs_high = fe_degree + 1;
+      constexpr int n_dofs_low  = fe_degree;
+      switch (dim)
+        {
+          case 1:
+            AssertThrow(false, ExcNotImplemented());
+            break;
+
+          case 2:
+            {
+              // TODO !!! avoid code duplication for each component
+
+              // values of first component:
+              {
+                constexpr int comp = 0; // TODO !!!
+
+                // grad x
+                if (evaluate_gradients == true)
+                  {
+                    eval.template gradients<comp, 0, false>(values_dofs, temp1);
+                    eval.template values<comp, 1, false>(temp1, gradients_quad);
+                  }
+                if (evaluate_hessians == true)
+                  {
+                    // grad xy
+                    if (evaluate_gradients == false)
+                      eval.template gradients<comp, 0, false>(values_dofs,
+                                                              temp1);
+                    eval.template gradients<comp, 1, false>(temp1,
+                                                            hessians_quad +
+                                                              2 * n_q_points);
+
+                    // grad xx
+                    eval.template hessians<comp, 0, false>(values_dofs, temp1);
+                    eval.template values<comp, 1, false>(temp1, hessians_quad);
+                  }
+
+                // grad y
+                eval.template values<comp, 0, false>(values_dofs, temp1);
+                if (evaluate_gradients == true)
+                  eval.template gradients<comp, 1, false>(temp1,
+                                                          gradients_quad +
+                                                            n_q_points);
+
+                // grad yy
+                if (evaluate_hessians == true)
+                  eval.template hessians<comp, 1, false>(temp1,
+                                                         hessians_quad +
+                                                           n_q_points);
+
+                // val: can use values applied in x
+                if (evaluate_values == true)
+                  eval.template values<comp, 1, false>(temp1, values_quad);
+
+                // advance to the next component in 1D array
+                values_dofs += shape_info.dofs_per_component_on_cell;
+                values_quad += n_q_points;
+                gradients_quad += 2 * n_q_points;
+                hessians_quad += 3 * n_q_points;
+              }
+
+              // values of second component:
+              {
+                constexpr int comp = 1; // TODO !!!
+
+                // grad x
+                if (evaluate_gradients == true)
+                  {
+                    eval.template gradients<comp, 0, false>(values_dofs, temp1);
+                    eval.template values<comp, 1, false>(temp1, gradients_quad);
+                  }
+                if (evaluate_hessians == true)
+                  {
+                    // grad xy
+                    if (evaluate_gradients == false)
+                      eval.template gradients<comp, 0, false>(values_dofs,
+                                                              temp1);
+                    eval.template gradients<comp, 1, false>(temp1,
+                                                            hessians_quad +
+                                                              2 * n_q_points);
+
+                    // grad xx
+                    eval.template hessians<comp, 0, false>(values_dofs, temp1);
+                    eval.template values<comp, 1, false>(temp1, hessians_quad);
+                  }
+
+                // grad y
+                eval.template values<comp, 0, false>(values_dofs, temp1);
+                if (evaluate_gradients == true)
+                  eval.template gradients<comp, 1, false>(temp1,
+                                                          gradients_quad +
+                                                            n_q_points);
+
+                // grad yy
+                if (evaluate_hessians == true)
+                  eval.template hessians<comp, 1, false>(temp1,
+                                                         hessians_quad +
+                                                           n_q_points);
+
+                // val: can use values applied in x
+                if (evaluate_values == true)
+                  eval.template values<comp, 1, false>(temp1, values_quad);
+              }
+
+              break;
+            }
+
+          case 3:
+            {
+              constexpr int comp = 0; // TODO !!!
+
+              if (evaluate_gradients == true)
+                {
+                  // grad x
+                  eval.template gradients<comp, 0, false>(values_dofs, temp1);
+                  eval.template values<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2, gradients_quad);
+                }
+
+              if (evaluate_hessians == true)
+                {
+                  // grad xz
+                  if (evaluate_gradients == false)
+                    {
+                      eval.template gradients<comp, 0, false>(values_dofs,
+                                                              temp1);
+                      eval.template values<comp, 1, false>(temp1, temp2);
+                    }
+                  eval.template gradients<comp, 2, false>(temp2,
+                                                          hessians_quad +
+                                                            4 * n_q_points);
+
+                  // grad xy
+                  eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         3 * n_q_points);
+
+                  // grad xx
+                  eval.template hessians<comp, 0, false>(values_dofs, temp1);
+                  eval.template values<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2, hessians_quad);
+                }
+
+              // grad y
+              eval.template values<comp, 0, false>(values_dofs, temp1);
+              if (evaluate_gradients == true)
+                {
+                  eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       gradients_quad +
+                                                         n_q_points);
+                }
+
+              if (evaluate_hessians == true)
+                {
+                  // grad yz
+                  if (evaluate_gradients == false)
+                    eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template gradients<comp, 2, false>(temp2,
+                                                          hessians_quad +
+                                                            5 * n_q_points);
+
+                  // grad yy
+                  eval.template hessians<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         n_q_points);
+                }
+
+              // grad z: can use the values applied in x direction stored in
+              // temp1
+              eval.template values<comp, 1, false>(temp1, temp2);
+              if (evaluate_gradients == true)
+                eval.template gradients<comp, 2, false>(temp2,
+                                                        gradients_quad +
+                                                          2 * n_q_points);
+
+              // grad zz: can use the values applied in x and y direction stored
+              // in temp2
+              if (evaluate_hessians == true)
+                eval.template hessians<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         2 * n_q_points);
+
+              // val: can use the values applied in x & y direction stored in
+              // temp2
+              if (evaluate_values == true)
+                eval.template values<comp, 2, false>(temp2, values_quad);
+
+              // advance to the next component in 1D array
+              values_dofs += shape_info.dofs_per_component_on_cell;
+              values_quad += n_q_points;
+              gradients_quad += 3 * n_q_points;
+              hessians_quad += 6 * n_q_points;
+            }
+
+            {
+              constexpr int comp = 1; // TODO !!!
+
+              if (evaluate_gradients == true)
+                {
+                  // grad x
+                  eval.template gradients<comp, 0, false>(values_dofs, temp1);
+                  eval.template values<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2, gradients_quad);
+                }
+
+              if (evaluate_hessians == true)
+                {
+                  // grad xz
+                  if (evaluate_gradients == false)
+                    {
+                      eval.template gradients<comp, 0, false>(values_dofs,
+                                                              temp1);
+                      eval.template values<comp, 1, false>(temp1, temp2);
+                    }
+                  eval.template gradients<comp, 2, false>(temp2,
+                                                          hessians_quad +
+                                                            4 * n_q_points);
+
+                  // grad xy
+                  eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         3 * n_q_points);
+
+                  // grad xx
+                  eval.template hessians<comp, 0, false>(values_dofs, temp1);
+                  eval.template values<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2, hessians_quad);
+                }
+
+              // grad y
+              eval.template values<comp, 0, false>(values_dofs, temp1);
+              if (evaluate_gradients == true)
+                {
+                  eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       gradients_quad +
+                                                         n_q_points);
+                }
+
+              if (evaluate_hessians == true)
+                {
+                  // grad yz
+                  if (evaluate_gradients == false)
+                    eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template gradients<comp, 2, false>(temp2,
+                                                          hessians_quad +
+                                                            5 * n_q_points);
+
+                  // grad yy
+                  eval.template hessians<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         n_q_points);
+                }
+
+              // grad z: can use the values applied in x direction stored in
+              // temp1
+              eval.template values<comp, 1, false>(temp1, temp2);
+              if (evaluate_gradients == true)
+                eval.template gradients<comp, 2, false>(temp2,
+                                                        gradients_quad +
+                                                          2 * n_q_points);
+
+              // grad zz: can use the values applied in x and y direction stored
+              // in temp2
+              if (evaluate_hessians == true)
+                eval.template hessians<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         2 * n_q_points);
+
+              // val: can use the values applied in x & y direction stored in
+              // temp2
+              if (evaluate_values == true)
+                eval.template values<comp, 2, false>(temp2, values_quad);
+
+              // advance to the next component in 1D array
+              values_dofs += shape_info.dofs_per_component_on_cell;
+              values_quad += n_q_points;
+              gradients_quad += 3 * n_q_points;
+              hessians_quad += 6 * n_q_points;
+            }
+
+            {
+              constexpr int comp = 2; // TODO !!!
+
+              if (evaluate_gradients == true)
+                {
+                  // grad x
+                  eval.template gradients<comp, 0, false>(values_dofs, temp1);
+                  eval.template values<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2, gradients_quad);
+                }
+
+              if (evaluate_hessians == true)
+                {
+                  // grad xz
+                  if (evaluate_gradients == false)
+                    {
+                      eval.template gradients<comp, 0, false>(values_dofs,
+                                                              temp1);
+                      eval.template values<comp, 1, false>(temp1, temp2);
+                    }
+                  eval.template gradients<comp, 2, false>(temp2,
+                                                          hessians_quad +
+                                                            4 * n_q_points);
+
+                  // grad xy
+                  eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         3 * n_q_points);
+
+                  // grad xx
+                  eval.template hessians<comp, 0, false>(values_dofs, temp1);
+                  eval.template values<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2, hessians_quad);
+                }
+
+              // grad y
+              eval.template values<comp, 0, false>(values_dofs, temp1);
+              if (evaluate_gradients == true)
+                {
+                  eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       gradients_quad +
+                                                         n_q_points);
+                }
+
+              if (evaluate_hessians == true)
+                {
+                  // grad yz
+                  if (evaluate_gradients == false)
+                    eval.template gradients<comp, 1, false>(temp1, temp2);
+                  eval.template gradients<comp, 2, false>(temp2,
+                                                          hessians_quad +
+                                                            5 * n_q_points);
+
+                  // grad yy
+                  eval.template hessians<comp, 1, false>(temp1, temp2);
+                  eval.template values<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         n_q_points);
+                }
+
+              // grad z: can use the values applied in x direction stored in
+              // temp1
+              eval.template values<comp, 1, false>(temp1, temp2);
+              if (evaluate_gradients == true)
+                eval.template gradients<comp, 2, false>(temp2,
+                                                        gradients_quad +
+                                                          2 * n_q_points);
+
+              // grad zz: can use the values applied in x and y direction stored
+              // in temp2
+              if (evaluate_hessians == true)
+                eval.template hessians<comp, 2, false>(temp2,
+                                                       hessians_quad +
+                                                         2 * n_q_points);
+
+              // val: can use the values applied in x & y direction stored in
+              // temp2
+              if (evaluate_values == true)
+                eval.template values<comp, 2, false>(temp2, values_quad);
+
+              // advance to the next component in 1D array
+              values_dofs += shape_info.dofs_per_component_on_cell;
+              values_quad += n_q_points;
+              gradients_quad += 3 * n_q_points;
+              hessians_quad += 6 * n_q_points;
+            }
+            break;
+
+          default:
+            AssertThrow(false, ExcNotImplemented());
+        }
+    }
+
+    static void
+    integrate(const MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
+              Number *                                      values_dofs_actual,
+              Number *                                      values_quad,
+              Number *                                      gradients_quad,
+              Number *                                      scratch_data,
+              const bool                                    integrate_values,
+              const bool                                    integrate_gradients,
+              const bool add_into_values_array);
+  };
+
+
+
+  /**
    * This struct implements the change between two different bases. This is an
    * ingredient in the FEEvaluationImplTransformToCollocation class where we
    * first transform to the appropriate basis where we can compute the
