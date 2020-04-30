@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 by the deal.II authors
+// Copyright (C) 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -15,9 +15,8 @@
 
 
 
-// check the correctness of the 1d evaluation functions used in FEEvaluation,
-// path evaluate_general, when using a double array for coefficients but
-// VectorizedArray for the input and output vector
+// check the correctness of the generic d-mode product kernel
+// contract_general_impl() for anisotropic tensors
 
 #include <deal.II/base/vectorization.h>
 
