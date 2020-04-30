@@ -155,7 +155,7 @@ FE_RaviartThomasNodal_new<dim>::initialize_support_points(
 
   // compute univariate shape functions
   compute_tensor_product_basis(deg);
-  sort_generalized_support_points_lexicographically(deg);
+  fill_lexicographic_numbering(deg);
 
   // Number of the point being entered
   unsigned int current = 0;
@@ -891,89 +891,60 @@ FE_RaviartThomasNodal_new<dim>::shape_value_component_as_tensor_product(
  */
 template <int dim>
 void
-FE_RaviartThomasNodal_new<dim>::
-  sort_generalized_support_points_lexicographically(const unsigned int deg)
+FE_RaviartThomasNodal_new<dim>::fill_lexicographic_numbering(
+  const unsigned int degree)
 {
-  Assert(this->lexicographic_support_points.size() > 0,
-         ExcMessage("tensor product bases are not yet generated"));
-  AssertDimension(this->generalized_support_points.size(),
-                  lexicographic_support_points.size());
-  this->lexicographic_transformation =
-    std::vector<unsigned int>(lexicographic_support_points.size());
-  this->inverse_lexicographic_transformation =
-    std::vector<unsigned int>(lexicographic_support_points.size());
-  for (unsigned int d = 0; d < dim; d++)
+  const unsigned int n_dofs_per_comp = this->dofs_per_cell / dim;
+  lexicographic_transformation.clear();
+  lexicographic_transformation.reserve(n_dofs_per_comp * dim);
+
+  // dofs on faces
+  for (unsigned int face_no = 0; face_no < 2 * dim; ++face_no)
     {
-      /*
-       * for each component find faces which have dofs for that component and
-       * find the point where dofs for the interior of that component start,
-       * then compare support points with the lexicographic support points and
-       * save results
-       */
-      unsigned int face1_begin     = 0; // default value which is impossible
-      unsigned int face2_begin     = 0;
-      unsigned int n_dofs_interior = get_dpo_vector(deg)[dim];
-      unsigned int points_per_dimension = this->dofs_per_cell / dim;
-      AssertDimension(points_per_dimension % dim, 0);
-      unsigned int interior_points_per_dimension = n_dofs_interior / dim;
-      AssertDimension(interior_points_per_dimension % dim, 0);
-      unsigned int interior_begin =
-        GeometryInfo<dim>::faces_per_cell * this->dofs_per_face +
-        interior_points_per_dimension * d;
-      unsigned int support_point_iterator = 0;
-      if (dim > 1)
-        {
-          for (unsigned int f = 0; f < GeometryInfo<dim>::faces_per_cell; f++)
-            {
-              if (GeometryInfo<dim>::unit_normal_direction[f] == d)
-                {
-                  if (face1_begin == 0)
-                    face1_begin = support_point_iterator;
-                  else
-                    face2_begin = support_point_iterator;
-                }
-              support_point_iterator += this->dofs_per_face;
-            }
-        }
-      for (unsigned int lex_point_index = points_per_dimension * d;
-           lex_point_index < points_per_dimension * (d + 1);
-           lex_point_index++)
-        {
-          Point<dim> lexicographic_point =
-            lexicographic_support_points[lex_point_index];
-          if (dim > 1)
-            for (unsigned int i = 0; i < this->dofs_per_face; i++)
-              {
-                if (this->generalized_support_points[face1_begin + i] ==
-                    lexicographic_point)
-                  {
-                    lexicographic_transformation[face1_begin + i] =
-                      lex_point_index;
-                    inverse_lexicographic_transformation[lex_point_index] =
-                      face1_begin + i;
-                  }
-                if (this->generalized_support_points[face2_begin + i] ==
-                    lexicographic_point)
-                  {
-                    lexicographic_transformation[face2_begin + i] =
-                      lex_point_index;
-                    inverse_lexicographic_transformation[lex_point_index] =
-                      face2_begin + i;
-                  }
-              }
-          for (unsigned int i = 0; i < interior_points_per_dimension; i++)
-            {
-              if (this->generalized_support_points[interior_begin + i] ==
-                  lexicographic_point)
-                {
-                  lexicographic_transformation[interior_begin + i] =
-                    lex_point_index;
-                  inverse_lexicographic_transformation[lex_point_index] =
-                    interior_begin + i;
-                }
-            }
-        }
+      const unsigned int stride_x = face_no < 2 ? degree + 2 : 1;
+      const unsigned int stride_y =
+        face_no < 4 ? (degree + 2) * (degree + 1) : degree + 1;
+      const unsigned int offset =
+        (face_no % 2) * Utilities::pow(degree + 1, 1 + face_no / 2);
+      for (unsigned int j = 0; j < (dim > 2 ? degree + 1 : 1); ++j)
+        for (unsigned int i = 0; i < degree + 1; ++i)
+          lexicographic_transformation.push_back(
+            (face_no / 2) * n_dofs_per_comp + offset + i * stride_x +
+            j * stride_y);
     }
+  // dofs on cells
+  for (unsigned int k = 0; k < (dim > 2 ? degree + 1 : 1); ++k)
+    for (unsigned int j = 0; j < (dim > 1 ? degree + 1 : 1); ++j)
+      for (unsigned int i = 1; i < degree + 1; ++i)
+        lexicographic_transformation.push_back(k * (degree + 1) * (degree + 2) +
+                                               j * (degree + 2) + i);
+  if (dim > 1)
+    for (unsigned int k = 0; k < (dim > 2 ? degree + 1 : 1); ++k)
+      for (unsigned int j = 1; j < degree + 1; ++j)
+        for (unsigned int i = 0; i < degree + 1; ++i)
+          lexicographic_transformation.push_back(
+            n_dofs_per_comp + k * (degree + 1) * (degree + 2) +
+            j * (degree + 1) + i);
+  if (dim > 2)
+    for (unsigned int k = 1; k < degree + 1; ++k)
+      for (unsigned int j = 0; j < degree + 1; ++j)
+        for (unsigned int i = 0; i < degree + 1; ++i)
+          lexicographic_transformation.push_back(
+            2 * n_dofs_per_comp + k * (degree + 1) * (degree + 1) +
+            j * (degree + 1) + i);
+
+  AssertDimension(lexicographic_transformation.size(), this->dofs_per_cell);
+
+#ifdef DEBUG
+  // assert that we have a valid permutation
+  std::vector<unsigned int> copy(lexicographic_transformation);
+  std::sort(copy.begin(), copy.end());
+  for (unsigned int i = 0; i < copy.size(); ++i)
+    AssertDimension(i, copy[i]);
+#endif
+
+  inverse_lexicographic_transformation =
+    Utilities::invert_permutation(lexicographic_transformation);
 }
 
 template <int dim>

@@ -467,7 +467,7 @@ private:
    * support points
    */
   void
-  sort_generalized_support_points_lexicographically(const unsigned int deg);
+  fill_lexicographic_numbering(const unsigned int deg);
 
 
   std::vector<unsigned int>
