@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2015 - 2018 by the deal.II Authors
+// Copyright (C) 2015 - 2020 by the deal.II Authors
 //
 // This file is part of the deal.II library.
 //
@@ -69,6 +69,14 @@ test_cross_section()
       print_box(cross_section);
     }
 }
+
+
+
+// It doesn't make sense to test the cross section in 1D so skip it:
+template <>
+void
+test_cross_section<1>()
+{}
 
 
 

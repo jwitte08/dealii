@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2019 by the deal.II authors
+// Copyright (C) 1999 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -40,8 +40,6 @@
 #ifdef DEAL_II_WITH_MPI
 #  include <deal.II/lac/la_parallel_vector.h>
 #endif
-
-#include <deal.II/base/std_cxx14/memory.h>
 
 #include <algorithm>
 #include <array>
@@ -309,7 +307,7 @@ namespace DoFTools
         if (master_dof_mask == nullptr)
           {
             master_dof_mask =
-              std_cxx14::make_unique<std::vector<bool>>(fe1.dofs_per_face);
+              std::make_unique<std::vector<bool>>(fe1.dofs_per_face);
             select_master_dofs_for_face_restriction(fe1,
                                                     fe2,
                                                     face_interpolation_matrix,
@@ -333,9 +331,8 @@ namespace DoFTools
       {
         if (matrix == nullptr)
           {
-            matrix =
-              std_cxx14::make_unique<FullMatrix<double>>(fe2.dofs_per_face,
-                                                         fe1.dofs_per_face);
+            matrix = std::make_unique<FullMatrix<double>>(fe2.dofs_per_face,
+                                                          fe1.dofs_per_face);
             fe1.get_face_interpolation_matrix(fe2, *matrix);
           }
       }
@@ -355,9 +352,8 @@ namespace DoFTools
       {
         if (matrix == nullptr)
           {
-            matrix =
-              std_cxx14::make_unique<FullMatrix<double>>(fe2.dofs_per_face,
-                                                         fe1.dofs_per_face);
+            matrix = std::make_unique<FullMatrix<double>>(fe2.dofs_per_face,
+                                                          fe1.dofs_per_face);
             fe1.get_subface_interpolation_matrix(fe2, subface, *matrix);
           }
       }
@@ -385,7 +381,7 @@ namespace DoFTools
 
         if (split_matrix == nullptr)
           {
-            split_matrix = std_cxx14::make_unique<
+            split_matrix = std::make_unique<
               std::pair<FullMatrix<double>, FullMatrix<double>>>();
 
             const unsigned int n_master_dofs = face_interpolation_matrix.n();
@@ -546,90 +542,47 @@ namespace DoFTools
     } // namespace
 
 
-    template <typename number>
-    void
-    make_hp_hanging_node_constraints(const dealii::DoFHandler<1> &,
-                                     AffineConstraints<number> &)
-    {
-      // nothing to do for regular dof handlers in 1d
-    }
 
-
-    template <typename number>
-    void
-    make_oldstyle_hanging_node_constraints(const dealii::DoFHandler<1> &,
-                                           AffineConstraints<number> &,
-                                           std::integral_constant<int, 1>)
-    {
-      // nothing to do for regular dof handlers in 1d
-    }
-
-
-    template <typename number>
+    template <typename number, int spacedim>
     void
     make_hp_hanging_node_constraints(
-      const dealii::hp::DoFHandler<1> & /*dof_handler*/,
+      const dealii::hp::DoFHandler<1, spacedim> & /*dof_handler*/,
       AffineConstraints<number> & /*constraints*/)
     {
-      // we may have to compute constraints for vertices. gotta think about that
-      // a bit more
-
-      // TODO[WB]: think about what to do here...
+      // nothing to do for dof handlers in 1d
     }
 
 
-    template <typename number>
+    template <typename number, int spacedim>
     void
     make_oldstyle_hanging_node_constraints(
-      const dealii::hp::DoFHandler<1> & /*dof_handler*/,
+      const dealii::hp::DoFHandler<1, spacedim> & /*dof_handler*/,
       AffineConstraints<number> & /*constraints*/,
       std::integral_constant<int, 1>)
     {
-      // we may have to compute constraints for vertices. gotta think about that
-      // a bit more
-
-      // TODO[WB]: think about what to do here...
+      // nothing to do for dof handlers in 1d
     }
 
 
-    template <typename number>
+    template <typename number, int spacedim>
     void
-    make_hp_hanging_node_constraints(const dealii::DoFHandler<1, 2> &,
-                                     AffineConstraints<number> &)
+    make_hp_hanging_node_constraints(
+      const dealii::DoFHandler<1, spacedim> & /*dof_handler*/,
+      AffineConstraints<number> & /*constraints*/)
     {
-      // nothing to do for regular dof handlers in 1d
+      // nothing to do for dof handlers in 1d
     }
 
 
-    template <typename number>
+    template <typename number, int spacedim>
     void
-    make_oldstyle_hanging_node_constraints(const dealii::DoFHandler<1, 2> &,
-                                           AffineConstraints<number> &,
-                                           std::integral_constant<int, 1>)
+    make_oldstyle_hanging_node_constraints(
+      const dealii::DoFHandler<1, spacedim> & /*dof_handler*/,
+      AffineConstraints<number> & /*constraints*/,
+      std::integral_constant<int, 1>)
     {
-      // nothing to do for regular dof handlers in 1d
+      // nothing to do for dof handlers in 1d
     }
-
-
-    template <typename number>
-    void
-    make_hp_hanging_node_constraints(const dealii::DoFHandler<1, 3> &,
-                                     AffineConstraints<number> &)
-    {
-      // nothing to do for regular dof handlers in 1d
-    }
-
-
-    template <typename number>
-    void
-    make_oldstyle_hanging_node_constraints(const dealii::DoFHandler<1, 3> &,
-                                           AffineConstraints<number> &,
-                                           std::integral_constant<int, 1>)
-    {
-      // nothing to do for regular dof handlers in 1d
-    }
-
-
 
     template <typename DoFHandlerType, typename number>
     void

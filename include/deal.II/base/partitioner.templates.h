@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2019 by the deal.II authors
+// Copyright (C) 2017 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -535,7 +535,7 @@ namespace Utilities
           else
 #      endif
             {
-#      ifdef DEAL_II_WITH_CXX17
+#      ifdef DEAL_II_HAVE_CXX17
               if constexpr (std::is_trivial<Number>::value)
 #      else
             if (std::is_trivial<Number>::value)
@@ -629,7 +629,7 @@ namespace Utilities
                              100000. *
                              std::numeric_limits<typename numbers::NumberTraits<
                                Number>::real_type>::epsilon(),
-                       typename LinearAlgebra::distributed::Vector<
+                       typename dealii::LinearAlgebra::distributed::Vector<
                          Number>::ExcNonMatchingElements(*read_position,
                                                          locally_owned_array[j],
                                                          my_pid));
@@ -738,7 +738,7 @@ namespace Utilities
           else
 #    endif
             {
-#    ifdef DEAL_II_WITH_CXX17
+#    ifdef DEAL_II_HAVE_CXX17
               if constexpr (std::is_trivial<Number>::value)
 #    else
             if (std::is_trivial<Number>::value)

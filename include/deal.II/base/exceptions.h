@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2019 by the deal.II authors
+// Copyright (C) 1998 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1767,6 +1767,37 @@ namespace internal
       {                                   \
         (void)(error_code);               \
       }
+#  endif
+
+/**
+ * An assertion that checks that the kernel was launched and executed
+ * successfully.
+ *
+ * @note This and similar macro names are examples of preprocessor definitions
+ * in the deal.II library that are not prefixed by a string that likely makes
+ * them unique to deal.II. As a consequence, it is possible that other
+ * libraries your code interfaces with define the same name, and the result
+ * will be name collisions (see
+ * https://en.wikipedia.org/wiki/Name_collision). One can <code>\#undef</code>
+ * this macro, as well as all other macros defined by deal.II that are not
+ * prefixed with either <code>DEAL</code> or <code>deal</code>, by including
+ * the header <code>deal.II/base/undefine_macros.h</code> after all other
+ * deal.II headers have been included.
+ *
+ * @ingroup Exceptions
+ * @author Bruno Turcksin, 2020
+ */
+#  ifdef DEBUG
+#    define AssertCudaKernel()                                \
+      {                                                       \
+        cudaError_t local_error_code = cudaPeekAtLastError(); \
+        AssertCuda(local_error_code);                         \
+        local_error_code = cudaDeviceSynchronize();           \
+        AssertCuda(local_error_code)                          \
+      }
+#  else
+#    define AssertCudaKernel() \
+      {}
 #  endif
 
 /**

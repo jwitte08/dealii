@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2004 - 2019 by the deal.II authors
+// Copyright (C) 2004 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -20,9 +20,11 @@
 #include <deal.II/base/config.h>
 
 #include <deal.II/base/quadrature.h>
-#include <deal.II/base/std_cxx14/memory.h>
+#include <deal.II/base/scalar_polynomials_base.h>
 
 #include <deal.II/fe/fe.h>
+
+#include <memory>
 
 DEAL_II_NAMESPACE_OPEN
 
@@ -70,19 +72,22 @@ DEAL_II_NAMESPACE_OPEN
  * @author Ralf Hartmann 2004, Guido Kanschat, 2009
  */
 
-template <class PolynomialType,
-          int dim      = PolynomialType::dimension,
-          int spacedim = dim>
+template <int dim, int spacedim = dim>
 class FE_Poly : public FiniteElement<dim, spacedim>
 {
 public:
   /**
    * Constructor.
    */
-  FE_Poly(const PolynomialType &            poly_space,
+  FE_Poly(const ScalarPolynomialsBase<dim> &poly_space,
           const FiniteElementData<dim> &    fe_data,
           const std::vector<bool> &         restriction_is_additive_flags,
           const std::vector<ComponentMask> &nonzero_components);
+
+  /**
+   * Copy constructor.
+   */
+  FE_Poly(const FE_Poly &fe);
 
   /**
    * Return the polynomial degree of this finite element, i.e. the value
@@ -94,6 +99,12 @@ public:
   // for documentation, see the FiniteElement base class
   virtual UpdateFlags
   requires_update_flags(const UpdateFlags update_flags) const override;
+
+  /**
+   * Return the underlying polynomial space.
+   */
+  const ScalarPolynomialsBase<dim> &
+  get_poly_space() const;
 
   /**
    * Return the numbering of the underlying polynomial space compared to
@@ -254,7 +265,7 @@ protected:
     // generate a new data object and
     // initialize some fields
     std::unique_ptr<typename FiniteElement<dim, spacedim>::InternalDataBase>
-          data_ptr   = std_cxx14::make_unique<InternalData>();
+          data_ptr   = std::make_unique<InternalData>();
     auto &data       = dynamic_cast<InternalData &>(*data_ptr);
     data.update_each = requires_update_flags(update_flags);
 
@@ -311,12 +322,12 @@ protected:
                         update_3rd_derivatives))
       for (unsigned int i = 0; i < n_q_points; ++i)
         {
-          poly_space.evaluate(quadrature.point(i),
-                              values,
-                              grads,
-                              grad_grads,
-                              third_derivatives,
-                              fourth_derivatives);
+          poly_space->evaluate(quadrature.point(i),
+                               values,
+                               grads,
+                               grad_grads,
+                               third_derivatives,
+                               fourth_derivatives);
 
           // the values of shape functions at quadrature points don't change.
           // consequently, write these values right into the output array if
@@ -510,10 +521,9 @@ protected:
 
 
   /**
-   * The polynomial space. Its type is given by the template parameter
-   * PolynomialType.
+   * The polynomial space.
    */
-  PolynomialType poly_space;
+  const std::unique_ptr<ScalarPolynomialsBase<dim>> poly_space;
 };
 
 /*@}*/

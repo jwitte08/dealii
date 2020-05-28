@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2018 by the deal.II authors
+// Copyright (C) 2013 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -186,7 +186,7 @@ public:
   virtual std::unique_ptr<Manifold<dim, dim>>
   clone() const
   {
-    return std_cxx14::make_unique<DeformedManifold<dim>>();
+    return std::make_unique<DeformedManifold<dim>>();
   }
 
   virtual Point<dim>

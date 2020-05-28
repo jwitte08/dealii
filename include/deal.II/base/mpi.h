@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2019 by the deal.II authors
+// Copyright (C) 2011 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -104,6 +104,23 @@ class IndexSet;
 
 namespace Utilities
 {
+  /**
+   * Given the total number of elements @p total_size, create an evenly
+   * distributed 1:1 partitioning of the elements for across @p n_partitions.
+   * The local sizes will be equal to the @p total_size divided by the number
+   * of partitions plus the remainder being divided amongst the first
+   * processes. Each process will store a contiguous subset of indices, and the
+   * index set on process p+1 starts at the index one larger than the last one
+   * stored on process p.
+   * For example, a @p total_size of 11 with 3 processes will result
+   * in the IndexSets { [0,4), [4,8), [8,11)] }, and this function will
+   * return the @p my_partition_id 's IndexSet.
+   */
+  IndexSet
+  create_evenly_distributed_partitioning(const unsigned int my_partition_id,
+                                         const unsigned int n_partitions,
+                                         const IndexSet::size_type total_size);
+
   /**
    * A namespace for utility functions that abstract certain operations using
    * the Message Passing Interface (MPI) or provide fallback operations in
@@ -314,7 +331,7 @@ namespace Utilities
       {
       public:
         /**
-         * Constructor. Blocks until it can aquire the lock.
+         * Constructor. Blocks until it can acquire the lock.
          */
         explicit ScopedLock(CollectiveMutex &mutex, const MPI_Comm &comm)
           : mutex(mutex)
@@ -353,7 +370,7 @@ namespace Utilities
       ~CollectiveMutex();
 
       /**
-       * Aquire the mutex and, if necessary, wait until we can do so.
+       * Acquire the mutex and, if necessary, wait until we can do so.
        *
        * This is a collective call that needs to be executed by all processors
        * in the communicator.
@@ -428,8 +445,20 @@ namespace Utilities
      * process p.
      */
     std::vector<IndexSet>
-    create_ascending_partitioning(const MPI_Comm &           comm,
-                                  const IndexSet::size_type &local_size);
+    create_ascending_partitioning(const MPI_Comm &          comm,
+                                  const IndexSet::size_type local_size);
+
+    /**
+     * Given the total number of elements @p total_size, create an evenly
+     * distributed 1:1 partitioning of the elements across the
+     * MPI communicator @p comm.
+     * Uses @p comm to determine number of partitions and processor ID to call the
+     * @p create_evenly_distributed_partitioning() function above.
+     */
+    IndexSet
+    create_evenly_distributed_partitioning(
+      const MPI_Comm &          comm,
+      const IndexSet::size_type total_size);
 
 #ifdef DEAL_II_WITH_MPI
     /**
@@ -722,8 +751,9 @@ namespace Utilities
     /**
      * Same as above but returning the sum, average, minimum, maximum,
      * process id of minimum and maximum as a collective operation on the
-     * given MPI @ref GlossMPICommunicator "communicator" @p mpi_communicator
-     * for each entry of the vector.
+     * given MPI
+     * @ref GlossMPICommunicator "communicator"
+     * @p mpi_communicator for each entry of the vector.
      *
      * @note This function performs a single reduction sweep.
      *
@@ -737,8 +767,9 @@ namespace Utilities
     /**
      * Same as above but returning the sum, average, minimum, maximum,
      * process id of minimum and maximum as a collective operation on the
-     * given MPI @ref GlossMPICommunicator "communicator" @p mpi_communicator
-     * for each entry of the ArrayView.
+     * given MPI
+     * @ref GlossMPICommunicator "communicator"
+     * @p mpi_communicator for each entry of the ArrayView.
      *
      * @note This function performs a single reduction sweep.
      *
@@ -859,7 +890,7 @@ namespace Utilities
        *
        * The object @p request needs to exist when MPI_Finalize is called, which means the
        * request is typically statically allocated. Otherwise, you need to call
-       * unregister_request() before the request goes out of scope. Note that is
+       * unregister_request() before the request goes out of scope. Note that it
        * is acceptable for a request to be already waited on (and consequently
        * reset to MPI_REQUEST_NULL).
        *
@@ -1200,6 +1231,9 @@ namespace Utilities
     std::vector<T>
     all_gather(const MPI_Comm &comm, const T &object)
     {
+      if (job_supports_mpi() == false)
+        return {object};
+
 #  ifndef DEAL_II_WITH_MPI
       (void)comm;
       std::vector<T> v(1, object);

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2019 by the deal.II authors
+// Copyright (C) 1999 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1947,7 +1947,7 @@ namespace internal
         : updater(updater)
       {
         if (size < internal::VectorImplementation::minimum_parallel_grain_size)
-          apply_to_subrange(0, size);
+          VectorUpdatesRange::apply_to_subrange(0, size);
         else
           apply_parallel(
             0,
@@ -2165,13 +2165,7 @@ namespace internal
         1 + (n_local_elements - 1) / CUDAWrappers::block_size;
       set_initial_guess_kernel<<<n_blocks, CUDAWrappers::block_size>>>(
         first_local_range, n_local_elements, vector.get_values());
-
-#    ifdef DEBUG
-      // Check that the kernel was launched correctly
-      AssertCuda(cudaGetLastError());
-      // Check that there was no problem during the execution of the kernel
-      AssertCuda(cudaDeviceSynchronize());
-#    endif
+      AssertCudaKernel();
 
       const Number mean_value = vector.mean_value();
       vector.add(-mean_value);

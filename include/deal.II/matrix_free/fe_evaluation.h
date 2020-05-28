@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2019 by the deal.II authors
+// Copyright (C) 2011 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -165,7 +165,14 @@ public:
    * temporary solution should always have homogeneous constraints and this
    * method is the correct one.
    *
-   * If this class was constructed without a MatrixFree object and the
+   * If the given vector template class is a block vector (determined through
+   * the template function 'IsBlockVector<VectorType>::value', which checks
+   * for vectors derived from dealii::BlockVectorBase) or an
+   * std::vector<VectorType> or std::vector<VectorType *>, this function reads
+   * @p n_components blocks from the block vector starting at the index
+   * @p first_index. For non-block vectors, @p first_index is ignored.
+   *
+   * @note If this class was constructed without a MatrixFree object and the
    * information is acquired on the fly through a
    * DoFHandler<dim>::cell_iterator, only one single cell is used by this
    * class and this function extracts the values of the underlying components
@@ -173,13 +180,6 @@ public:
    * MatrixFree object and lead to a structure that does not effectively use
    * vectorization in the evaluate routines based on these values (instead,
    * VectorizedArray::size() same copies are worked on).
-   *
-   * If the given vector template class is a block vector (determined through
-   * the template function 'IsBlockVector<VectorType>::value', which checks
-   * for vectors derived from dealii::BlockVectorBase) or an
-   * std::vector<VectorType> or std::vector<VectorType *>, this function reads
-   * @p n_components blocks from the block vector starting at the index
-   * @p first_index. For non-block vectors, @p first_index is ignored.
    */
   template <typename VectorType>
   void
@@ -197,7 +197,14 @@ public:
    * as MatrixFree can only handle homogeneous constraints. Note that if
    * vectorization is enabled, the DoF values for several cells are set.
    *
-   * If this class was constructed without a MatrixFree object and the
+   * If the given vector template class is a block vector (determined through
+   * the template function 'IsBlockVector<VectorType>::value', which checks
+   * for vectors derived from dealii::BlockVectorBase) or an
+   * std::vector<VectorType> or std::vector<VectorType *>, this function reads
+   * @p n_components blocks from the block vector starting at the index
+   * @p first_index. For non-block vectors, @p first_index is ignored.
+   *
+   * @note If this class was constructed without a MatrixFree object and the
    * information is acquired on the fly through a
    * DoFHandler<dim>::cell_iterator, only one single cell is used by this
    * class and this function extracts the values of the underlying components
@@ -205,13 +212,6 @@ public:
    * MatrixFree object and lead to a structure that does not effectively use
    * vectorization in the evaluate routines based on these values (instead,
    * VectorizedArray::size() same copies are worked on).
-   *
-   * If the given vector template class is a block vector (determined through
-   * the template function 'IsBlockVector<VectorType>::value', which checks
-   * for vectors derived from dealii::BlockVectorBase) or an
-   * std::vector<VectorType> or std::vector<VectorType *>, this function reads
-   * @p n_components blocks from the block vector starting at the index
-   * @p first_index. For non-block vectors, @p first_index is ignored.
    */
   template <typename VectorType>
   void
@@ -223,23 +223,7 @@ public:
    * sums them into the vector @p dst. The function also applies constraints
    * during the write operation. The functionality is hence similar to the
    * function AffineConstraints::distribute_local_to_global. If vectorization
-   * is enabled, the DoF values for several cells are used. The mask can be
-   * used to suppress the write access for some of the cells contained in the
-   * current cell vectorization batch, e.g. in case of local time stepping,
-   * where some cells are excluded from a call. A value of `true` in the
-   * bitset means that the respective lane index will be processed, whereas a
-   * value of `false` skips this index. The default setting is a bitset that
-   * contains all ones, which will write the accumulated integrals to all
-   * cells in the batch.
-   *
-   * If this class was constructed without a MatrixFree object and the
-   * information is acquired on the fly through a
-   * DoFHandler<dim>::cell_iterator, only one single cell is used by this
-   * class and this function extracts the values of the underlying components
-   * on the given cell. This call is slower than the ones done through a
-   * MatrixFree object and lead to a structure that does not effectively use
-   * vectorization in the evaluate routines based on these values (instead,
-   * VectorizedArray::size() same copies are worked on).
+   * is enabled, the DoF values for several cells are used.
    *
    * If the given vector template class is a block vector (determined through
    * the template function 'IsBlockVector<VectorType>::value', which checks
@@ -247,6 +231,23 @@ public:
    * std::vector<VectorType> or std::vector<VectorType *>, this function
    * writes to @p n_components blocks of the block vector starting at the
    * index @p first_index. For non-block vectors, @p first_index is ignored.
+   *
+   * The @p mask can be used to suppress the write access for some of the
+   * cells contained in the current cell vectorization batch, e.g. in case of
+   * local time stepping, where some cells are excluded from a call. A value
+   * of `true` in the bitset means that the respective lane index will be
+   * processed, whereas a value of `false` skips this index. The default
+   * setting is a bitset that contains all ones, which will write the
+   * accumulated integrals to all cells in the batch.
+   *
+   * @note If this class was constructed without a MatrixFree object and the
+   * information is acquired on the fly through a
+   * DoFHandler<dim>::cell_iterator, only one single cell is used by this
+   * class and this function extracts the values of the underlying components
+   * on the given cell. This call is slower than the ones done through a
+   * MatrixFree object and lead to a structure that does not effectively use
+   * vectorization in the evaluate routines based on these values (instead,
+   * VectorizedArray::size() same copies are worked on).
    */
   template <typename VectorType>
   void
@@ -264,7 +265,20 @@ public:
    * by the current cell are overwritten. Thus, if a degree of freedom is
    * associated to more than one cell (as usual in continuous finite
    * elements), the values will be overwritten and only the value written last
-   * is retained. The mask can be used to suppress the write access for some
+   * is retained. Please note that in a parallel context this function might
+   * also touch degrees of freedom owned by other MPI processes, so that a
+   * subsequent update or accumulation of ghost values as done by
+   * MatrixFree::loop() might invalidate the degrees of freedom set by this
+   * function.
+   *
+   * If the given vector template class is a block vector (determined through
+   * the template function 'IsBlockVector<VectorType>::value', which checks
+   * for vectors derived from dealii::BlockVectorBase) or an
+   * std::vector<VectorType> or std::vector<VectorType *>, this function
+   * writes to @p n_components blocks of the block vector starting at the
+   * index @p first_index. For non-block vectors, @p first_index is ignored.
+   *
+   * The @p mask can be used to suppress the write access for some
    * of the cells contained in the current cell vectorization batch, e.g. in
    * case of local time stepping, where some  cells are excluded from a call.
    * A value of `true` in the bitset means that the respective lane index will
@@ -272,7 +286,7 @@ public:
    * setting is a bitset that contains all ones, which will write the
    * accumulated integrals to all cells in the batch.
    *
-   * If this class was constructed without a MatrixFree object and the
+   * @note If this class was constructed without a MatrixFree object and the
    * information is acquired on the fly through a
    * DoFHandler<dim>::cell_iterator, only one single cell is used by this
    * class and this function extracts the values of the underlying components
@@ -281,12 +295,6 @@ public:
    * vectorization in the evaluate routines based on these values (instead,
    * VectorizedArray::size() same copies are worked on).
    *
-   * If the given vector template class is a block vector (determined through
-   * the template function 'IsBlockVector<VectorType>::value', which checks
-   * for vectors derived from dealii::BlockVectorBase) or an
-   * std::vector<VectorType> or std::vector<VectorType *>, this function
-   * writes to @p n_components blocks of the block vector starting at the
-   * index @p first_index. For non-block vectors, @p first_index is ignored.
    */
   template <typename VectorType>
   void
@@ -3549,8 +3557,8 @@ template <int dim,
           typename Number,
           bool is_face,
           typename VectorizedArrayType>
-inline Tensor<2, dim, VectorizedArrayType>
-FEEvaluationBase<dim, n_components_, Number, is_face, VectorizedArrayType>::
+inline DEAL_II_ALWAYS_INLINE Tensor<2, dim, VectorizedArrayType>
+                             FEEvaluationBase<dim, n_components_, Number, is_face, VectorizedArrayType>::
   inverse_jacobian(const unsigned int q_index) const
 {
   AssertIndexRange(q_index, n_quadrature_points);
@@ -3561,12 +3569,14 @@ FEEvaluationBase<dim, n_components_, Number, is_face, VectorizedArrayType>::
     return jacobian[q_index];
 }
 
+
+
 template <int dim,
           int n_components_,
           typename Number,
           bool is_face,
           typename VectorizedArrayType>
-std::array<unsigned int, VectorizedArrayType::size()>
+inline std::array<unsigned int, VectorizedArrayType::size()>
 FEEvaluationBase<dim, n_components_, Number, is_face, VectorizedArrayType>::
   get_cell_ids() const
 {
@@ -3983,53 +3993,30 @@ FEEvaluationBase<dim, n_components_, Number, is_face, VectorizedArrayType>::
         operation.process_empty(values_dofs[comp][i]);
   for (unsigned int v = 0; v < n_vectorization_actual; ++v)
     {
-      unsigned int       index_indicators, next_index_indicators;
+      const unsigned int cell_index = is_face ? cells[v] : cell * n_lanes + v;
+      const unsigned int cell_dof_index =
+        cell_index * n_fe_components + first_selected_component;
       const unsigned int n_components_read =
         n_fe_components > 1 ? n_components : 1;
-      if (is_face)
-        {
-          index_indicators = dof_info
-                               ->row_starts[cells[v] * n_fe_components +
-                                            first_selected_component]
-                               .second;
-          next_index_indicators = dof_info
-                                    ->row_starts[cells[v] * n_fe_components +
-                                                 first_selected_component + 1]
-                                    .second;
-        }
-      else
-        {
-          index_indicators =
-            dof_info
-              ->row_starts[(cell * n_lanes + v) * n_fe_components +
-                           first_selected_component]
-              .second;
-          next_index_indicators =
-            dof_info
-              ->row_starts[(cell * n_lanes + v) * n_fe_components +
-                           first_selected_component + 1]
-              .second;
-        }
+      unsigned int index_indicators =
+        dof_info->row_starts[cell_dof_index].second;
+      unsigned int next_index_indicators =
+        dof_info->row_starts[cell_dof_index + 1].second;
 
+      // For read_dof_values_plain, redirect the dof_indices field to the
+      // unconstrained indices
       if (apply_constraints == false &&
-          dof_info
-              ->row_starts[(cell * n_lanes + v) * n_fe_components +
-                           first_selected_component]
-              .second !=
-            dof_info
-              ->row_starts[(cell * n_lanes + v) * n_fe_components +
-                           first_selected_component + n_components_read]
-              .second)
+          dof_info->row_starts[cell_dof_index].second !=
+            dof_info->row_starts[cell_dof_index + n_components_read].second)
         {
-          Assert(dof_info->row_starts_plain_indices[cell * n_lanes + v] !=
+          Assert(dof_info->row_starts_plain_indices[cell_index] !=
                    numbers::invalid_unsigned_int,
                  ExcNotInitialized());
           dof_indices[v] =
             dof_info->plain_dof_indices.data() +
             dof_info->component_dof_indices_offset[active_fe_index]
                                                   [first_selected_component] +
-            (is_face ? dof_info->row_starts_plain_indices[cells[v]] :
-                       dof_info->row_starts_plain_indices[cell * n_lanes + v]);
+            dof_info->row_starts_plain_indices[cell_index];
           next_index_indicators = index_indicators;
         }
 
@@ -4143,20 +4130,8 @@ FEEvaluationBase<dim, n_components_, Number, is_face, VectorizedArrayType>::
                 }
 
               if (apply_constraints == true && comp + 1 < n_components)
-                {
-                  if (is_face)
-                    next_index_indicators =
-                      dof_info
-                        ->row_starts[cells[v] * n_fe_components +
-                                     first_selected_component + comp + 2]
-                        .second;
-                  else
-                    next_index_indicators =
-                      dof_info
-                        ->row_starts[(cell * n_lanes + v) * n_fe_components +
-                                     first_selected_component + comp + 2]
-                        .second;
-                }
+                next_index_indicators =
+                  dof_info->row_starts[cell_dof_index + comp + 2].second;
             }
         }
     }

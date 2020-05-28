@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -24,7 +24,7 @@ namespace GridGenerator
   namespace
   {
     /**
-     * Given a GridGenerator function pointer, a  string containig a text
+     * Given a GridGenerator function pointer, a  string containing a text
      * version of the function arguments and an empty Triangulation, calls the
      * corresponding function, after parsing the arguments from the given
      * string.

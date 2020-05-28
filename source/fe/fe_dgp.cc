@@ -14,12 +14,11 @@
 // ---------------------------------------------------------------------
 
 
-#include <deal.II/base/std_cxx14/memory.h>
-
 #include <deal.II/fe/fe_dgp.h>
 #include <deal.II/fe/fe_nothing.h>
 #include <deal.II/fe/fe_tools.h>
 
+#include <memory>
 #include <sstream>
 
 
@@ -27,7 +26,7 @@ DEAL_II_NAMESPACE_OPEN
 
 template <int dim, int spacedim>
 FE_DGP<dim, spacedim>::FE_DGP(const unsigned int degree)
-  : FE_Poly<PolynomialSpace<dim>, dim, spacedim>(
+  : FE_Poly<dim, spacedim>(
       PolynomialSpace<dim>(
         Polynomials::Legendre::generate_complete_basis(degree)),
       FiniteElementData<dim>(get_dpo_vector(degree),
@@ -75,7 +74,7 @@ template <int dim, int spacedim>
 std::unique_ptr<FiniteElement<dim, spacedim>>
 FE_DGP<dim, spacedim>::clone() const
 {
-  return std_cxx14::make_unique<FE_DGP<dim, spacedim>>(*this);
+  return std::make_unique<FE_DGP<dim, spacedim>>(*this);
 }
 
 

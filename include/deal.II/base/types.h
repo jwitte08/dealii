@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2009 - 2018 by the deal.II authors
+// Copyright (C) 2009 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -107,7 +107,9 @@ namespace types
 
   /**
    * The type used for coarse-cell ids. See the glossary
-   * entry on @ref GlossCoarseCellId "coarse cell IDs" for more information.
+   * entry on
+   * @ref GlossCoarseCellId "coarse cell IDs"
+   * for more information.
    */
   using coarse_cell_id = global_cell_index;
 
@@ -206,7 +208,9 @@ namespace numbers
 
   /**
    * An invalid value for coarse cell ids. See the glossary
-   * entry on @ref GlossCoarseCellId "coarse cell IDs" for more information.
+   * entry on
+   * @ref GlossCoarseCellId "coarse cell IDs"
+   * for more information.
    */
   const types::coarse_cell_id invalid_coarse_cell_id =
     static_cast<types::coarse_cell_id>(-1);

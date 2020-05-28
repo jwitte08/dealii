@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2018 - 2019 by the deal.II authors
+ * Copyright (C) 2018 - 2020 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -139,7 +139,8 @@ test(const unsigned numRefinementLevels = 2)
   DoFTools::extract_locally_active_dofs(dof_handler, locally_active_dofs);
 
   const std::vector<IndexSet> locally_owned_dofs =
-    dof_handler.compute_locally_owned_dofs_per_processor();
+    Utilities::MPI::all_gather(MPI_COMM_WORLD,
+                               dof_handler.locally_owned_dofs());
 
   std::map<types::global_dof_index, Point<dim>> supportPoints;
   DoFTools::map_dofs_to_support_points(MappingQ1<dim>(),

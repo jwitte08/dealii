@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2019 by the deal.II authors
+// Copyright (C) 2005 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -271,7 +271,7 @@
  *       complicated block solvers. Simple explicit (forward Euler) time 
  *       stepping.
  *       <br/> Keywords: TensorFunction, FE_RaviartThomas,
- *       VectorTools::project()
+ *       VectorTools::project(), DiscreteTime
  *       </td></tr>
  *
  *   <tr valign="top">
@@ -465,6 +465,12 @@
  *       </td></tr>
  *
  *   <tr valign="top">
+ *       <td>step-50</td>
+ *       <td> Geometric multigrid on adaptive meshes distributed in parallel.
+ *       <br/> Keywords: Multigrid, MGLevelObject, MGConstrainedDoFs, IndexSet, MGTools, PreconditionMG, MatrixFree, FEInterfaceValues, MeshWorker::mesh_loop()
+ *       </td></tr>
+ *
+ *   <tr valign="top">
  *       <td>step-51</td>
  *       <td> Solving the convection-diffusion equation with a hybridizable
  *       discontinuous Galerkin method using face elements.
@@ -501,6 +507,11 @@
  *   <tr valign="top">
  *       <td>step-57</td>
  *       <td> Incompressible, stationary Navier Stokes equations.
+ *       </td></tr>
+ *
+ *   <tr valign="top">
+ *       <td>step-58</td>
+ *       <td> The nonlinear Schr&ouml;dinger equation.
  *       </td></tr>
  *
  *   <tr valign="top">
@@ -565,7 +576,15 @@
  *        stepping.
  *       </td></tr>
  *
+ *   <tr valign="top">
+ *       <td>step-70</td>
+ *       <td> A fluid structure interaction problem on fully distributed
+ *       non-matching grids, using penalty methods, and a coupling constructed
+ *       through a ParticleHandler object.
+ *       </td></tr>
+ *
  * </table>
+ *
  *
  * <a name="topic"></a>
  * <h3>Tutorial programs grouped by topics</h3>
@@ -651,7 +670,9 @@
  *       step-44,
  *       step-55,
  *       step-56,
- *       step-57
+ *       step-57,
+ *       step-60,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -662,9 +683,11 @@
  *       step-31,
  *       step-32,
  *       step-33,
+ *       step-40,
  *       step-41,
  *       step-42,
  *       step-43,
+ *       step-50,
  *       step-55
  *     </td>
  *   </tr>
@@ -676,6 +699,7 @@
  *       step-17,
  *       step-18,
  *       step-40,
+ *       step-50,
  *       step-55
  *     </td>
  *   </tr>
@@ -685,8 +709,11 @@
  *     </td>
  *     <td>
  *       step-32,
+ *       step-40,
  *       step-42,
- *       step-55
+ *       step-50,
+ *       step-55,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -714,10 +741,12 @@
  *       step-37,
  *       step-40,
  *       step-42,
+ *       step-50,
  *       step-55,
  *       step-59,
  *       step-67,
- *       step-69
+ *       step-69,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -736,7 +765,8 @@
  *       step-44,
  *       step-60,
  *       step-62,
- *       step-69
+ *       step-69,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -760,7 +790,8 @@
  *       step-6,
  *       step-9,
  *       step-14,
- *       step-39
+ *       step-39,
+ *       step-50
  *     </td>
  *   </tr>
  *
@@ -775,7 +806,8 @@
  *       step-33,
  *       step-42,
  *       step-43,
- *       step-57
+ *       step-57,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -814,6 +846,12 @@
  *     <td> Computing Jacobians from residuals, automatic differentiation
  *     </td>
  *     <td>step-33</td>
+ *   </tr>
+ *
+ *   <tr valign="top">
+ *     <td> Operator splitting
+ *     </td>
+ *     <td>step-21, step-31, step-32, step-58</td>
  *   </tr>
  *
  *   <tr valign="top">
@@ -865,7 +903,8 @@
  *     <td> Non matching algorithms
  *     </td>
  *     <td>
- *       step-60
+ *       step-60,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -907,6 +946,7 @@
  *       step-44,
  *       step-47,
  *       step-46,
+ *       step-58,
  *       step-62
  *     </td>
  *   </tr>
@@ -924,6 +964,7 @@
  *       step-41,
  *       step-42,
  *       step-43,
+ *       step-50,
  *       step-56,
  *       step-59,
  *       step-63
@@ -940,6 +981,7 @@
  *       step-37,
  *       step-40,
  *       step-42,
+ *       step-50,
  *       step-55,
  *       step-59
  *     </td>
@@ -958,7 +1000,8 @@
  *       step-55,
  *       step-56,
  *       step-57,
- *       step-60
+ *       step-60,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -991,11 +1034,14 @@
  *     </td>
  *     <td>
  *       step-44,
- *       step-60
+ *       step-60,
+ *       step-70
  *     </td>
  *   </tr>
  *
  * </table>
+ *
+ *
  * <h4><b>Other equations</b></h4>
  * <table align="center" width="90%">
  *
@@ -1089,7 +1135,8 @@
  *       step-46,
  *       step-55,
  *       step-56,
- *       step-57
+ *       step-57,
+ *       step-70
  *     </td>
  *   </tr>
  *
@@ -1100,7 +1147,8 @@
  *       step-23,
  *       step-24,
  *       step-25,
- *       step-48
+ *       step-48,
+ *       step-58
  *     </td>
  *   </tr>
  *
@@ -1138,12 +1186,21 @@
  *   </tr>
  *
  *   <tr valign="top">
+ *     <td> The nonlinear Schr&ouml;dinger equation
+ *     </td>
+ *     <td>step-58</td>
+ *   </tr>
+ *
+ *   <tr valign="top">
  *     <td> Coupling different equations in different parts of the domain
  *     </td>
  *     <td>step-46</td>
  *   </tr>
  *
  * </table>
+ *
+ *
+ *
  * <h4><b>%Vector problems</b></h4>
  * <table align="center" width="90%">
  *
@@ -1179,7 +1236,8 @@
  *         step-35,
  *         step-55,
  *         step-56,
- *         step-57
+ *         step-57,
+ *         step-70
  *    </td>
  *   </tr>
  *
@@ -1205,6 +1263,7 @@
  *   </tr>
  *
  * </table>
+ *
  *
  *
  * <h4><b>Time dependent problems</b></h4>
@@ -1240,7 +1299,8 @@
  *     <td>step-23,
  *         step-24,
  *         step-25,
- *         step-48
+ *         step-48,
+ *         step-58
  *     </td>
  *   </tr>
  *
@@ -1263,9 +1323,21 @@
  *   </tr>
  *
  *   <tr valign="top">
+ *     <td> The nonlinear Schr&ouml;dinger equation
+ *     </td>
+ *     <td>step-58</td>
+ *   </tr>
+ *
+ *   <tr valign="top">
  *     <td> Time dependent neutron diffusion equation
  *     </td>
  *     <td>step-52</td>
+ *   </tr>
+ *
+ *   <tr valign="top">
+ *     <td> Time dependent fluid structure interaction problems
+ *     </td>
+ *     <td>step-70</td>
  *   </tr>
  * </table>
  */

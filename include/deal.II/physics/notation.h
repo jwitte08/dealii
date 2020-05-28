@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2018 by the deal.II authors
+// Copyright (C) 2017 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -682,7 +682,7 @@ namespace Physics
         indices_from_component(const unsigned int component_n, const bool)
         {
           AssertThrow(false, ExcNotImplemented());
-          return std::pair<unsigned int, unsigned int>();
+          return std::make_pair(0u, 0u);
         }
 
 

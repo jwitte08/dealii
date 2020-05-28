@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2019 by the deal.II authors
+// Copyright (C) 1998 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -27,6 +27,7 @@
 
 #include <deal.II/grid/tria_description.h>
 #include <deal.II/grid/tria_iterator_selector.h>
+#include <deal.II/grid/tria_levels.h>
 
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/split_member.hpp>
@@ -78,12 +79,8 @@ namespace internal
 {
   namespace TriangulationImplementation
   {
-    template <int dim>
-    class TriaLevel;
-    template <int dim>
     class TriaFaces;
 
-    template <typename>
     class TriaObjects;
 
     /**
@@ -3310,38 +3307,19 @@ public:
     std::pair<std::pair<cell_iterator, unsigned int>, std::bitset<3>>> &
   get_periodic_face_map() const;
 
+#ifdef DOXYGEN
   /**
-   * Translate the unique id of a coarse cell to its index. See the glossary
-   * entry on @ref GlossCoarseCellId "coarse cell IDs" for more information.
-   *
-   * @note For serial and shared triangulation both id and index are the same.
-   *       For distributed triangulations setting both might differ, since the
-   *       id might correspond to a global id and the index to a local id.
-   *
-   * @param coarse_cell_id Unique id of the coarse cell.
-   * @return Index of the coarse cell within the current triangulation.
+   * Write and read the data of this object from a stream for the purpose
+   * of serialization.
    */
-  virtual unsigned int
-  coarse_cell_id_to_coarse_cell_index(
-    const types::coarse_cell_id coarse_cell_id) const;
-
-
-  /**
-   * Translate the index of coarse cell to its unique id. See the glossary
-   * entry on @ref GlossCoarseCellId "coarse cell IDs" for more information.
-   *
-   * @note See the note of the method
-   * coarse_cell_id_to_coarse_cell_index().
-   *
-   * @param coarse_cell_index Index of the coarse cell.
-   * @return Id of the coarse cell.
-   */
-  virtual types::coarse_cell_id
-  coarse_cell_index_to_coarse_cell_id(
-    const unsigned int coarse_cell_index) const;
-
-
+  template <class Archive>
+  void
+  serialize(Archive &archive, const unsigned int version);
+#else
+  // This macro defines the serialize() method that is compatible with
+  // the templated save() and load() method that have been implemented.
   BOOST_SERIALIZATION_SPLIT_MEMBER()
+#endif
 
   /**
    * @name Exceptions
@@ -3811,11 +3789,45 @@ private:
   fix_coarsen_flags();
 
   /**
+   * Translate the unique id of a coarse cell to its index. See the glossary
+   * entry on
+   * @ref GlossCoarseCellId "coarse cell IDs"
+   * for more information.
+   *
+   * @note For serial and shared triangulation both id and index are the same.
+   *       For distributed triangulations setting both might differ, since the
+   *       id might correspond to a global id and the index to a local id.
+   *
+   * @param coarse_cell_id Unique id of the coarse cell.
+   * @return Index of the coarse cell within the current triangulation.
+   */
+  virtual unsigned int
+  coarse_cell_id_to_coarse_cell_index(
+    const types::coarse_cell_id coarse_cell_id) const;
+
+
+  /**
+   * Translate the index of coarse cell to its unique id. See the glossary
+   * entry on
+   * @ref GlossCoarseCellId "coarse cell IDs"
+   * for more information.
+   *
+   * @note See the note of the method
+   * coarse_cell_id_to_coarse_cell_index().
+   *
+   * @param coarse_cell_index Index of the coarse cell.
+   * @return Id of the coarse cell.
+   */
+  virtual types::coarse_cell_id
+  coarse_cell_index_to_coarse_cell_id(
+    const unsigned int coarse_cell_index) const;
+
+  /**
    * Array of pointers pointing to the objects storing the cell data on the
    * different levels.
    */
-  std::vector<std::unique_ptr<
-    dealii::internal::TriangulationImplementation::TriaLevel<dim>>>
+  std::vector<
+    std::unique_ptr<dealii::internal::TriangulationImplementation::TriaLevel>>
     levels;
 
   /**
@@ -3823,7 +3835,7 @@ private:
    * in 2D it contains data concerning lines and in 3D quads and lines.  All
    * of these have no level and are therefore treated separately.
    */
-  std::unique_ptr<dealii::internal::TriangulationImplementation::TriaFaces<dim>>
+  std::unique_ptr<dealii::internal::TriangulationImplementation::TriaFaces>
     faces;
 
 
@@ -3922,8 +3934,9 @@ private:
 
   friend struct dealii::internal::TriangulationImplementation::Implementation;
 
-  template <typename>
   friend class dealii::internal::TriangulationImplementation::TriaObjects;
+
+  friend class CellId;
 
   // explicitly check for sensible template arguments, but not on windows
   // because MSVC creates bogus warnings during normal compilation
@@ -4031,8 +4044,8 @@ Triangulation<dim, spacedim>::save(Archive &ar, const unsigned int) const
 
   unsigned int n_levels = levels.size();
   ar &         n_levels;
-  for (unsigned int i = 0; i < levels.size(); ++i)
-    ar &levels[i];
+  for (const auto &level : levels)
+    ar &level;
 
   // boost dereferences a nullptr when serializing a nullptr
   // at least up to 1.65.1. This causes problems with clang-5.
@@ -4074,12 +4087,11 @@ Triangulation<dim, spacedim>::load(Archive &ar, const unsigned int)
   unsigned int size;
   ar &         size;
   levels.resize(size);
-  for (unsigned int i = 0; i < levels.size(); ++i)
+  for (auto &level_ : levels)
     {
-      std::unique_ptr<internal::TriangulationImplementation::TriaLevel<dim>>
-          level;
-      ar &level;
-      levels[i] = std::move(level);
+      std::unique_ptr<internal::TriangulationImplementation::TriaLevel> level;
+      ar &                                                              level;
+      level_ = std::move(level);
     }
 
   // Workaround for nullptr, see in save().
@@ -4098,8 +4110,8 @@ Triangulation<dim, spacedim>::load(Archive &ar, const unsigned int)
   // they are easy enough to rebuild upon re-loading data. do
   // this here. don't forget to first resize the fields appropriately
   {
-    for (unsigned int l = 0; l < levels.size(); ++l)
-      levels[l]->active_cell_indices.resize(levels[l]->refine_flags.size());
+    for (auto &level : levels)
+      level->active_cell_indices.resize(level->refine_flags.size());
     reset_active_cell_indices();
   }
 

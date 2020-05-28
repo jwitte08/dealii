@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -284,10 +284,18 @@ namespace Differentiation
 
     Expression
     Expression::substitute(
+      const SymEngine::map_basic_basic &substitution_values) const
+    {
+      return Expression(get_expression().subs(substitution_values));
+    }
+
+
+    Expression
+    Expression::substitute(
       const types::substitution_map &substitution_values) const
     {
-      return Expression(get_expression().subs(
-        Utilities::convert_expression_map_to_basic_map(substitution_values)));
+      return substitute(
+        Utilities::convert_expression_map_to_basic_map(substitution_values));
     }
 
 

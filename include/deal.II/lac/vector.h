@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2019 by the deal.II authors
+// Copyright (C) 1999 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -22,7 +22,6 @@
 #include <deal.II/base/aligned_vector.h>
 #include <deal.II/base/exceptions.h>
 #include <deal.II/base/index_set.h>
-#include <deal.II/base/logstream.h>
 #include <deal.II/base/subscriptor.h>
 
 #include <deal.II/differentiation/ad/ad_number_traits.h>
@@ -898,7 +897,19 @@ public:
   void
   load(Archive &ar, const unsigned int version);
 
+#ifdef DOXYGEN
+  /**
+   * Write and read the data of this object from a stream for the purpose
+   * of serialization.
+   */
+  template <class Archive>
+  void
+  serialize(Archive &archive, const unsigned int version);
+#else
+  // This macro defines the serialize() method that is compatible with
+  // the templated save() and load() method that have been implemented.
   BOOST_SERIALIZATION_SPLIT_MEMBER()
+#endif
 
   /**
    * @}
@@ -1354,14 +1365,26 @@ swap(Vector<Number> &u, Vector<Number> &v)
 
 
 /**
- * Output operator writing a vector to a stream.
+ * Output operator writing a vector to a stream. This operator outputs the
+ * elements of the vector one by one, with a space between entries. Each entry
+ * is formatted according to the flags set on the output stream.
+ *
+ * @relatesalso Vector
  */
 template <typename number>
 inline std::ostream &
-operator<<(std::ostream &os, const Vector<number> &v)
+operator<<(std::ostream &out, const Vector<number> &v)
 {
-  v.print(os);
-  return os;
+  Assert(v.size() != 0, ExcEmptyObject());
+  AssertThrow(out, ExcIO());
+
+  for (typename Vector<number>::size_type i = 0; i < v.size() - 1; ++i)
+    out << v(i) << ' ';
+  out << v(v.size() - 1);
+
+  AssertThrow(out, ExcIO());
+
+  return out;
 }
 
 /*@}*/
@@ -1370,6 +1393,7 @@ operator<<(std::ostream &os, const Vector<number> &v)
 /**
  * Declare dealii::Vector< Number > as serial vector.
  *
+ * @relatesalso Vector
  * @author Uwe Koecher, 2017
  */
 template <typename Number>

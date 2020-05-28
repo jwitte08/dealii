@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2018 by the deal.II authors
+// Copyright (C) 1998 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -947,7 +947,7 @@ template <class StreamType>
 inline void
 Timer::print_accumulated_wall_time_data(StreamType &stream) const
 {
-  const Utilities::MPI::MinMaxAvg statistic = get_accumulated_wall_time_data();
+  const Utilities::MPI::MinMaxAvg &statistic = get_accumulated_wall_time_data();
   stream << statistic.max << " wall,"
          << " max @" << statistic.max_index << ", min=" << statistic.min << " @"
          << statistic.min_index << ", avg=" << statistic.avg << std::endl;

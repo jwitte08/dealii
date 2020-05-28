@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2002 - 2019 by the deal.II authors
+// Copyright (C) 2002 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -14,13 +14,12 @@
 // ---------------------------------------------------------------------
 
 
-#include <deal.II/base/std_cxx14/memory.h>
-
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_nothing.h>
 #include <deal.II/fe/fe_q_hierarchical.h>
 
 #include <cmath>
+#include <memory>
 #include <sstream>
 
 // TODO: implement the adjust_quad_dof_index_for_face_orientation_table and
@@ -58,8 +57,9 @@ namespace internal
 
 template <int dim>
 FE_Q_Hierarchical<dim>::FE_Q_Hierarchical(const unsigned int degree)
-  : FE_Poly<TensorProductPolynomials<dim>, dim>(
-      Polynomials::Hierarchical::generate_complete_basis(degree),
+  : FE_Poly<dim>(
+      TensorProductPolynomials<dim>(
+        Polynomials::Hierarchical::generate_complete_basis(degree)),
       FiniteElementData<dim>(get_dpo_vector(degree),
                              1,
                              degree,
@@ -72,7 +72,9 @@ FE_Q_Hierarchical<dim>::FE_Q_Hierarchical(const unsigned int degree)
         std::vector<bool>(1, true)))
   , face_renumber(face_fe_q_hierarchical_to_hierarchic_numbering(degree))
 {
-  this->poly_space.set_numbering(
+  TensorProductPolynomials<dim> *poly_space_derived_ptr =
+    dynamic_cast<TensorProductPolynomials<dim> *>(this->poly_space.get());
+  poly_space_derived_ptr->set_numbering(
     hierarchic_to_fe_q_hierarchical_numbering(*this));
 
   // The matrix @p{dofs_cell} contains the
@@ -138,7 +140,7 @@ template <int dim>
 std::unique_ptr<FiniteElement<dim, dim>>
 FE_Q_Hierarchical<dim>::clone() const
 {
-  return std_cxx14::make_unique<FE_Q_Hierarchical<dim>>(*this);
+  return std::make_unique<FE_Q_Hierarchical<dim>>(*this);
 }
 
 
@@ -673,7 +675,10 @@ FE_Q_Hierarchical<dim>::initialize_embedding_and_restriction(
   unsigned int iso = RefinementCase<dim>::isotropic_refinement - 1;
 
   const unsigned int dofs_1d = 2 * this->dofs_per_vertex + this->dofs_per_line;
-  const std::vector<unsigned int> &renumber = this->poly_space.get_numbering();
+  TensorProductPolynomials<dim> *poly_space_derived_ptr =
+    dynamic_cast<TensorProductPolynomials<dim> *>(this->poly_space.get());
+  const std::vector<unsigned int> &renumber =
+    poly_space_derived_ptr->get_numbering();
 
   for (unsigned int c = 0; c < GeometryInfo<dim>::max_children_per_cell; ++c)
     {
@@ -810,8 +815,10 @@ FE_Q_Hierarchical<dim>::initialize_generalized_support_points()
 
   this->generalized_support_points.resize(n);
 
+  TensorProductPolynomials<dim> *poly_space_derived_ptr =
+    dynamic_cast<TensorProductPolynomials<dim> *>(this->poly_space.get());
   const std::vector<unsigned int> &index_map_inverse =
-    this->poly_space.get_numbering_inverse();
+    poly_space_derived_ptr->get_numbering_inverse();
 
   Point<dim> p;
   // the method of numbering allows

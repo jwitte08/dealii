@@ -137,22 +137,25 @@ INSTANTIATE_DLTG_MATRIX(TrilinosWrappers::BlockSparseMatrix);
  * place).
  */
 
-namespace internals
+namespace internal
 {
-#define SCRATCH_INITIALIZER(number, Name)                                     \
-  AffineConstraintsData<number>::ScratchData scratch_data_initializer_##Name; \
-  template <>                                                                 \
-  Threads::ThreadLocalStorage<AffineConstraintsData<number>::ScratchData>     \
-    AffineConstraintsData<number>::scratch_data(                              \
+  namespace AffineConstraints
+  {
+#define SCRATCH_INITIALIZER(number, Name)              \
+  ScratchData<number> scratch_data_initializer_##Name; \
+  template <>                                          \
+  Threads::ThreadLocalStorage<ScratchData<number>>     \
+    AffineConstraintsData<number>::scratch_data(       \
       scratch_data_initializer_##Name)
 
-  SCRATCH_INITIALIZER(double, d);
-  SCRATCH_INITIALIZER(float, f);
+    SCRATCH_INITIALIZER(double, d);
+    SCRATCH_INITIALIZER(float, f);
 #ifdef DEAL_II_WITH_COMPLEX_VALUES
-  SCRATCH_INITIALIZER(std::complex<double>, cd);
-  SCRATCH_INITIALIZER(std::complex<float>, cf);
+    SCRATCH_INITIALIZER(std::complex<double>, cd);
+    SCRATCH_INITIALIZER(std::complex<float>, cf);
 #endif
 #undef SCRATCH_INITIALIZER
-} // namespace internals
+  } // namespace AffineConstraints
+} // namespace internal
 
 DEAL_II_NAMESPACE_CLOSE

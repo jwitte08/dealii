@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2019 by the deal.II authors
+// Copyright (C) 1999 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -23,7 +23,6 @@
 #include <deal.II/base/numbers.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/signaling_nan.h>
-#include <deal.II/base/std_cxx14/memory.h>
 #include <deal.II/base/utilities.h>
 #include <deal.II/base/work_stream.h>
 
@@ -227,15 +226,12 @@ namespace internal
     {
       for (unsigned int dataset = 0; dataset < dof_data.size(); ++dataset)
         {
-          bool duplicate = false;
-          for (unsigned int j = 0; j < dataset; ++j)
-            if (finite_elements[dataset].get() == finite_elements[j].get())
-              {
-                duplicate = true;
-                break;
-              }
-
-          if (duplicate == false)
+          const bool is_duplicate = std::any_of(
+            finite_elements.cbegin(),
+            finite_elements.cbegin() + dataset,
+            [&](const std::shared_ptr<dealii::hp::FECollection<dim, spacedim>>
+                  &fe) { return finite_elements[dataset].get() == fe.get(); });
+          if (is_duplicate == false)
             {
               if (cell->active())
                 {
@@ -1019,7 +1015,7 @@ namespace internal
             // get here
             reinterpret_cast<
               std::vector<Tensor<2,
-                                 DoFHandlerType ::space_dimension,
+                                 DoFHandlerType::space_dimension,
                                  typename VectorType::value_type>> &>(
               patch_hessians));
         }
@@ -1418,7 +1414,7 @@ DataOut_DoFData<DoFHandlerType, patch_dim, patch_space_dim>::add_data_vector(
            dof_handler.get_triangulation().n_active_cells()));
 
 
-  auto new_entry = std_cxx14::make_unique<
+  auto new_entry = std::make_unique<
     internal::DataOutImplementation::DataEntry<DoFHandlerType, VectorType>>(
     &dof_handler, &vec, &data_postprocessor);
   dof_data.emplace_back(std::move(new_entry));
@@ -1540,7 +1536,7 @@ DataOut_DoFData<DoFHandlerType, patch_dim, patch_space_dim>::
          DataComponentInterpretation::component_is_scalar));
 
   // finally, add the data vector:
-  auto new_entry = std_cxx14::make_unique<
+  auto new_entry = std::make_unique<
     internal::DataOutImplementation::DataEntry<DoFHandlerType, VectorType>>(
     dof_handler, &data_vector, deduced_names, data_component_interpretation);
 
@@ -1613,7 +1609,7 @@ DataOut_DoFData<DoFHandlerType, patch_dim, patch_space_dim>::add_mg_data_vector(
          ExcMessage(
            "Invalid number of entries in data_component_interpretation."));
 
-  auto new_entry = std_cxx14::make_unique<
+  auto new_entry = std::make_unique<
     internal::DataOutImplementation::MGDataEntry<DoFHandlerType, VectorType>>(
     &dof_handler, &data, deduced_names, data_component_interpretation);
   dof_data.emplace_back(std::move(new_entry));

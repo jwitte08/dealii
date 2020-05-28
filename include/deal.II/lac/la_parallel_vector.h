@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2019 by the deal.II authors
+// Copyright (C) 2011 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -515,6 +515,9 @@ namespace LinearAlgebra
        * warning to prevent this situation.
        *
        * Must follow a call to the @p compress_start function.
+       *
+       * When the MemorySpace is CUDA and MPI is not CUDA-aware, data changed on
+       * the device after the call to compress_start will be lost.
        */
       void
       compress_finish(::dealii::VectorOperation::values operation);
@@ -1759,26 +1762,137 @@ namespace internal
     class ReinitHelper<LinearAlgebra::distributed::Vector<Number>>
     {
     public:
-      template <typename Matrix>
-      static void
-      reinit_range_vector(const Matrix &                              matrix,
-                          LinearAlgebra::distributed::Vector<Number> &v,
-                          bool omit_zeroing_entries)
+      // A helper type-trait that leverage SFINAE to figure out if type T has
+      // void T::get_mpi_communicator()
+      template <typename T>
+      struct has_get_mpi_communicator
       {
-        matrix.initialize_dof_vector(v);
-        if (!omit_zeroing_entries)
-          v = Number();
+      private:
+        static bool
+        detect(...);
+
+        template <typename U>
+        static decltype(std::declval<U>().get_mpi_communicator())
+        detect(const U &);
+
+      public:
+        static const bool value =
+          !std::is_same<bool, decltype(detect(std::declval<T>()))>::value;
+      };
+
+      // A helper type-trait that leverage SFINAE to figure out if type T has
+      // void T::locally_owned_domain_indices()
+      template <typename T>
+      struct has_locally_owned_domain_indices
+      {
+      private:
+        static bool
+        detect(...);
+
+        template <typename U>
+        static decltype(std::declval<U>().locally_owned_domain_indices())
+        detect(const U &);
+
+      public:
+        static const bool value =
+          !std::is_same<bool, decltype(detect(std::declval<T>()))>::value;
+      };
+
+      // A helper type-trait that leverage SFINAE to figure out if type T has
+      // void T::locally_owned_range_indices()
+      template <typename T>
+      struct has_locally_owned_range_indices
+      {
+      private:
+        static bool
+        detect(...);
+
+        template <typename U>
+        static decltype(std::declval<U>().locally_owned_range_indices())
+        detect(const U &);
+
+      public:
+        static const bool value =
+          !std::is_same<bool, decltype(detect(std::declval<T>()))>::value;
+      };
+
+      // A helper type-trait that leverage SFINAE to figure out if type T has
+      // void T::initialize_dof_vector(VectorType v)
+      template <typename T>
+      struct has_initialize_dof_vector
+      {
+      private:
+        static bool
+        detect(...);
+
+        template <typename U>
+        static decltype(std::declval<U>().initialize_dof_vector(
+          std::declval<LinearAlgebra::distributed::Vector<Number> &>()))
+        detect(const U &);
+
+      public:
+        static const bool value =
+          !std::is_same<bool, decltype(detect(std::declval<T>()))>::value;
+      };
+
+      // Used for (Trilinos/PETSc)Wrappers::SparseMatrix
+      template <typename MatrixType,
+                typename std::enable_if<
+                  has_get_mpi_communicator<MatrixType>::value &&
+                    has_locally_owned_domain_indices<MatrixType>::value,
+                  MatrixType>::type * = nullptr>
+      static void
+      reinit_domain_vector(MatrixType &                                mat,
+                           LinearAlgebra::distributed::Vector<Number> &vec,
+                           bool /*omit_zeroing_entries*/)
+      {
+        vec.reinit(mat.locally_owned_domain_indices(),
+                   mat.get_mpi_communicator());
       }
 
-      template <typename Matrix>
+      // Used for MatrixFree and DiagonalMatrix
+      template <
+        typename MatrixType,
+        typename std::enable_if<has_initialize_dof_vector<MatrixType>::value,
+                                MatrixType>::type * = nullptr>
       static void
-      reinit_domain_vector(const Matrix &                              matrix,
-                           LinearAlgebra::distributed::Vector<Number> &v,
+      reinit_domain_vector(MatrixType &                                mat,
+                           LinearAlgebra::distributed::Vector<Number> &vec,
                            bool omit_zeroing_entries)
       {
-        matrix.initialize_dof_vector(v);
+        mat.initialize_dof_vector(vec);
         if (!omit_zeroing_entries)
-          v = Number();
+          vec = Number();
+      }
+
+      // Used for (Trilinos/PETSc)Wrappers::SparseMatrix
+      template <typename MatrixType,
+                typename std::enable_if<
+                  has_get_mpi_communicator<MatrixType>::value &&
+                    has_locally_owned_range_indices<MatrixType>::value,
+                  MatrixType>::type * = nullptr>
+      static void
+      reinit_range_vector(MatrixType &                                mat,
+                          LinearAlgebra::distributed::Vector<Number> &vec,
+                          bool /*omit_zeroing_entries*/)
+      {
+        vec.reinit(mat.locally_owned_range_indices(),
+                   mat.get_mpi_communicator());
+      }
+
+      // Used for MatrixFree and DiagonalMatrix
+      template <
+        typename MatrixType,
+        typename std::enable_if<has_initialize_dof_vector<MatrixType>::value,
+                                MatrixType>::type * = nullptr>
+      static void
+      reinit_range_vector(MatrixType &                                mat,
+                          LinearAlgebra::distributed::Vector<Number> &vec,
+                          bool omit_zeroing_entries)
+      {
+        mat.initialize_dof_vector(vec);
+        if (!omit_zeroing_entries)
+          vec = Number();
       }
     };
 

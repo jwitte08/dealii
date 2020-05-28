@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2014 - 2019 by the deal.II authors
+// Copyright (C) 2014 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -370,8 +370,8 @@ public:
  * @relatesalso LinearOperator
  *
  * Addition of two linear operators @p first_op and @p second_op given by
- * $(\text{first\_op}+\text{second\_op})x \dealcoloneq \text{first\_op}(x) +
- * \text{second\_op}(x)$
+ * $(\mathrm{first\_op}+\mathrm{second\_op})x \dealcoloneq \mathrm{first\_op}(x)
+ * + \mathrm{second\_op}(x)$
  *
  * @ingroup LAOperators
  */
@@ -429,8 +429,8 @@ operator+(const LinearOperator<Range, Domain, Payload> &first_op,
  * @relatesalso LinearOperator
  *
  * Subtraction of two linear operators @p first_op and @p second_op given by
- * $(\text{first\_op}-\text{second\_op})x \dealcoloneq \text{first\_op}(x) -
- * \text{second\_op}(x)$
+ * $(\mathrm{first\_op}-\mathrm{second\_op})x \dealcoloneq \mathrm{first\_op}(x)
+ * - \mathrm{second\_op}(x)$
  *
  * @ingroup LAOperators
  */
@@ -564,8 +564,8 @@ operator*(const LinearOperator<Range, Domain, Payload> &op,
  * @relatesalso LinearOperator
  *
  * Composition of two linear operators @p first_op and @p second_op given by
- * $(\text{first\_op}*\text{second\_op})x \dealcoloneq
- * \text{first\_op}(\text{second\_op}(x))$
+ * $(\mathrm{first\_op}*\mathrm{second\_op})x \dealcoloneq
+ * \mathrm{first\_op}(\mathrm{second\_op}(x))$
  *
  * @ingroup LAOperators
  */

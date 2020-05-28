@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -130,7 +130,7 @@ namespace Utilities
           partitioner_export_end = partitioner_export_start + 200,
 
           /// NoncontiguousPartitioner::update_values
-          noncontiguous_partitioner_update_values,
+          noncontiguous_partitioner_update_ghost_values,
 
           // Utilities::MPI::compute_union
           compute_union,

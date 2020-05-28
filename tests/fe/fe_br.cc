@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2004 - 2018 by the deal.II authors
+// Copyright (C) 2004 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -93,7 +93,7 @@ test(const Triangulation<dim> &tr,
               ss << "component=" << c << ", dof=" << i << std::endl;
 
               Tensor<1, dim> bulk_integral;
-              for (unsigned int q = 0; q < fe_values.n_quadrature_points; ++q)
+              for (const auto q : fe_values.quadrature_point_indices())
                 {
                   bulk_integral += fe_values[single_component].gradient(i, q) *
                                    fe_values.JxW(q);

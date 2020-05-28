@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2019 by the deal.II authors
+// Copyright (C) 1998 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -21,8 +21,7 @@
 
 #include <deal.II/base/exceptions.h>
 #include <deal.II/base/point.h>
-
-#include <boost/range/irange.hpp>
+#include <deal.II/base/std_cxx20/iota_view.h>
 
 #include <array>
 #include <cstdint>
@@ -1946,8 +1945,10 @@ struct GeometryInfo
    * Here, we are looping over all faces of all cells, with `face_index`
    * taking on all valid indices for faces (zero and one in 1d, zero
    * through three in 2d, and zero through 5 in 3d).
+   *
+   * @see CPP11
    */
-  static boost::integer_range<unsigned int>
+  static std_cxx20::ranges::iota_view<unsigned int, unsigned int>
   face_indices();
 
   /**
@@ -1977,8 +1978,10 @@ struct GeometryInfo
    * @endcode
    * Here, we are looping over all vertices of all cells, with `vertex_index`
    * taking on all valid indices.
+   *
+   * @see CPP11
    */
-  static boost::integer_range<unsigned int>
+  static std_cxx20::ranges::iota_view<unsigned int, unsigned int>
   vertex_indices();
 
   /**
@@ -2310,6 +2313,45 @@ struct GeometryInfo
                              const bool         face_rotation    = false);
 
   /**
+   * Map the vertex index @p vertex of a line in standard orientation to one of a
+   * face with arbitrary @p line_orientation. The value of this flag default to
+   * <tt>true</tt>.
+   */
+  static unsigned int
+  standard_to_real_line_vertex(const unsigned int vertex,
+                               const bool         line_orientation = true);
+
+  /**
+   * Decompose the vertex index in a quad into a pair of a line index and a
+   * vertex index within this line.
+   *
+   * @note Which line is selected is not of importance (and not exposed on
+   *   purpose).
+   */
+  static std::array<unsigned int, 2>
+  standard_quad_vertex_to_line_vertex_index(const unsigned int vertex);
+
+  /**
+   * Decompose the vertex index in a hex into a pair of a quad index and a
+   * vertex index within this quad.
+   *
+   * @note Which quad is selected is not of importance (and not exposed on
+   *   purpose).
+   */
+  static std::array<unsigned int, 2>
+  standard_hex_vertex_to_quad_vertex_index(const unsigned int vertex);
+
+  /**
+   * Decompose the line index in a hex into a pair of a quad index and a line
+   * index within this quad.
+   *
+   * @note Which quad is selected is not of importance (and not exposed on
+   *   purpose).
+   */
+  static std::array<unsigned int, 2>
+  standard_hex_line_to_quad_line_index(const unsigned int line);
+
+  /**
    * Map the line index @p line of a face with arbitrary @p face_orientation,
    * @p face_flip and @p face_rotation to a face in standard orientation. The
    * values of these three flags default to <tt>true</tt>, <tt>false</tt> and
@@ -2472,7 +2514,7 @@ struct GeometryInfo
   template <int spacedim>
   static void
   alternating_form_at_vertices
-#ifndef DEAL_II_CONSTEXPR_BUG
+#ifndef DEAL_II_CXX14_CONSTEXPR_BUG
     (const Point<spacedim> (&vertices)[vertices_per_cell],
      Tensor<spacedim - dim, spacedim> (&forms)[vertices_per_cell]);
 #else
@@ -2833,19 +2875,19 @@ GeometryInfo<0>::vertex_indices()
 
 
 template <int dim>
-inline boost::integer_range<unsigned int>
+inline std_cxx20::ranges::iota_view<unsigned int, unsigned int>
 GeometryInfo<dim>::face_indices()
 {
-  return boost::irange(0U, faces_per_cell);
+  return {0U, faces_per_cell};
 }
 
 
 
 template <int dim>
-inline boost::integer_range<unsigned int>
+inline std_cxx20::ranges::iota_view<unsigned int, unsigned int>
 GeometryInfo<dim>::vertex_indices()
 {
-  return boost::irange(0U, vertices_per_cell);
+  return {0U, vertices_per_cell};
 }
 
 
@@ -4050,6 +4092,117 @@ GeometryInfo<dim>::standard_to_real_face_line(const unsigned int line,
 
 template <>
 inline unsigned int
+GeometryInfo<2>::standard_to_real_line_vertex(const unsigned int vertex,
+                                              const bool line_orientation)
+{
+  return line_orientation ? vertex : (1 - vertex);
+}
+
+
+
+template <int dim>
+inline unsigned int
+GeometryInfo<dim>::standard_to_real_line_vertex(const unsigned int vertex,
+                                                const bool)
+{
+  Assert(false, ExcNotImplemented());
+  return vertex;
+}
+
+
+
+template <>
+inline std::array<unsigned int, 2>
+GeometryInfo<2>::standard_quad_vertex_to_line_vertex_index(
+  const unsigned int vertex)
+{
+  return {{vertex % 2, vertex / 2}};
+}
+
+
+
+template <int dim>
+inline std::array<unsigned int, 2>
+GeometryInfo<dim>::standard_quad_vertex_to_line_vertex_index(
+  const unsigned int vertex)
+{
+  Assert(false, ExcNotImplemented());
+  (void)vertex;
+  return {{0, 0}};
+}
+
+
+
+template <>
+inline std::array<unsigned int, 2>
+GeometryInfo<3>::standard_hex_line_to_quad_line_index(const unsigned int i)
+{
+  // set up a table that for each
+  // line describes a) from which
+  // quad to take it, b) which line
+  // therein it is if the face is
+  // oriented correctly
+  static const unsigned int lookup_table[GeometryInfo<3>::lines_per_cell][2] = {
+    {4, 0}, // take first four lines from bottom face
+    {4, 1},
+    {4, 2},
+    {4, 3},
+
+    {5, 0}, // second four lines from top face
+    {5, 1},
+    {5, 2},
+    {5, 3},
+
+    {0, 0}, // the rest randomly
+    {1, 0},
+    {0, 1},
+    {1, 1}};
+
+  return {{lookup_table[i][0], lookup_table[i][1]}};
+}
+
+
+
+template <int dim>
+inline std::array<unsigned int, 2>
+GeometryInfo<dim>::standard_hex_line_to_quad_line_index(const unsigned int line)
+{
+  Assert(false, ExcNotImplemented());
+  (void)line;
+  return {{0, 0}};
+}
+
+
+
+template <>
+inline std::array<unsigned int, 2>
+GeometryInfo<3>::standard_hex_vertex_to_quad_vertex_index(
+  const unsigned int vertex)
+{
+  // get the corner indices by asking either the bottom or the top face for its
+  // vertices. handle non-standard faces by calling the vertex reordering
+  // function from GeometryInfo
+
+  // bottom face (4) for first four vertices, top face (5) for the rest
+  return {{4 + vertex / 4, vertex % 4}};
+}
+
+
+
+template <int dim>
+inline std::array<unsigned int, 2>
+GeometryInfo<dim>::standard_hex_vertex_to_quad_vertex_index(
+  const unsigned int vertex)
+{
+  Assert(false, ExcNotImplemented());
+  (void)vertex;
+  return {{0, 0}};
+}
+
+
+
+template <>
+inline unsigned int
 GeometryInfo<3>::real_to_standard_face_line(const unsigned int line,
                                             const bool         face_orientation,
                                             const bool         face_flip,
@@ -4741,7 +4894,7 @@ template <int dim>
 template <int spacedim>
 inline void
 GeometryInfo<dim>::alternating_form_at_vertices
-#  ifndef DEAL_II_CONSTEXPR_BUG
+#  ifndef DEAL_II_CXX14_CONSTEXPR_BUG
   (const Point<spacedim> (&vertices)[vertices_per_cell],
    Tensor<spacedim - dim, spacedim> (&forms)[vertices_per_cell])
 #  else

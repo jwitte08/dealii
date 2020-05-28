@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2019 by the deal.II authors
+// Copyright (C) 2013 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -13,7 +13,6 @@
 //
 // ---------------------------------------------------------------------
 
-#include <deal.II/base/std_cxx14/memory.h>
 #include <deal.II/base/table.h>
 #include <deal.II/base/tensor.h>
 
@@ -27,6 +26,7 @@
 #include <deal.II/lac/vector.h>
 
 #include <cmath>
+#include <memory>
 
 DEAL_II_NAMESPACE_OPEN
 
@@ -131,7 +131,7 @@ template <int dim, int spacedim>
 std::unique_ptr<Manifold<dim, spacedim>>
 PolarManifold<dim, spacedim>::clone() const
 {
-  return std_cxx14::make_unique<PolarManifold<dim, spacedim>>(center);
+  return std::make_unique<PolarManifold<dim, spacedim>>(center);
 }
 
 
@@ -362,7 +362,7 @@ template <int dim, int spacedim>
 std::unique_ptr<Manifold<dim, spacedim>>
 SphericalManifold<dim, spacedim>::clone() const
 {
-  return std_cxx14::make_unique<SphericalManifold<dim, spacedim>>(center);
+  return std::make_unique<SphericalManifold<dim, spacedim>>(center);
 }
 
 
@@ -1072,8 +1072,9 @@ template <int dim, int spacedim>
 std::unique_ptr<Manifold<dim, spacedim>>
 CylindricalManifold<dim, spacedim>::clone() const
 {
-  return std_cxx14::make_unique<CylindricalManifold<dim, spacedim>>(
-    direction, point_on_axis, tolerance);
+  return std::make_unique<CylindricalManifold<dim, spacedim>>(direction,
+                                                              point_on_axis,
+                                                              tolerance);
 }
 
 
@@ -1171,20 +1172,25 @@ CylindricalManifold<dim, spacedim>::push_forward_gradient(
   const Tensor<1, spacedim> intermediate =
     normal_direction * cosine + dxn * sine;
 
+  // avoid compiler warnings
+  constexpr int s0 = 0 % spacedim;
+  constexpr int s1 = 1 % spacedim;
+  constexpr int s2 = 2 % spacedim;
+
   // derivative w.r.t the radius
-  derivatives[0][0] = intermediate[0];
-  derivatives[1][0] = intermediate[1];
-  derivatives[2][0] = intermediate[2];
+  derivatives[s0][s0] = intermediate[s0];
+  derivatives[s1][s0] = intermediate[s1];
+  derivatives[s2][s0] = intermediate[s2];
 
   // derivatives w.r.t the angle
-  derivatives[0][1] = -normal_direction[0] * sine + dxn[0] * cosine;
-  derivatives[1][1] = -normal_direction[1] * sine + dxn[1] * cosine;
-  derivatives[2][1] = -normal_direction[2] * sine + dxn[2] * cosine;
+  derivatives[s0][s1] = -normal_direction[s0] * sine + dxn[s0] * cosine;
+  derivatives[s1][s1] = -normal_direction[s1] * sine + dxn[s1] * cosine;
+  derivatives[s2][s1] = -normal_direction[s2] * sine + dxn[s2] * cosine;
 
   // derivatives w.r.t the direction of the axis
-  derivatives[0][2] = direction[0];
-  derivatives[1][2] = direction[1];
-  derivatives[2][2] = direction[2];
+  derivatives[s0][s2] = direction[s0];
+  derivatives[s1][s2] = direction[s1];
+  derivatives[s2][s2] = direction[s2];
 
   return derivatives;
 }
@@ -1226,8 +1232,9 @@ std::unique_ptr<Manifold<dim, spacedim>>
 EllipticalManifold<dim, spacedim>::clone() const
 {
   const double eccentricity = 1.0 / cosh_u;
-  return std_cxx14::make_unique<EllipticalManifold<dim, spacedim>>(
-    center, direction, eccentricity);
+  return std::make_unique<EllipticalManifold<dim, spacedim>>(center,
+                                                             direction,
+                                                             eccentricity);
 }
 
 
@@ -1373,14 +1380,14 @@ FunctionManifold<dim, spacedim, chartdim>::FunctionManifold(
 
 template <int dim, int spacedim, int chartdim>
 FunctionManifold<dim, spacedim, chartdim>::FunctionManifold(
-  std::unique_ptr<Function<chartdim>> push_forward_function,
-  std::unique_ptr<Function<spacedim>> pull_back_function,
+  std::unique_ptr<Function<chartdim>> push_forward,
+  std::unique_ptr<Function<spacedim>> pull_back,
   const Tensor<1, chartdim> &         periodicity,
   const double                        tolerance)
   : ChartManifold<dim, spacedim, chartdim>(periodicity)
   , const_map()
-  , push_forward_function(push_forward_function.release())
-  , pull_back_function(pull_back_function.release())
+  , push_forward_function(push_forward.release())
+  , pull_back_function(pull_back.release())
   , tolerance(tolerance)
   , owns_pointers(true)
   , finite_difference_step(0)
@@ -1456,7 +1463,7 @@ FunctionManifold<dim, spacedim, chartdim>::clone() const
   // used to construct this class.
   if (!(push_forward_expression.empty() && pull_back_expression.empty()))
     {
-      return std_cxx14::make_unique<FunctionManifold<dim, spacedim, chartdim>>(
+      return std::make_unique<FunctionManifold<dim, spacedim, chartdim>>(
         push_forward_expression,
         pull_back_expression,
         this->get_periodicity(),
@@ -1468,9 +1475,7 @@ FunctionManifold<dim, spacedim, chartdim>::clone() const
     }
   else
     {
-      Assert(owns_pointers == false, ExcNotImplemented());
-
-      return std_cxx14::make_unique<FunctionManifold<dim, spacedim, chartdim>>(
+      return std::make_unique<FunctionManifold<dim, spacedim, chartdim>>(
         *push_forward_function,
         *pull_back_function,
         this->get_periodicity(),
@@ -1593,7 +1598,7 @@ template <int dim>
 std::unique_ptr<Manifold<dim, 3>>
 TorusManifold<dim>::clone() const
 {
-  return std_cxx14::make_unique<TorusManifold<dim>>(R, r);
+  return std::make_unique<TorusManifold<dim>>(R, r);
 }
 
 

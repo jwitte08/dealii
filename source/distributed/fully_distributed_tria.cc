@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -16,11 +16,12 @@
 
 #include <deal.II/base/memory_consumption.h>
 #include <deal.II/base/mpi.h>
-#include <deal.II/base/std_cxx14/memory.h>
 
 #include <deal.II/distributed/fully_distributed_tria.h>
 
 #include <deal.II/grid/grid_tools.h>
+
+#include <memory>
 
 DEAL_II_NAMESPACE_OPEN
 
@@ -74,13 +75,15 @@ namespace parallel
         this->set_mesh_smoothing(
           static_cast<
             typename dealii::Triangulation<dim, spacedim>::MeshSmoothing>(
-            dealii::Triangulation<dim>::none |
+            dealii::Triangulation<dim, spacedim>::none |
             Triangulation<dim, spacedim>::limit_level_difference_at_vertices));
       else
         this->set_mesh_smoothing(
           static_cast<
             typename dealii::Triangulation<dim, spacedim>::MeshSmoothing>(
-            dealii::Triangulation<dim>::none));
+            dealii::Triangulation<dim, spacedim>::none));
+
+      this->set_mesh_smoothing(construction_data.smoothing);
 
       // clear internal data structures
       this->coarse_cell_id_to_coarse_cell_index_vector.clear();
@@ -138,6 +141,34 @@ namespace parallel
           // create a copy of cell_infos such that we can sort them
           auto cell_infos = construction_data.cell_infos;
 
+          // sort cell_infos on each level separately (as done in
+          // dealii::Triangulation::create_triangulation())
+          for (auto &cell_info : cell_infos)
+            std::sort(cell_info.begin(),
+                      cell_info.end(),
+                      [&](TriangulationDescription::CellData<dim> a,
+                          TriangulationDescription::CellData<dim> b) {
+                        const CellId a_id(a.id);
+                        const CellId b_id(b.id);
+
+                        const auto a_coarse_cell_index =
+                          this->coarse_cell_id_to_coarse_cell_index(
+                            a_id.get_coarse_cell_id());
+                        const auto b_coarse_cell_index =
+                          this->coarse_cell_id_to_coarse_cell_index(
+                            b_id.get_coarse_cell_id());
+
+                        // according to their coarse-cell index and if that is
+                        // same according to their cell id (the result is that
+                        // cells on each level are sorted according to their
+                        // index on that level - what we need in the following
+                        // operations)
+                        if (a_coarse_cell_index != b_coarse_cell_index)
+                          return a_coarse_cell_index < b_coarse_cell_index;
+                        else
+                          return a_id < b_id;
+                      });
+
           // 4a) set all cells artificial (and set the actual
           //     (level_)subdomain_ids in the next step)
           for (auto cell = this->begin(); cell != this->end(); ++cell)
@@ -173,7 +204,7 @@ namespace parallel
             }
         }
 
-      update_number_cache();
+      this->update_number_cache();
     }
 
 
@@ -221,7 +252,7 @@ namespace parallel
                          *>(&other_tria) == nullptr)
         {
           serial_tria =
-            std_cxx14::make_unique<dealii::Triangulation<dim, spacedim>>();
+            std::make_unique<dealii::Triangulation<dim, spacedim>>();
 
           // actually copy the serial triangulation
           serial_tria->copy_triangulation(other_tria);
@@ -241,10 +272,9 @@ namespace parallel
 
       // create construction data
       const auto construction_data = TriangulationDescription::Utilities::
-        create_description_from_triangulation(
-          *other_tria_ptr,
-          this->mpi_communicator,
-          this->is_multilevel_hierarchy_constructed());
+        create_description_from_triangulation(*other_tria_ptr,
+                                              this->mpi_communicator,
+                                              this->settings);
 
       // finally create triangulation
       this->create_triangulation(construction_data);
@@ -261,19 +291,6 @@ namespace parallel
     {
       this->partitioner = partitioner;
       this->settings    = settings;
-    }
-
-
-
-    template <int dim, int spacedim>
-    void
-    Triangulation<dim, spacedim>::update_number_cache()
-    {
-      parallel::Triangulation<dim, spacedim>::update_number_cache();
-
-      if (settings &
-          TriangulationDescription::Settings::construct_multigrid_hierarchy)
-        parallel::Triangulation<dim, spacedim>::fill_level_ghost_owners();
     }
 
 

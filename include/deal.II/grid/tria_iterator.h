@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2018 by the deal.II authors
+// Copyright (C) 1998 - 2019 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -379,8 +379,10 @@ public:
   /**
    * Compare for equality.
    */
-  bool
-  operator==(const TriaRawIterator &) const;
+  template <typename OtherAccessor = Accessor>
+  typename std::enable_if<std::is_convertible<OtherAccessor, Accessor>::value,
+                          bool>::type
+  operator==(const TriaRawIterator<OtherAccessor> &) const;
 
   /**
    * Compare for inequality.

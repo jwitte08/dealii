@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2019 by the deal.II authors
+// Copyright (C) 2005 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -72,8 +72,23 @@ DEAL_II_CONSTEXPR inline DEAL_II_ALWAYS_INLINE Number
 
 namespace internal
 {
+  // Workaround: The following 4 overloads are necessary to be able to
+  // compile the library with Apple Clang 8 and older. We should remove
+  // these overloads again when we bump the minimal required version to
+  // something later than clang-3.6 / Apple Clang 6.3.
+  // - Jean-Paul Pelteret, Matthias Maier, Daniel Arndt 2020
   template <int rank, int dim, typename T, typename U>
   struct ProductTypeImpl<SymmetricTensor<rank, dim, T>, std::complex<U>>
+  {
+    using type =
+      SymmetricTensor<rank,
+                      dim,
+                      std::complex<typename ProductType<T, U>::type>>;
+  };
+
+  template <int rank, int dim, typename T, typename U>
+  struct ProductTypeImpl<SymmetricTensor<rank, dim, std::complex<T>>,
+                         std::complex<U>>
   {
     using type =
       SymmetricTensor<rank,
@@ -89,6 +104,17 @@ namespace internal
                       dim,
                       std::complex<typename ProductType<T, U>::type>>;
   };
+
+  template <int rank, int dim, typename T, typename U>
+  struct ProductTypeImpl<std::complex<T>,
+                         SymmetricTensor<rank, dim, std::complex<U>>>
+  {
+    using type =
+      SymmetricTensor<rank,
+                      dim,
+                      std::complex<typename ProductType<T, U>::type>>;
+  };
+  // end workaround
 
   /**
    * A namespace for functions and classes that are internal to how the
@@ -413,10 +439,8 @@ namespace internal
       friend class dealii::SymmetricTensor;
       template <int, int, bool, int, typename>
       friend class Accessor;
-#ifndef DEAL_II_TEMPL_SPEC_FRIEND_BUG
       friend class ::dealii::SymmetricTensor<rank, dim, Number>;
       friend class Accessor<rank, dim, constness, P + 1, Number>;
-#endif
     };
 
 
@@ -497,11 +521,9 @@ namespace internal
       friend class dealii::SymmetricTensor;
       template <int, int, bool, int, typename>
       friend class SymmetricTensorAccessors::Accessor;
-#ifndef DEAL_II_TEMPL_SPEC_FRIEND_BUG
       friend class ::dealii::SymmetricTensor<rank, dim, Number>;
       friend class SymmetricTensorAccessors::
         Accessor<rank, dim, constness, 2, Number>;
-#endif
     };
   } // namespace SymmetricTensorAccessors
 } // namespace internal
@@ -1068,7 +1090,8 @@ SymmetricTensor<rank_, dim, Number>::SymmetricTensor(
   static_assert(rank == 2, "This function is only implemented for rank==2");
   for (unsigned int d = 0; d < dim; ++d)
     for (unsigned int e = 0; e < d; ++e)
-      Assert(t[d][e] == t[e][d], ExcInternalError());
+      Assert(t[d][e] == t[e][d],
+             ExcMessage("The incoming Tensor must be exactly symmetric."));
 
   for (unsigned int d = 0; d < dim; ++d)
     data[d] = t[d][d];
@@ -2415,7 +2438,7 @@ namespace internal
             if (i < dim)
               return {i, i};
 
-            for (unsigned int d = 0, c = 0; d < dim; ++d)
+            for (unsigned int d = 0, c = dim; d < dim; ++d)
               for (unsigned int e = d + 1; e < dim; ++e, ++c)
                 if (c == i)
                   return {d, e};
@@ -3522,7 +3545,8 @@ DEAL_II_CONSTEXPR inline DEAL_II_ALWAYS_INLINE SymmetricTensor<2, dim, Number>
   SymmetricTensor<2, dim, Number> result;
   for (unsigned int d = 0; d < dim; ++d)
     result[d][d] = t[d][d];
-  Number half = 0.5;
+
+  const Number half = internal::NumberType<Number>::value(0.5);
   for (unsigned int d = 0; d < dim; ++d)
     for (unsigned int e = d + 1; e < dim; ++e)
       result[d][e] = (t[d][e] + t[e][d]) * half;

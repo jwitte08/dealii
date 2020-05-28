@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2019 by the deal.II authors
+// Copyright (C) 2000 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -542,7 +542,7 @@ DataOutRotation<dim, DoFHandlerType>::build_patches(
     [this](
       const std::vector<DataOutBase::Patch<dimension + 1, space_dimension + 1>>
         &new_patches) {
-      internal::DataOutRotationImplementation ::
+      internal::DataOutRotationImplementation::
         append_patch_to_list<dimension, space_dimension>(new_patches,
                                                          this->patches);
     },

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 - 2019 by the deal.II authors
+// Copyright (C) 2018 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -228,6 +228,10 @@ public:
 
   /**
    * Return the set of joint DoF indices. This includes indices from both cells.
+   * If reinit was called with an active cell iterator, the indices are based
+   * on the active indices (returned by `DoFCellAccessor::get_dof_indices()` ),
+   * in case of level cell (that is, if is_level_cell() return true )
+   * the mg dof indices are returned.
    *
    * @note This function is only available after a call to reinit() and can change
    * from one call to reinit() to the next.
@@ -304,7 +308,7 @@ public:
    *
    * Note that one can define the jump in
    * different ways (the value "there" minus the value "here", or the other way
-   * way around; both are used in the finite element literature). The definition
+   * around; both are used in the finite element literature). The definition
    * here uses "value here minus value there", as seen from the first cell.
    *
    * If this is a boundary face (at_boundary() returns true), then
@@ -542,10 +546,12 @@ FEInterfaceValues<dim, spacedim>::reinit(
     // Get dof indices first:
     std::vector<types::global_dof_index> v(
       fe_face_values->get_fe().n_dofs_per_cell());
-    cell->get_dof_indices(v);
+    cell->get_active_or_mg_dof_indices(v);
     std::vector<types::global_dof_index> v2(
       fe_face_values_neighbor->get_fe().n_dofs_per_cell());
-    cell_neighbor->get_dof_indices(v2);
+    cell_neighbor->get_active_or_mg_dof_indices(v2);
+
+
 
     // Fill a map from the global dof index to the left and right
     // local index.
@@ -594,7 +600,7 @@ FEInterfaceValues<dim, spacedim>::reinit(const CellIteratorType &cell,
   fe_face_values_neighbor = nullptr;
 
   interface_dof_indices.resize(fe_face_values->get_fe().n_dofs_per_cell());
-  cell->get_dof_indices(interface_dof_indices);
+  cell->get_active_or_mg_dof_indices(interface_dof_indices);
 
 
   dofmap.resize(interface_dof_indices.size());

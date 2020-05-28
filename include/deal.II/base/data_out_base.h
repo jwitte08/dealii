@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2019 by the deal.II authors
+// Copyright (C) 1999 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1166,14 +1166,14 @@ namespace DataOutBase
      *
      * @note The ability to write data that corresponds to higher order
      * polynomials rather than simply linear or bilinear is a feature that was
-     * only introduced in VTK sometime in 2017 or 2018. You will need at least
-     * Paraview version 5.5 (released in the spring of 2018) or a similarly
-     * recent version of VisIt for this feature to work (for example,
-     * VisIt 2.13.2, released in May 2018, does not yet support this feature).
-     * Older versions of these programs are likely going to result in errors
-     * when trying to read files generated with this flag set to @p true.
-     * Experience with these programs shows that these error messages are likely
-     * going to be rather less descriptive and more obscure.
+     * only introduced in VTK 8.1.0 in December 2017. You will need at least
+     * Paraview version 5.5.0 released in April 2018 or a similarly recent
+     * version of VisIt for this feature to work (for example, VisIt 3.1.1,
+     * released in February 2020, does not yet support this feature). Older
+     * versions of these programs are likely going to result in errors when
+     * trying to read files generated with this flag set to true. Experience
+     * with these programs shows that these error messages are likely going to
+     * be rather less descriptive and more obscure.
      */
     bool write_higher_order_cells;
 
@@ -2764,7 +2764,7 @@ public:
    * output/solution_0003.pvtu
    * @endcode
    * where the `.0.vtu` file contains the output of the first half of the
-   * proceses grouped together, and the `.1.vtu` the data from the remaining
+   * processes grouped together, and the `.1.vtu` the data from the remaining
    * half.
    *
    * A specified @p directory and a @p filename_without_extension

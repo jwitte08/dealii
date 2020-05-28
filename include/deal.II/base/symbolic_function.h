@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -138,7 +138,7 @@ namespace Functions
    * expression, together with its derivatives (if required). These are then
    * used in all subsequent evaluations. Calling
    * set_additional_function_arguments() will evaluate the passed
-   * subsitution map on the fly during evaluation time, *after* all
+   * substitution map on the fly during evaluation time, *after* all
    * derivatives have been computed.
    *
    * @note The difference between this class and the FunctionParser class is
@@ -443,8 +443,8 @@ namespace Functions
   {
     for (unsigned int i = 0; i < dim; ++i)
       out << coordinate_symbols[i] << ", ";
-    for (const auto it : additional_function_arguments)
-      out << it.first << ", ";
+    for (const auto &argument_pair : additional_function_arguments)
+      out << argument_pair.first << ", ";
     out << time_symbol << " -> " << user_function[0];
     for (unsigned int i = 1; i < user_function.size(); ++i)
       out << "; " << user_function[i];
@@ -452,9 +452,9 @@ namespace Functions
       {
         out << " # ( ";
         std::string sep = "";
-        for (const auto it : user_substitution_map)
+        for (const auto &substitution : user_substitution_map)
           {
-            out << sep << it.first << " = " << it.second;
+            out << sep << substitution.first << " = " << substitution.second;
             sep = ", ";
           }
         out << " )";

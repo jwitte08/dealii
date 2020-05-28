@@ -15,7 +15,6 @@
 
 
 #include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/std_cxx14/memory.h>
 
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_nothing.h>
@@ -23,6 +22,7 @@
 
 #include <deal.II/lac/vector.h>
 
+#include <memory>
 #include <sstream>
 #include <vector>
 
@@ -99,8 +99,10 @@ FE_Q<dim, spacedim>::get_name() const
   std::vector<double> points(this->degree + 1);
 
   // Decode the support points in one coordinate direction.
+  TensorProductPolynomials<dim> *poly_space_derived_ptr =
+    dynamic_cast<TensorProductPolynomials<dim> *>(this->poly_space.get());
   std::vector<unsigned int> lexicographic =
-    this->poly_space.get_numbering_inverse();
+    poly_space_derived_ptr->get_numbering_inverse();
   for (unsigned int j = 0; j <= this->degree; j++)
     points[j] = this->unit_support_points[lexicographic[j]][0];
 
@@ -169,7 +171,7 @@ template <int dim, int spacedim>
 std::unique_ptr<FiniteElement<dim, spacedim>>
 FE_Q<dim, spacedim>::clone() const
 {
-  return std_cxx14::make_unique<FE_Q<dim, spacedim>>(*this);
+  return std::make_unique<FE_Q<dim, spacedim>>(*this);
 }
 
 

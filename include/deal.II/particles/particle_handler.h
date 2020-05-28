@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2019 by the deal.II authors
+// Copyright (C) 2017 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -51,6 +51,8 @@ namespace Particles
    * we call particles in the domain of the local process local particles,
    * and particles that belong to neighbor processes and live in the ghost cells
    * around the locally owned domain "ghost particles".
+   *
+   * This class is used in step-70.
    *
    * @ingroup Particle
    */
@@ -174,19 +176,32 @@ namespace Particles
     end_ghost();
 
     /**
-     * Return a pair of particle iterators that mark the begin and end of
-     * the particles in a particular cell. The last iterator is the first
-     * particle that is no longer in the cell.
+     * Return the number of particles that live on the given cell.
      */
-    particle_iterator_range
-    particles_in_cell(
-      const typename Triangulation<dim, spacedim>::active_cell_iterator &cell);
-
+    types::particle_index
+    n_particles_in_cell(
+      const typename Triangulation<dim, spacedim>::active_cell_iterator &cell)
+      const;
 
     /**
      * Return a pair of particle iterators that mark the begin and end of
      * the particles in a particular cell. The last iterator is the first
      * particle that is no longer in the cell.
+     *
+     * The number of elements in the returned range equals what the
+     * n_particles_in_cell() function returns.
+     */
+    particle_iterator_range
+    particles_in_cell(
+      const typename Triangulation<dim, spacedim>::active_cell_iterator &cell);
+
+    /**
+     * Return a pair of particle iterators that mark the begin and end of
+     * the particles in a particular cell. The last iterator is the first
+     * particle that is no longer in the cell.
+     *
+     * The number of elements in the returned range equals what the
+     * n_particles_in_cell() function returns.
      */
     particle_iterator_range
     particles_in_cell(
@@ -240,7 +255,8 @@ namespace Particles
      * at these positions, which are then distributed and added to the local
      * particle collection of a procesor. Note that this function uses
      * GridTools::distributed_compute_point_locations(). Consequently, it can
-     * require intense communications between the processors.
+     * require intense communications between the processors. This function
+     * is used in step-70.
      *
      * This function figures out what mpi process owns the points that do not
      * fall within the locally owned part of the triangulation, it sends
@@ -523,7 +539,7 @@ namespace Particles
      * This function can be used to construct distributed vectors and matrices
      * to manipulate particles using linear algebra operations.
      *
-     * Notice that it is the user's responsability to guarantee that particle
+     * Notice that it is the user's responsibility to guarantee that particle
      * indices are unique, and no check is performed to verify that this is the
      * case, nor that the union of all IndexSet objects on each mpi process is
      * complete.
@@ -550,14 +566,6 @@ namespace Particles
     get_property_pool() const;
 
     /**
-     * Return the number of particles in the given cell.
-     */
-    unsigned int
-    n_particles_in_cell(
-      const typename Triangulation<dim, spacedim>::active_cell_iterator &cell)
-      const;
-
-    /**
      * Find and update the cells containing each particle for all locally owned
      * particles. If particles moved out of the local subdomain
      * they will be sent to their new process and inserted there.
@@ -579,7 +587,8 @@ namespace Particles
     /**
      * Callback function that should be called before every refinement
      * and when writing checkpoints. This function is used to
-     * register store_particles() with the triangulation.
+     * register store_particles() with the triangulation. This function
+     * is used in step-70.
      */
     void
     register_store_callback_function();
@@ -587,7 +596,8 @@ namespace Particles
     /**
      * Callback function that should be called after every refinement
      * and after resuming from a checkpoint.  This function is used to
-     * register load_particles() with the triangulation.
+     * register load_particles() with the triangulation. This function
+     * is used in step-70.
      */
     void
     register_load_callback_function(const bool serialization);
@@ -598,6 +608,44 @@ namespace Particles
     template <class Archive>
     void
     serialize(Archive &ar, const unsigned int version);
+
+    /**
+     * A structure that has boost::signal objects for a number of actions that a
+     * particle handler can do to itself. How signals can be used in
+     * applications is explained in the "Getting notice when a triangulation
+     * changes" section in the Triangulation class with more information and
+     * examples. In short these signals allow the particle handler to notify
+     * applications about certain events inside the particle handler, e.g. when
+     * a particle is lost.
+     *
+     * For documentation on signals, see
+     * http://www.boost.org/doc/libs/release/libs/signals2 .
+     */
+    struct Signals
+    {
+      /**
+       * This signal is triggered whenever the
+       * ParticleHandler::sort_particles_into_subdomains_and_cells() function
+       * encounters a particle that can not be associated with a cell. This can
+       * happen if the particle leaves the domain of the triangulation, or if it
+       * leaves the locally known domain in a parallel triangulation (including
+       * the ghost cells for a parallel::distributed::triangulation).
+       *
+       * The connected function receives an iterator to the particle in
+       * question, and its last known cell association.
+       */
+      boost::signals2::signal<void(
+        const typename Particles::ParticleIterator<dim, spacedim> &particle,
+        const typename Triangulation<dim, spacedim>::active_cell_iterator
+          &cell)>
+        particle_lost;
+    };
+
+    /**
+     * Signals for the events that a particle handler can notify the
+     * calling application about.
+     */
+    mutable Signals signals;
 
   private:
     /**

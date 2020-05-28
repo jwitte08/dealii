@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2018 - 2019 by the deal.II authors
+ * Copyright (C) 2018 - 2020 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -346,7 +346,7 @@ namespace step62
     HDF5::DataSet frequency_dataset;
     HDF5::DataSet probe_positions_dataset;
 
-    // HDF5 dataset that stores the values of the energy measured by the proble.
+    // HDF5 dataset that stores the values of the energy measured by the probe.
     HDF5::DataSet displacement;
 
 

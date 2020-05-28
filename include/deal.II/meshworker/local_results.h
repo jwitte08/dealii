@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2006 - 2018 by the deal.II authors
+// Copyright (C) 2006 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -107,7 +107,7 @@ class BlockIndices;
  * DOFINFO objects are gathered in a DoFInfoBox. In those objects, we store
  * the results of local operations on each cell and its faces. Once all this
  * information has been gathered, an ASSEMBLER is used to assemble it into
- * golbal data.
+ * global data.
  *
  * <h4>INFOBOX</h4>
  *

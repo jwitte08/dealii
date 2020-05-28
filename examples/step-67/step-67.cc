@@ -209,6 +209,7 @@ namespace Euler_DG
 
         default:
           Assert(false, ExcNotImplemented());
+          return 0.;
       }
   }
 
@@ -975,7 +976,7 @@ namespace Euler_DG
   // points. Whereas we previously always set the number of quadrature points
   // to equal the polynomial degree plus one (ensuring exact integration on
   // affine element shapes), we now set the number quadrature points as a
-  // separate variable (e.g. the polynomial degree plus two or three halfs of
+  // separate variable (e.g. the polynomial degree plus two or three halves of
   // the polynomial degree) to more accurately handle nonlinear terms. Since
   // the evaluator is fed with the appropriate loop lengths via the template
   // argument and keeps the number of quadrature points in the whole cell in
@@ -1982,7 +1983,7 @@ namespace Euler_DG
   // choose a constant inflow profile, whereas we set a subsonic outflow at
   // the right. For the boundary around the cylinder (boundary id equal to 2)
   // as well as the channel walls (boundary id equal to 3) we use the wall
-  // boundary type, which is no-normal flow. Furthermore, for the 3D cyclinder
+  // boundary type, which is no-normal flow. Furthermore, for the 3D cylinder
   // we also add a gravity force in vertical direction. Having the base mesh
   // in place (including the manifolds set by
   // GridGenerator::channel_with_cylinder()), we can then perform the
@@ -2011,7 +2012,7 @@ namespace Euler_DG
             triangulation.refine_global(2);
 
             euler_operator.set_inflow_boundary(
-              0, std_cxx14::make_unique<ExactSolution<dim>>(0));
+              0, std::make_unique<ExactSolution<dim>>(0));
 
             break;
           }
@@ -2022,16 +2023,16 @@ namespace Euler_DG
               triangulation, 0.03, 1, 0, true);
 
             euler_operator.set_inflow_boundary(
-              0, std_cxx14::make_unique<ExactSolution<dim>>(0));
+              0, std::make_unique<ExactSolution<dim>>(0));
             euler_operator.set_subsonic_outflow_boundary(
-              1, std_cxx14::make_unique<ExactSolution<dim>>(0));
+              1, std::make_unique<ExactSolution<dim>>(0));
 
             euler_operator.set_wall_boundary(2);
             euler_operator.set_wall_boundary(3);
 
             if (dim == 3)
               euler_operator.set_body_force(
-                std_cxx14::make_unique<Functions::ConstantFunction<dim>>(
+                std::make_unique<Functions::ConstantFunction<dim>>(
                   std::vector<double>({0., 0., -0.2})));
 
             break;

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 by the deal.II authors
+// Copyright (C) 2018 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -135,8 +135,7 @@ namespace CUDAWrappers
       if (row < n_rows)
         {
           for (int j = row_ptr_dev[row]; j < row_ptr_dev[row + 1]; ++j)
-            dealii::LinearAlgebra::CUDAWrappers::atomicAdd_wrapper(
-              &sums[column_index_dev[j]], abs(val_dev[j]));
+            atomicAdd(&sums[column_index_dev[j]], abs(val_dev[j]));
         }
     }
 
@@ -342,13 +341,7 @@ namespace CUDAWrappers
     const int n_blocks = 1 + (nnz - 1) / block_size;
     internal::scale<Number>
       <<<n_blocks, block_size>>>(val_dev.get(), factor, nnz);
-
-#  ifdef DEBUG
-    // Check that the kernel was launched correctly
-    AssertCuda(cudaGetLastError());
-    // Check that there was no problem during the execution of the kernel
-    AssertCuda(cudaDeviceSynchronize());
-#  endif
+    AssertCudaKernel();
 
     return *this;
   }
@@ -364,13 +357,7 @@ namespace CUDAWrappers
     const int n_blocks = 1 + (nnz - 1) / block_size;
     internal::scale<Number>
       <<<n_blocks, block_size>>>(val_dev.get(), 1. / factor, nnz);
-
-#  ifdef DEBUG
-    // Check that the kernel was launched correctly
-    AssertCuda(cudaGetLastError());
-    // Check that there was no problem during the execution of the kernel
-    AssertCuda(cudaDeviceSynchronize());
-#  endif
+    AssertCudaKernel();
 
     return *this;
   }
@@ -519,13 +506,7 @@ namespace CUDAWrappers
                                  column_index_dev.get(),
                                  row_ptr_dev.get(),
                                  column_sums.get_values());
-
-#  ifdef DEBUG
-    // Check that the kernel was launched correctly
-    AssertCuda(cudaGetLastError());
-    // Check that there was no problem during the execution of the kernel
-    AssertCuda(cudaDeviceSynchronize());
-#  endif
+    AssertCudaKernel();
 
     return column_sums.linfty_norm();
   }
@@ -544,13 +525,7 @@ namespace CUDAWrappers
                                  column_index_dev.get(),
                                  row_ptr_dev.get(),
                                  row_sums.get_values());
-
-#  ifdef DEBUG
-    // Check that the kernel was launched correctly
-    AssertCuda(cudaGetLastError());
-    // Check that there was no problem during the execution of the kernel
-    AssertCuda(cudaDeviceSynchronize());
-#  endif
+    AssertCudaKernel();
 
     return row_sums.linfty_norm();
   }

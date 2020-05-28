@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -19,10 +19,10 @@
 #include <deal.II/base/config.h>
 
 #include <deal.II/base/patterns.h>
-#include <deal.II/base/std_cxx14/utility.h>
 #include <deal.II/base/std_cxx17/tuple.h>
 
 #include <tuple>
+#include <utility>
 
 DEAL_II_NAMESPACE_OPEN
 
@@ -107,7 +107,7 @@ namespace Utilities
 
     /**
      * Construct a MutableBind object specifying only the function. By default,
-     * the arguments are left to their defult constructor values.
+     * the arguments are left to their default constructor values.
      */
     template <class FunctionType>
     MutableBind(FunctionType function);

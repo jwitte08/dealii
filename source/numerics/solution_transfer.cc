@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2019 by the deal.II authors
+// Copyright (C) 1999 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -363,7 +363,7 @@ SolutionTransfer<dim, VectorType, DoFHandlerType>::
           for (unsigned int child_index = 0; child_index < cell->n_children();
                ++child_index)
             {
-              const auto child = cell->child(child_index);
+              const auto &child = cell->child(child_index);
               Assert(child->is_active() && child->coarsen_flag_set(),
                      typename dealii::Triangulation<
                        dim>::ExcInconsistentCoarseningFlags());

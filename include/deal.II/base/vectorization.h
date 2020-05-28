@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2019 by the deal.II authors
+// Copyright (C) 2011 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -755,7 +755,7 @@ inline DEAL_II_ALWAYS_INLINE VectorizedArrayType
 
 
 /**
- * Load size() data items from memory into the the VectorizedArray @p out,
+ * Load size() data items from memory into the VectorizedArray @p out,
  * starting at the given addresses and with given offset, each entry from the
  * offset providing one element of the vectorized array.
  *
@@ -1006,7 +1006,7 @@ public:
   VectorizedArray &
   operator+=(const VectorizedArray &vec)
   {
-    // if the compiler supports vector arithmetics, we can simply use +=
+    // if the compiler supports vector arithmetic, we can simply use +=
     // operator on the given data type. this allows the compiler to combine
     // additions with multiplication (fused multiply-add) if those
     // instructions are available. Otherwise, we need to use the built-in
@@ -1560,7 +1560,7 @@ public:
   VectorizedArray &
   operator+=(const VectorizedArray &vec)
   {
-    // if the compiler supports vector arithmetics, we can simply use +=
+    // if the compiler supports vector arithmetic, we can simply use +=
     // operator on the given data type. this allows the compiler to combine
     // additions with multiplication (fused multiply-add) if those
     // instructions are available. Otherwise, we need to use the built-in
@@ -2210,7 +2210,7 @@ public:
   VectorizedArray &
   operator+=(const VectorizedArray &vec)
   {
-    // if the compiler supports vector arithmetics, we can simply use +=
+    // if the compiler supports vector arithmetic, we can simply use +=
     // operator on the given data type. this allows the compiler to combine
     // additions with multiplication (fused multiply-add) if those
     // instructions are available. Otherwise, we need to use the built-in
@@ -2723,7 +2723,7 @@ public:
   VectorizedArray &
   operator+=(const VectorizedArray &vec)
   {
-    // if the compiler supports vector arithmetics, we can simply use +=
+    // if the compiler supports vector arithmetic, we can simply use +=
     // operator on the given data type. this allows the compiler to combine
     // additions with multiplication (fused multiply-add) if those
     // instructions are available. Otherwise, we need to use the built-in

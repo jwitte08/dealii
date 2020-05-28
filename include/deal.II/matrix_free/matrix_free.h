@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2019 by the deal.II authors
+// Copyright (C) 2011 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -447,9 +447,9 @@ public:
     DEAL_II_DEPRECATED unsigned int &level_mg_handler;
 
     /**
-     * Controls whether to allow reading from vectors without resolving
+     * Controls whether to enable reading from vectors without resolving
      * constraints, i.e., just read the local values of the vector. By
-     * default, this option is disabled, so if you want to use
+     * default, this option is enabled. In case you want to use
      * FEEvaluationBase::read_dof_values_plain, this flag needs to be set.
      */
     bool store_plain_indices;
@@ -4568,13 +4568,26 @@ namespace internal
         {
           const internal::MatrixFreeFunctions::DoFInfo &dof_info =
             matrix_free.get_dof_info(dof_handler_index_pre_post);
-          AssertIndexRange(range_index,
-                           dof_info.cell_loop_pre_list_index.size() - 1);
-          for (unsigned int id = dof_info.cell_loop_pre_list_index[range_index];
-               id != dof_info.cell_loop_pre_list_index[range_index + 1];
-               ++id)
-            operation_before_loop(dof_info.cell_loop_pre_list[id].first,
-                                  dof_info.cell_loop_pre_list[id].second);
+          if (range_index == numbers::invalid_unsigned_int)
+            {
+              // Case with threaded loop -> currently no overlap implemented
+              dealii::parallel::apply_to_subranges(
+                0U,
+                dof_info.vector_partitioner->local_size(),
+                operation_before_loop,
+                internal::VectorImplementation::minimum_parallel_grain_size);
+            }
+          else
+            {
+              AssertIndexRange(range_index,
+                               dof_info.cell_loop_pre_list_index.size() - 1);
+              for (unsigned int id =
+                     dof_info.cell_loop_pre_list_index[range_index];
+                   id != dof_info.cell_loop_pre_list_index[range_index + 1];
+                   ++id)
+                operation_before_loop(dof_info.cell_loop_pre_list[id].first,
+                                      dof_info.cell_loop_pre_list[id].second);
+            }
         }
     }
 
@@ -4585,14 +4598,26 @@ namespace internal
         {
           const internal::MatrixFreeFunctions::DoFInfo &dof_info =
             matrix_free.get_dof_info(dof_handler_index_pre_post);
-          AssertIndexRange(range_index,
-                           dof_info.cell_loop_post_list_index.size() - 1);
-          for (unsigned int id =
-                 dof_info.cell_loop_post_list_index[range_index];
-               id != dof_info.cell_loop_post_list_index[range_index + 1];
-               ++id)
-            operation_after_loop(dof_info.cell_loop_post_list[id].first,
-                                 dof_info.cell_loop_post_list[id].second);
+          if (range_index == numbers::invalid_unsigned_int)
+            {
+              // Case with threaded loop -> currently no overlap implemented
+              dealii::parallel::apply_to_subranges(
+                0U,
+                dof_info.vector_partitioner->local_size(),
+                operation_after_loop,
+                internal::VectorImplementation::minimum_parallel_grain_size);
+            }
+          else
+            {
+              AssertIndexRange(range_index,
+                               dof_info.cell_loop_post_list_index.size() - 1);
+              for (unsigned int id =
+                     dof_info.cell_loop_post_list_index[range_index];
+                   id != dof_info.cell_loop_post_list_index[range_index + 1];
+                   ++id)
+                operation_after_loop(dof_info.cell_loop_post_list[id].first,
+                                     dof_info.cell_loop_post_list[id].second);
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2018 by the deal.II authors
+// Copyright (C) 2001 - 2019 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -109,7 +109,7 @@ class Quadrature;
  * @author Ralf Hartmann, Guido Kanschat 2001, 2004
  */
 template <int dim, int spacedim = dim>
-class FE_DGQ : public FE_Poly<TensorProductPolynomials<dim>, dim, spacedim>
+class FE_DGQ : public FE_Poly<dim, spacedim>
 {
 public:
   /**

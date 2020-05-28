@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2006 - 2018 by the deal.II authors
+// Copyright (C) 2006 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -49,6 +49,9 @@ main()
   check<1>();
   check<2>();
   check<3>();
+  check<4>();
+  check<5>();
+  check<6>();
 
   deallog << "OK" << std::endl;
 }

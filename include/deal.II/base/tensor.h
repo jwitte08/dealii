@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2019 by the deal.II authors
+// Copyright (C) 1998 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -20,7 +20,6 @@
 
 #include <deal.II/base/exceptions.h>
 #include <deal.II/base/numbers.h>
-#include <deal.II/base/std_cxx14/utility.h>
 #include <deal.II/base/table_indices.h>
 #include <deal.II/base/template_constraints.h>
 #include <deal.II/base/tensor_accessors.h>
@@ -34,6 +33,7 @@
 
 #include <cmath>
 #include <ostream>
+#include <utility>
 #include <vector>
 
 
@@ -774,7 +774,7 @@ private:
    */
   template <typename ArrayLike, std::size_t... Indices>
   constexpr DEAL_II_CUDA_HOST_DEV
-  Tensor(const ArrayLike &initializer, std_cxx14::index_sequence<Indices...>);
+  Tensor(const ArrayLike &initializer, std::index_sequence<Indices...>);
 
   // Allow an arbitrary Tensor to access the underlying values.
   template <int, int, typename>
@@ -789,8 +789,20 @@ private:
 #ifndef DOXYGEN
 namespace internal
 {
+  // Workaround: The following 4 overloads are necessary to be able to
+  // compile the library with Apple Clang 8 and older. We should remove
+  // these overloads again when we bump the minimal required version to
+  // something later than clang-3.6 / Apple Clang 6.3.
+  // - Jean-Paul Pelteret, Matthias Maier, Daniel Arndt 2020
   template <int rank, int dim, typename T, typename U>
   struct ProductTypeImpl<Tensor<rank, dim, T>, std::complex<U>>
+  {
+    using type =
+      Tensor<rank, dim, std::complex<typename ProductType<T, U>::type>>;
+  };
+
+  template <int rank, int dim, typename T, typename U>
+  struct ProductTypeImpl<Tensor<rank, dim, std::complex<T>>, std::complex<U>>
   {
     using type =
       Tensor<rank, dim, std::complex<typename ProductType<T, U>::type>>;
@@ -802,6 +814,14 @@ namespace internal
     using type =
       Tensor<rank, dim, std::complex<typename ProductType<T, U>::type>>;
   };
+
+  template <int rank, int dim, typename T, typename U>
+  struct ProductTypeImpl<std::complex<T>, Tensor<rank, dim, std::complex<U>>>
+  {
+    using type =
+      Tensor<rank, dim, std::complex<typename ProductType<T, U>::type>>;
+  };
+  // end workaround
 
   /**
    * The structs below are needed to initialize nested Tensor objects.
@@ -1123,7 +1143,7 @@ template <int rank_, int dim, typename Number>
 template <typename ArrayLike, std::size_t... indices>
 constexpr DEAL_II_ALWAYS_INLINE DEAL_II_CUDA_HOST_DEV
                                 Tensor<rank_, dim, Number>::Tensor(const ArrayLike &initializer,
-                                   std_cxx14::index_sequence<indices...>)
+                                   std::index_sequence<indices...>)
   : values{Tensor<rank_ - 1, dim, Number>(initializer[indices])...}
 {
   static_assert(sizeof...(indices) == dim,
@@ -1134,7 +1154,7 @@ constexpr DEAL_II_ALWAYS_INLINE DEAL_II_CUDA_HOST_DEV
 template <int rank_, int dim, typename Number>
 constexpr DEAL_II_ALWAYS_INLINE DEAL_II_CUDA_HOST_DEV
                                 Tensor<rank_, dim, Number>::Tensor(const array_type &initializer)
-  : Tensor(initializer, std_cxx14::make_index_sequence<dim>{})
+  : Tensor(initializer, std::make_index_sequence<dim>{})
 {}
 
 
@@ -1143,7 +1163,7 @@ template <typename OtherNumber>
 constexpr DEAL_II_ALWAYS_INLINE DEAL_II_CUDA_HOST_DEV
                                 Tensor<rank_, dim, Number>::Tensor(
   const Tensor<rank_, dim, OtherNumber> &initializer)
-  : Tensor(initializer, std_cxx14::make_index_sequence<dim>{})
+  : Tensor(initializer, std::make_index_sequence<dim>{})
 {}
 
 
@@ -1152,7 +1172,7 @@ template <typename OtherNumber>
 constexpr DEAL_II_ALWAYS_INLINE
 Tensor<rank_, dim, Number>::Tensor(
   const Tensor<1, dim, Tensor<rank_ - 1, dim, OtherNumber>> &initializer)
-  : Tensor(initializer, std_cxx14::make_index_sequence<dim>{})
+  : Tensor(initializer, std::make_index_sequence<dim>{})
 {}
 
 
@@ -2391,9 +2411,14 @@ DEAL_II_CONSTEXPR inline DEAL_II_ALWAYS_INLINE
 
   Tensor<1, dim, typename ProductType<Number1, Number2>::type> result;
 
-  result[0] = src1[1] * src2[2] - src1[2] * src2[1];
-  result[1] = src1[2] * src2[0] - src1[0] * src2[2];
-  result[2] = src1[0] * src2[1] - src1[1] * src2[0];
+  // avoid compiler warnings
+  constexpr int s0 = 0 % dim;
+  constexpr int s1 = 1 % dim;
+  constexpr int s2 = 2 % dim;
+
+  result[s0] = src1[s1] * src2[s2] - src1[s2] * src2[s1];
+  result[s1] = src1[s2] * src2[s0] - src1[s0] * src2[s2];
+  result[s2] = src1[s0] * src2[s1] - src1[s1] * src2[s0];
 
   return result;
 }
@@ -2632,47 +2657,38 @@ cofactor(const Tensor<2, dim, Number> &t)
 
 
 /**
- * Return the nearest orthogonal matrix using a SVD if the determinant is
- * more than a tolerance away from one. The orthogonalization is done by
+ * Return the nearest orthogonal matrix by
  * combining the products of the SVD decomposition: $\mathbf U \mathbf{V}^T$,
  * where $\mathbf U$ and $\mathbf V$ are computed from the SVD decomposition:
  * $\mathbf U  \mathbf S \mathbf V^T$,
  * effectively replacing $\mathbf S$ with the identity matrix.
  * @param tensor The tensor which to find the closest orthogonal
  * tensor to.
- * @param tolerance If the $\text{determinant} - 1$ is smaller than
- * this value, it will just return the current tensor.
- * Otherwise it will return the nearest orthogonal tensor.
  * @relatesalso Tensor
  */
 template <int dim, typename Number>
 Tensor<2, dim, Number>
-project_onto_orthogonal_tensors(const Tensor<2, dim, Number> &tensor,
-                                const double                  tolerance)
+project_onto_orthogonal_tensors(const Tensor<2, dim, Number> &tensor)
 {
-  if (std::abs(determinant(tensor) - 1.0) > tolerance)
-    {
-      Tensor<2, dim, Number>   output_tensor;
-      FullMatrix<Number>       matrix(dim);
-      LAPACKFullMatrix<Number> lapack_matrix(dim);
-      LAPACKFullMatrix<Number> result(dim);
+  Tensor<2, dim, Number>   output_tensor;
+  FullMatrix<Number>       matrix(dim);
+  LAPACKFullMatrix<Number> lapack_matrix(dim);
+  LAPACKFullMatrix<Number> result(dim);
 
-      // todo: find or add dealii functionallity to copy in one step.
-      matrix.copy_from(tensor);
-      lapack_matrix.copy_from(matrix);
+  // todo: find or add dealii functionality to copy in one step.
+  matrix.copy_from(tensor);
+  lapack_matrix.copy_from(matrix);
 
-      // now compute the svd of the matrices
-      lapack_matrix.compute_svd();
+  // now compute the svd of the matrices
+  lapack_matrix.compute_svd();
 
-      // Use the SVD results to orthogonalize: $U V^T$
-      lapack_matrix.get_svd_u().mmult(result, lapack_matrix.get_svd_vt());
+  // Use the SVD results to orthogonalize: $U V^T$
+  lapack_matrix.get_svd_u().mmult(result, lapack_matrix.get_svd_vt());
 
-      // todo: find or add dealii functionallity to copy in one step.
-      matrix = result;
-      matrix.copy_to(output_tensor);
-      return output_tensor;
-    }
-  return tensor;
+  // todo: find or add dealii functionality to copy in one step.
+  matrix = result;
+  matrix.copy_to(output_tensor);
+  return output_tensor;
 }
 
 

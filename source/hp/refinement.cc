@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -23,6 +23,7 @@
 #include <deal.II/distributed/tria_base.h>
 
 #include <deal.II/grid/grid_refinement.h>
+#include <deal.II/grid/grid_tools.h>
 
 #include <deal.II/hp/dof_handler.h>
 #include <deal.II/hp/refinement.h>
@@ -137,13 +138,9 @@ namespace hp
              dealii::GridRefinement::ExcInvalidParameterValue());
 
       // We first have to determine the maximal and minimal values of the
-      // criteria of all flagged cells. We start with the minimal and maximal
-      // values of all cells, a range within which the minimal and maximal
-      // values on cells flagged for refinement must surely lie.
-      Number max_criterion_refine =
-               *std::min_element(criteria.begin(), criteria.end()),
-             min_criterion_refine =
-               *std::max_element(criteria.begin(), criteria.end());
+      // criteria of all flagged cells.
+      Number max_criterion_refine  = std::numeric_limits<Number>::lowest(),
+             min_criterion_refine  = std::numeric_limits<Number>::max();
       Number max_criterion_coarsen = max_criterion_refine,
              min_criterion_coarsen = min_criterion_refine;
 
@@ -511,51 +508,107 @@ namespace hp
       Assert(0 < gamma_h, dealii::GridRefinement::ExcInvalidParameterValue());
       Assert(0 < gamma_n, dealii::GridRefinement::ExcInvalidParameterValue());
 
+      // auxiliary variables
+      unsigned int future_fe_degree       = numbers::invalid_unsigned_int;
+      unsigned int parent_future_fe_index = numbers::invalid_unsigned_int;
+      // store all determined future finite element indices on parent cells for
+      // coarsening
+      std::map<typename hp::DoFHandler<dim, spacedim>::cell_iterator,
+               unsigned int>
+        future_fe_indices_on_coarsened_cells;
+
+      // deep copy error indicators
+      predicted_errors = error_indicators;
+
       for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
           {
-            if (cell->future_fe_index_set()) // p adaptation
+            // current cell will not be adapted
+            if (!(cell->future_fe_index_set()) && !(cell->refine_flag_set()) &&
+                !(cell->coarsen_flag_set()))
               {
-                Assert(cell->future_fe_index_set() && !cell->refine_flag_set(),
-                       ExcMessage(
-                         "For error prediction, a cell marked for p-adaptation "
-                         "should not also be flagged for h-refinement!"));
-                Assert(cell->future_fe_index_set() && !cell->coarsen_flag_set(),
-                       ExcMessage(
-                         "For error prediction, a cell marked for p-adaptation "
-                         "should not also be flagged for h-coarsening!"));
+                predicted_errors[cell->active_cell_index()] *= gamma_n;
+                continue;
+              }
 
-                const int degree_difference =
+            // current cell will be adapted
+            // determine degree of its future finite element
+            if (cell->coarsen_flag_set())
+              {
+                // cell will be coarsened, thus determine future finite element
+                // on parent cell
+                const auto &parent = cell->parent();
+                if (future_fe_indices_on_coarsened_cells.find(parent) ==
+                    future_fe_indices_on_coarsened_cells.end())
+                  {
+                    std::set<unsigned int> fe_indices_children;
+                    for (unsigned int child_index = 0;
+                         child_index < parent->n_children();
+                         ++child_index)
+                      {
+                        const auto &child = parent->child(child_index);
+                        Assert(child->is_active() && child->coarsen_flag_set(),
+                               typename dealii::Triangulation<
+                                 dim>::ExcInconsistentCoarseningFlags());
+
+                        fe_indices_children.insert(child->future_fe_index());
+                      }
+                    Assert(!fe_indices_children.empty(), ExcInternalError());
+
+                    parent_future_fe_index =
+                      dof_handler.get_fe_collection()
+                        .find_dominated_fe_extended(fe_indices_children,
+                                                    /*codim=*/0);
+
+                    Assert(
+                      parent_future_fe_index != numbers::invalid_unsigned_int,
+                      typename dealii::hp::FECollection<
+                        dim>::ExcNoDominatedFiniteElementAmongstChildren());
+
+                    future_fe_indices_on_coarsened_cells.insert(
+                      {parent, parent_future_fe_index});
+                  }
+                else
+                  {
+                    parent_future_fe_index =
+                      future_fe_indices_on_coarsened_cells[parent];
+                  }
+
+                future_fe_degree =
+                  dof_handler.get_fe_collection()[parent_future_fe_index]
+                    .degree;
+              }
+            else
+              {
+                // future finite element on current cell is already set
+                future_fe_degree =
                   dof_handler.get_fe_collection()[cell->future_fe_index()]
-                    .degree -
-                  cell->get_fe().degree;
+                    .degree;
+              }
 
-                predicted_errors[cell->active_cell_index()] =
-                  error_indicators[cell->active_cell_index()] *
-                  std::pow(gamma_p, degree_difference);
-              }
-            else if (cell->refine_flag_set()) // h refinement
+            // step 1: exponential decay with p-adaptation
+            if (cell->future_fe_index_set())
               {
-                Assert(
-                  cell->refine_flag_set() ==
-                    RefinementCase<dim>::isotropic_refinement,
-                  ExcMessage(
-                    "Error prediction is only valid for isotropic refinement!"));
+                predicted_errors[cell->active_cell_index()] *=
+                  std::pow(gamma_p, future_fe_degree - cell->get_fe().degree);
+              }
 
-                predicted_errors[cell->active_cell_index()] =
-                  error_indicators[cell->active_cell_index()] *
-                  (gamma_h * std::pow(.5, dim + cell->get_fe().degree));
-              }
-            else if (cell->coarsen_flag_set()) // h coarsening
+            // step 2: algebraic decay with h-adaptation
+            if (cell->refine_flag_set())
               {
-                predicted_errors[cell->active_cell_index()] =
-                  error_indicators[cell->active_cell_index()] /
-                  (gamma_h * std::pow(.5, cell->get_fe().degree));
+                predicted_errors[cell->active_cell_index()] *=
+                  (gamma_h * std::pow(.5, future_fe_degree));
+
+                // predicted error will be split on children cells
+                // after adaptation via CellDataTransfer
               }
-            else // no changes
+            else if (cell->coarsen_flag_set())
               {
-                predicted_errors[cell->active_cell_index()] =
-                  error_indicators[cell->active_cell_index()] * gamma_n;
+                predicted_errors[cell->active_cell_index()] /=
+                  (gamma_h * std::pow(.5, future_fe_degree));
+
+                // predicted error will be summed up on parent cell
+                // after adaptation via CellDataTransfer
               }
           }
     }
@@ -583,6 +636,33 @@ namespace hp
     void
     choose_p_over_h(const hp::DoFHandler<dim, spacedim> &dof_handler)
     {
+      // Siblings of cells to be coarsened may not be owned by the same
+      // processor. We will exchange coarsening flags on ghost cells and
+      // temporarily store them.
+      std::map<CellId, std::pair<bool, bool>> ghost_buffer;
+
+      if (dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
+            &dof_handler.get_triangulation()))
+        {
+          auto pack = [](
+                        const typename dealii::hp::DoFHandler<dim, spacedim>::
+                          active_cell_iterator &cell) -> std::pair<bool, bool> {
+            return {cell->coarsen_flag_set(), cell->future_fe_index_set()};
+          };
+
+          auto unpack = [&ghost_buffer](
+                          const typename dealii::hp::DoFHandler<dim, spacedim>::
+                            active_cell_iterator &    cell,
+                          const std::pair<bool, bool> pair) -> void {
+            ghost_buffer.emplace(cell->id(), pair);
+          };
+
+          GridTools::exchange_cell_data_to_ghosts<
+            std::pair<bool, bool>,
+            dealii::hp::DoFHandler<dim, spacedim>>(dof_handler, pack, unpack);
+        }
+
+
       for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned() && cell->future_fe_index_set())
           {
@@ -604,27 +684,60 @@ namespace hp
                     const auto &child = parent->child(child_index);
                     if (child->is_active())
                       {
-                        if (child->coarsen_flag_set())
-                          ++h_flagged_children;
-                        if (child->future_fe_index_set())
-                          ++p_flagged_children;
+                        if (child->is_locally_owned())
+                          {
+                            if (child->coarsen_flag_set())
+                              ++h_flagged_children;
+                            if (child->future_fe_index_set())
+                              ++p_flagged_children;
+                          }
+                        else if (child->is_ghost())
+                          {
+                            const std::pair<bool, bool> &flags =
+                              ghost_buffer[child->id()];
+
+                            if (flags.first)
+                              ++h_flagged_children;
+                            if (flags.second)
+                              ++p_flagged_children;
+                          }
+                        else
+                          {
+                            // Siblings of locally owned cells are all
+                            // either also locally owned or ghost cells.
+                            Assert(false, ExcInternalError());
+                          }
                       }
                   }
 
                 if (h_flagged_children == n_children &&
                     p_flagged_children != n_children)
-                  // Perform pure h coarsening and
-                  // drop all p adaptation flags.
-                  for (unsigned int child_index = 0; child_index < n_children;
-                       ++child_index)
-                    parent->child(child_index)->clear_future_fe_index();
+                  {
+                    // Perform pure h coarsening and
+                    // drop all p adaptation flags.
+                    for (unsigned int child_index = 0; child_index < n_children;
+                         ++child_index)
+                      {
+                        const auto &child = parent->child(child_index);
+                        // h_flagged_children == n_children implies
+                        // that all children are active
+                        Assert(child->is_active(), ExcInternalError());
+                        if (child->is_locally_owned())
+                          child->clear_future_fe_index();
+                      }
+                  }
                 else
-                  // Perform p adaptation on all children and
-                  // drop all h coarsening flags.
-                  for (unsigned int child_index = 0; child_index < n_children;
-                       ++child_index)
-                    if (parent->child(child_index)->is_active())
-                      parent->child(child_index)->clear_coarsen_flag();
+                  {
+                    // Perform p adaptation on all children and
+                    // drop all h coarsening flags.
+                    for (unsigned int child_index = 0; child_index < n_children;
+                         ++child_index)
+                      {
+                        const auto &child = parent->child(child_index);
+                        if (child->is_active() && child->is_locally_owned())
+                          child->clear_coarsen_flag();
+                      }
+                  }
               }
           }
     }

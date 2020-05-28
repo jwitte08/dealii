@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -371,7 +371,8 @@ namespace TriangulationDescription
 
     /**
      * List that for each locally-relevant coarse cell provides the
-     * corresponding global @ref GlossCoarseCellId.
+     * corresponding global
+     * @ref GlossCoarseCellId.
      */
     std::vector<types::coarse_cell_id> coarse_cell_index_to_coarse_cell_id;
 
@@ -398,6 +399,11 @@ namespace TriangulationDescription
      * Properties to be use in the construction of the triangulation.
      */
     Settings settings;
+
+    /**
+     * Mesh smoothing type.
+     */
+    typename Triangulation<dim, spacedim>::MeshSmoothing smoothing;
   };
 
 
@@ -422,21 +428,14 @@ namespace TriangulationDescription
      * @param comm MPI_Communicator to be used. In the case
      *   of dealii::parallel::distributed::Triangulation, the communicators have
      * to match.
-     * @param construct_multilevel_hierarchy Signal if the multigrid levels
-     *        should be constructed.
+     * @param settings See the description of the Settings enumerator.
      * @param my_rank_in Construct Description for the specified rank (only
      *   working for serial triangulations that have been partitioned by
      *   functions like GridToold::partition_triangulation()).
      * @return Description to be used to set up a Triangulation.
      *
-     * @note Multilevel hierarchies are supported if it is enabled in
-     *   parallel::fullydistributed::Triangulation.
-     *
-     * @note Hanging nodes in the input triangulation are supported. However,
-     *   to be able to use this feature in the case of
-     *   parallel::fullydistributed::Triangulation, the user has to enable
-     *   multilevel hierarchy support in
-     *   parallel::fullydistributed::Triangulation.
+     * @note If construct_multigrid_hierarchy is set in the settings, the source
+     *   triangulation has to be setup with limit_level_difference_at_vertices.
      *
      * @author Peter Munch, 2019
      */
@@ -445,7 +444,8 @@ namespace TriangulationDescription
     create_description_from_triangulation(
       const dealii::Triangulation<dim, spacedim> &tria,
       const MPI_Comm                              comm,
-      const bool         construct_multilevel_hierarchy = false,
+      const TriangulationDescription::Settings    settings =
+        TriangulationDescription::Settings::default_setting,
       const unsigned int my_rank_in = numbers::invalid_unsigned_int);
 
 
@@ -469,8 +469,13 @@ namespace TriangulationDescription
      *   argument the group size.
      * @param comm MPI communicator.
      * @param group_size The size of each group.
-     * @param construct_multilevel_hierarchy Construct multigrid levels.
+     * @param smoothing Mesh smoothing type.
+     * @param setting See the description of the Settings enumerator.
      * @return Description to be used to set up a Triangulation.
+     *
+     * @note If construct_multigrid_hierarchy is set in the settings, the
+     *   @p smoothing parameter is extended with the
+     *   limit_level_difference_at_vertices flag.
      *
      * @author Peter Munch, 2019
      */
@@ -484,7 +489,10 @@ namespace TriangulationDescription
                                const unsigned int)> &serial_grid_partitioner,
       const MPI_Comm                                 comm,
       const int                                      group_size = 1,
-      const bool construct_multilevel_hierarchy                 = false);
+      const typename Triangulation<dim, spacedim>::MeshSmoothing smoothing =
+        dealii::Triangulation<dim, spacedim>::none,
+      const TriangulationDescription::Settings setting =
+        TriangulationDescription::Settings::default_setting);
 
   } // namespace Utilities
 
@@ -518,6 +526,7 @@ namespace TriangulationDescription
     ar &coarse_cell_index_to_coarse_cell_id;
     ar &cell_infos;
     ar &settings;
+    ar &smoothing;
   }
 
 
@@ -561,6 +570,8 @@ namespace TriangulationDescription
     if (this->cell_infos != other.cell_infos)
       return false;
     if (this->settings != other.settings)
+      return false;
+    if (this->smoothing != other.smoothing)
       return false;
 
     return true;

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2019 by the deal.II authors
+// Copyright (C) 2001 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -44,7 +44,6 @@
 DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 #  include <boost/archive/binary_iarchive.hpp>
 #  include <boost/archive/binary_oarchive.hpp>
-#  include <boost/geometry/index/detail/serialization.hpp>
 #  include <boost/geometry/index/rtree.hpp>
 #  include <boost/serialization/array.hpp>
 #  include <boost/serialization/vector.hpp>
@@ -261,8 +260,8 @@ namespace GridTools
    */
   template <int dim>
   Vector<double>
-  compute_aspect_ratio_of_cells(const Triangulation<dim> &triangulation,
-                                const Mapping<dim> &      mapping,
+  compute_aspect_ratio_of_cells(const Mapping<dim> &      mapping,
+                                const Triangulation<dim> &triangulation,
                                 const Quadrature<dim> &   quadrature);
 
   /**
@@ -276,8 +275,8 @@ namespace GridTools
    */
   template <int dim>
   double
-  compute_maximum_aspect_ratio(const Triangulation<dim> &triangulation,
-                               const Mapping<dim> &      mapping,
+  compute_maximum_aspect_ratio(const Mapping<dim> &      mapping,
+                               const Triangulation<dim> &triangulation,
                                const Quadrature<dim> &   quadrature);
 
   /**
@@ -425,9 +424,28 @@ namespace GridTools
    * hanging nodes in ghost cells if you call the current functions: The
    * vertices of all locally owned cells will be correct, but the vertices of
    * some ghost cells may not. This means that computations like
-   * KellyErrorEstimator may give wrong answers. A safe approach is to use
-   * this function prior to any refinement in parallel, if that is possible,
-   * but not after you refine the mesh.
+   * KellyErrorEstimator may give wrong answers.
+   *
+   * @note This function is in general not compatible with manifolds attached
+   * to the triangulation. For example, in order to refine the grid (using
+   * manifolds) after the grid transformation, you have to make sure that
+   * the original manifold is still valid for the transformed geometry. This
+   * does not hold in general, and it is necessary to clear the manifold and
+   * attach a new one for the transformed geometry in these cases.
+   * If you want to perform refinements according to the original
+   * manifold description attached to the triangulation, you should first do
+   * the refinements, subsequently deactivate all manifolds, and finally call
+   * the transform() function. The result is a triangulation with correctly
+   * transformed vertices, but otherwise straight-sided elements. The
+   * following procedure is recommended
+   * @code
+   * ...
+   * triangulation.refine_global(n_refinements);
+   * triangulation.reset_all_manifolds();
+   * Transformation<dim> transformation;
+   * GridTools::transform(transformation, triangulation);
+   * ...
+   * @endcode
    *
    * This function is used in the "Possibilities for extensions" section of
    * step-38. It is also used in step-49 and step-53.
@@ -890,8 +908,7 @@ namespace GridTools
    * @return A tuple containing the quadrature information
    *
    * The elements of the output tuple are:
-   * - cells : a vector of cells of the all cells containing at
-   *  least a point.
+   * - cells : a vector of all cells containing at least one point.
    * - qpoints : a vector of vector of points; containing in @p qpoints[i]
    *   the reference positions of all points that fall within the cell @p cells[i] .
    * - maps : a vector of vector of integers, containing the mapping between
@@ -1806,15 +1823,20 @@ namespace GridTools
 
   /**
    * Return the local vertex index of cell @p cell that is closest to
-   * the given location @p position.
+   * the given location @p position. The location of the vertices is extracted
+   * from the (optional) @p mapping argument, to guarantee that the correct
+   * answer is returned when the underlying mapping modifies the position of the
+   * vertices.
    *
-   * @author Rene Gassmoeller, Luca Heltai, 2017.
+   * @author Rene Gassmoeller, Luca Heltai, 2017, 2020.
    */
   template <int dim, int spacedim>
   unsigned int
   find_closest_vertex_of_cell(
     const typename Triangulation<dim, spacedim>::active_cell_iterator &cell,
-    const Point<spacedim> &position);
+    const Point<spacedim> &                                            position,
+    const Mapping<dim, spacedim> &                                     mapping =
+      StaticMappingQ1<dim, spacedim>::mapping);
 
   /**
    * Compute a globally unique index for each vertex and hanging node
@@ -2027,7 +2049,7 @@ namespace GridTools
    * @note If the flag @p group_siblings is set to false, children of a
    *       cell might be placed on different processors even though they are all
    *       active, which is an assumption made by p4est. By relaxing this, we
-   *       can can create partitions owning a single cell (also for refined
+   *       can create partitions owning a single cell (also for refined
    *       meshes).
    */
   template <int dim, int spacedim>
@@ -2987,6 +3009,17 @@ namespace GridTools
     std::map<unsigned int, unsigned int> &vertex_to_coinciding_vertex_group);
 
   /**
+   * Return a map that, for each vertex, lists all the processes whose
+   * subdomains are adjacent to that vertex.
+   *
+   * @param[in] tria Triangulation.
+   */
+  template <int dim, int spacedim>
+  std::map<unsigned int, std::set<dealii::types::subdomain_id>>
+  compute_vertices_with_ghost_neighbors(
+    const Triangulation<dim, spacedim> &tria);
+
+  /**
    * A structure that allows the transfer of cell data of type @p T from one processor
    * to another. It corresponds to a packed buffer that stores a vector of
    * CellId and a vector of type @p T.
@@ -3030,7 +3063,19 @@ namespace GridTools
     void
     load(Archive &ar, const unsigned int version);
 
+#  ifdef DOXYGEN
+    /**
+     * Write and read the data of this object from a stream for the purpose
+     * of serialization.
+     */
+    template <class Archive>
+    void
+    serialize(Archive &archive, const unsigned int version);
+#  else
+    // This macro defines the serialize() method that is compatible with
+    // the templated save() and load() method that have been implemented.
     BOOST_SERIALIZATION_SPLIT_MEMBER()
+#  endif
   };
 
   /**
@@ -3927,7 +3972,7 @@ namespace GridTools
 
     std::map<unsigned int, std::set<dealii::types::subdomain_id>>
       vertices_with_ghost_neighbors =
-        tria->compute_vertices_with_ghost_neighbors();
+        GridTools::compute_vertices_with_ghost_neighbors(*tria);
 
     for (const auto &cell : tria->active_cell_iterators())
       if (cell->is_locally_owned())
@@ -3982,7 +4027,7 @@ namespace GridTools
             }
         }
 
-    // Protect the following communcation:
+    // Protect the following communication:
     static Utilities::MPI::CollectiveMutex      mutex;
     Utilities::MPI::CollectiveMutex::ScopedLock lock(mutex,
                                                      tria->get_communicator());

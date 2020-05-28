@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -175,6 +175,8 @@ namespace Particles
      * triangulation and whose components are within the ComponentMask.
      * This function uses insert_global_particles and consequently may induce
      * considerable mpi communication overhead.
+     *
+     * This function is used in step-70.
      *
      * @param[in] dof_handler A DOF handler that may live on another
      * triangulation that is used to establsh the positions of the particles.

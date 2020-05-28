@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2008 - 2019 by the deal.II authors
+// Copyright (C) 2008 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1611,16 +1611,16 @@ namespace parallel
       const bool         callback_variable_transfer = (handle % 2 == 0);
       const unsigned int callback_index             = handle / 2;
 
+      // Cells will always receive fixed size data (i.e., CellStatus
+      // information), but not necessarily variable size data (e.g., with a
+      // ParticleHandler a cell might not contain any particle at all).
+      // Thus it is sufficient to check if fixed size data has been received.
       Assert(sizes_fixed_cumulative.size() > 0,
              ExcMessage("No data has been packed!"));
       if (quad_cell_relations.size() > 0)
         {
           Assert(dest_data_fixed.size() > 0,
                  ExcMessage("No data has been received!"));
-
-          if (callback_variable_transfer)
-            Assert(dest_data_variable.size() > 0,
-                   ExcMessage("No data has been received!"));
         }
 
       std::vector<char>::const_iterator dest_data_it;
@@ -2257,8 +2257,8 @@ namespace parallel
             return sizeof(unsigned int) +
                    tree_index.size() * sizeof(unsigned int) +
                    quadrants.size() *
-                     sizeof(typename dealii::internal::p4est ::types<
-                            dim>::quadrant) +
+                     sizeof(
+                       typename dealii::internal::p4est::types<dim>::quadrant) +
                    vertex_indices.size() * sizeof(unsigned int) +
                    vertices.size() * sizeof(dealii::Point<spacedim>);
           }
@@ -2622,16 +2622,12 @@ namespace parallel
       //
       // The problem is that we cannot just ask for the first active cell, but
       // instead need to filter over locally owned cells.
-      bool have_coarser_cell = false;
-      for (typename Triangulation<dim, spacedim>::active_cell_iterator cell =
-             this->begin_active(this->n_global_levels() - 2);
-           cell != this->end(this->n_global_levels() - 2);
-           ++cell)
-        if (cell->is_locally_owned())
-          {
-            have_coarser_cell = true;
-            break;
-          }
+      const bool have_coarser_cell =
+        std::any_of(this->begin_active(this->n_global_levels() - 2),
+                    this->end_active(this->n_global_levels() - 2),
+                    [](const CellAccessor<dim, spacedim> &cell) {
+                      return cell.is_locally_owned();
+                    });
 
       // return true if at least one process has a coarser cell
       return 0 < Utilities::MPI::max(have_coarser_cell ? 1 : 0,
@@ -2919,18 +2915,6 @@ namespace parallel
 
 
     template <int dim, int spacedim>
-    void
-    Triangulation<dim, spacedim>::update_number_cache()
-    {
-      parallel::TriangulationBase<dim, spacedim>::update_number_cache();
-
-      if (settings & construct_multigrid_hierarchy)
-        parallel::TriangulationBase<dim, spacedim>::fill_level_ghost_owners();
-    }
-
-
-
-    template <int dim, int spacedim>
     typename dealii::internal::p4est::types<dim>::tree *
     Triangulation<dim, spacedim>::init_tree(
       const int dealii_coarse_cell_index) const
@@ -2945,6 +2929,10 @@ namespace parallel
     }
 
 
+
+    // Note: this has been added here to prevent that these functions
+    // appear in the Doxygen documentation of dealii::Triangulation
+#  ifndef DOXYGEN
 
     template <>
     void
@@ -2974,11 +2962,11 @@ namespace parallel
       // arrays. set vertex information only in debug mode (saves a few bytes
       // in optimized mode)
       const bool set_vertex_info
-#  ifdef DEBUG
+#    ifdef DEBUG
         = true
-#  else
+#    else
         = false
-#  endif
+#    endif
         ;
 
       connectivity = dealii::internal::p4est::functions<2>::connectivity_new(
@@ -3041,11 +3029,11 @@ namespace parallel
       // arrays. set vertex information only in debug mode (saves a few bytes
       // in optimized mode)
       const bool set_vertex_info
-#  ifdef DEBUG
+#    ifdef DEBUG
         = true
-#  else
+#    else
         = false
-#  endif
+#    endif
         ;
 
       connectivity = dealii::internal::p4est::functions<2>::connectivity_new(
@@ -3111,11 +3099,11 @@ namespace parallel
 
       // now create a connectivity object with the right sizes for all arrays
       const bool set_vertex_info
-#  ifdef DEBUG
+#    ifdef DEBUG
         = true
-#  else
+#    else
         = false
-#  endif
+#    endif
         ;
 
       connectivity = dealii::internal::p4est::functions<3>::connectivity_new(
@@ -3216,6 +3204,7 @@ namespace parallel
         /* user_data_constructor = */ nullptr,
         /* user_pointer */ this);
     }
+#  endif
 
 
 
@@ -3632,13 +3621,13 @@ namespace parallel
           this->prepare_coarsening_and_refinement();
 
           // see if any flags are still set
-          mesh_changed = false;
-          for (const auto &cell : this->active_cell_iterators())
-            if (cell->refine_flag_set() || cell->coarsen_flag_set())
-              {
-                mesh_changed = true;
-                break;
-              }
+          mesh_changed =
+            std::any_of(this->begin_active(),
+                        active_cell_iterator{this->end()},
+                        [](const CellAccessor<dim, spacedim> &cell) {
+                          return cell.refine_flag_set() ||
+                                 cell.coarsen_flag_set();
+                        });
 
           // actually do the refinement to change the local mesh by
           // calling the base class refinement function directly
@@ -4198,7 +4187,7 @@ namespace parallel
       // at that boundary.
       const std::map<unsigned int, std::set<dealii::types::subdomain_id>>
         vertices_with_ghost_neighbors =
-          this->compute_vertices_with_ghost_neighbors();
+          GridTools::compute_vertices_with_ghost_neighbors(*this);
 
       // now collect cells and their vertices
       // for the interested neighbors

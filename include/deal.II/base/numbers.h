@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2006 - 2019 by the deal.II authors
+// Copyright (C) 2006 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -71,7 +71,7 @@ namespace internal
    * A helper class specifying the maximal vector length of VectorizedArray
    * for the data type `double` for the given processor architecture and
    * optimization level. For a detailed description of supported maximal vector
-   * lengths, see the the documentation of VectorizedArray.
+   * lengths, see the documentation of VectorizedArray.
    *
    * @author Peter Munch, 2019
    */
@@ -97,7 +97,7 @@ namespace internal
    * A helper class specifying the maximal vector length of VectorizedArray
    * for the data type `float` for the given processor architecture and
    * optimization level. For a detailed description of supported maximal vector
-   * lengths, see the the documentation of VectorizedArray.
+   * lengths, see the documentation of VectorizedArray.
    *
    * @author Peter Munch, 2019
    */
@@ -271,23 +271,6 @@ namespace numbers
   template <typename Number>
   struct is_cuda_compatible<std::complex<Number>, void> : std::false_type
   {};
-
-  /**
-   * Check whether a value is not a number.
-   *
-   * This function uses either <code>std::isnan</code>, <code>isnan</code>, or
-   * <code>_isnan</code>, whichever is available on the system and returns the
-   * result.
-   *
-   * If none of the functions detecting NaN is available, this function
-   * returns false.
-   *
-   * @deprecated This function has been deprecated in favor of the C++11
-   * function <code>std::isnan</code>.
-   */
-  DEAL_II_DEPRECATED
-  bool
-  is_nan(const double x);
 
   /**
    * Return @p true if the given value is a finite floating point number, i.e.

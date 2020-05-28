@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -44,7 +44,7 @@ namespace hp
 namespace hp
 {
   /**
-   * We supply adaptive methods to align computational ressources with the
+   * We supply adaptive methods to align computational resources with the
    * complexity of the numerical solution. Error estimates are an appropriate
    * means of determining where adjustments need to be made.
    *
@@ -136,7 +136,7 @@ namespace hp
      *
      * Such functions take two numbers as arguments: The first one corresponds
      * to the provided criterion, while the other one conforms to the reference.
-     * The result of the comparision will be returned as a boolean.
+     * The result of the comparison will be returned as a boolean.
      */
     template <typename Number>
     using ComparisonFunction =
@@ -151,7 +151,7 @@ namespace hp
      * Each cell flagged for h-refinement will also be flagged for p-refinement.
      * The same applies to coarsening.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -168,7 +168,7 @@ namespace hp
      * Each entry of the parameter @p p_flags needs to correspond to an active
      * cell.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -197,7 +197,7 @@ namespace hp
      * Each entry of the parameter @p criteria needs to correspond to an active
      * cell.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -239,7 +239,7 @@ namespace hp
      * cell. Parameters @p p_refine_fraction and @p p_coarsen_fraction need to be
      * in the interval $[0,1]$.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -282,7 +282,7 @@ namespace hp
      * cell. Parameters @p p_refine_fraction and @p p_coarsen_fraction need to be
      * in the interval $[0,1]$.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -317,23 +317,9 @@ namespace hp
      * Each entry of the parameter @p sobolev_indices needs to correspond
      * to an active cell.
      *
-     * For more theoretical details see
-     * @code{.bib}
-     * @article{Ainsworth1998,
-     *  author    = {Ainsworth, Mark and Senior, Bill},
-     *  title     = {An adaptive refinement strategy for hp-finite element
-     *               computations},
-     *  journal   = {{Applied Numerical Mathematics}},
-     *  volume    = {26},
-     *  number    = {1--2},
-     *  pages     = {165--178},
-     *  publisher = {Elsevier},
-     *  year      = {1998},
-     *  doi       = {10.1016/S0168-9274(97)00083-4}
-     * }
-     * @endcode
+     * For more theoretical details see @cite ainsworth1998hp .
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -358,7 +344,7 @@ namespace hp
      * Each entry of the parameters @p criteria and @p references needs to
      * correspond to an active cell.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -382,75 +368,118 @@ namespace hp
 
     /**
      * Predict how the current @p error_indicators will adapt after refinement
-     * and coarsening has happened on the provided @p dof_handler, and write its
+     * and coarsening were to happen on the provided @p dof_handler, and write its
      * results to @p predicted_errors. Each entry of @p error_indicators and
      * @p predicted_errors corresponds to an active cell on the underlying
      * Triangulation, thus each container has to be of size
      * Triangulation::n_active_cells(). The errors are interpreted to be
      * measured in the energy norm; this assumption enters the rate of
-     * convergence that is used in the prediction. The `predicted_errors` output
-     * argument has one entry per <i>current</i> cell, with the $2^d$ values for
-     * each cell that will be coarsened away equal, and with the value stored on
-     * a cell to be refined interpreted as applying to each of the future
-     * children.
+     * convergence that is used in the prediction. The $l_2$-norm of the output
+     * argument @p predicted_errors corresponds to the predicted global error
+     * after adaptation.
+     *
+     * For p-adaptation, the local error is expected to converge exponentially
+     * with the polynomial degree of the assigned finite element. Each increase
+     * or decrease of the degree will thus change its value by a user-defined
+     * control parameter @p gamma_p.
      *
      * For h-adaptation, we expect the local error $\eta_K$ on cell $K$ to be
      * proportional to $(h_K)^{p_K}$ in the energy norm, where $h_K$ denotes the
      * cell diameter and $p_K$ the polynomial degree of the currently assigned
-     * finite element on cell $K$. Here, we assume that the finite element will
-     * not change in the adaptation process so that $p_K = \text{const}$.
-     * However during coarsening, the finite elements on siblings may be
+     * finite element on cell $K$.
+     *
+     * During h-coarsening, the finite elements on siblings may be
      * different, and their parent cell will be assigned to their least
      * dominating finite element that belongs to its most general child. Thus,
      * we will always interpolate on an enclosing finite element space.
-     * Additionaly assuming that the finite elements on the cells to be
+     * Additionally assuming that the finite elements on the cells to be
      * coarsened are sufficient to represent the solution correctly (e.g. at
      * least quadratic basis functions for a quadratic solution), we are
      * confident to say that the error will not change by sole interpolation on
      * the larger finite element space.
      *
-     * Further, the function assumes that the local error on a cell that will be
-     * refined, will lead to errors on the $2^{dim}$ children that are all
-     * equal, whereas local errors on siblings will be summed up on the parent
-     * cell in case of coarsening. This assumption is often not satisfied in
-     * practice: For example, if a cell is at a corner singularity, then the one
-     * child cell that ends up closest to the singularity will inherit the
-     * majority of the remaining error -- but this function can not know where
-     * the singularity will be, and consequently assumes equal distribution.
-     *
-     * When transferring the predicted error to the coarsened mesh, make sure to
-     * configure your CellDataTransfer object with CoarseningStrategies::sum()
-     * as a coarsening strategy.
-     *
      * For p-adaptation, the local error is expected to converge exponentially
      * with the polynomial degree of the assigned finite element. Each increase
      * or decrease of the degree will thus change its value by a user-defined
      * control parameter @p gamma_p. The assumption of exponential convergence
-     * is only valid if both h- and p-adaptive methods are combined. An
-     * exception is thrown if a cell is flagged for both h- and p-adaptation at
-     * once.
+     * is only valid if both h- and p-adaptive methods are combined in a sense
+     * that they are both utilitzed throughout a mesh, but do not have to be
+     * applied both on a cell simultaneously.
      *
      * The prediction algorithm is formulated as follows with control parameters
      * @p gamma_p, @p gamma_h and @p gamma_n that may be used to influence
-     * prediction for each adaptation type individually.
+     * prediction for each adaptation type individually. The results for each
+     * individual cell are stored in the @p predicted_errors output argument.
      * <table>
      *   <tr><th>Adaptation type <th colspan="2">Prediction formula
      *   <tr><td>no adaptation
-     *       <td>$\eta_{K,\text{pred}} = \eta_{K} \, \gamma_\text{n}$
+     *       <td>$\eta_{K,\text{pred}} = \eta_{K} \,
+     *            \gamma_\text{n}$
      *       <td>$\gamma_\text{n} \in (0,\infty)$
      *   <tr><td>p-adaptation
      *       <td>$\eta_{K,\text{pred}} = \eta_{K} \,
      *            \gamma_\text{p}^{(p_{K,\text{future}} - p_K)}$
      *       <td>$\gamma_\text{p} \in (0,1)$
-     *   <tr><td>h-refinement
-     *       <td>$\eta_{K_c,\text{pred}} = \eta_{K} \,
-     *            \gamma_\text{h} \, 0.5^{p_K} \, 0.5^{\text{dim}}
-     *            \quad \forall K_c \text{ children of } K$
+     *   <tr><td>hp-refinement
+     *       <td>$\eta_{K,\text{pred}} = \eta_{K} \,
+     *            \gamma_\text{h} \, 0.5^{p_{K,\text{future}}} \,
+     *            \gamma_\text{p}^{(p_{K,\text{future}} - p_{K})}$
      *       <td rowspan="2">$\gamma_\text{h} \in (0,\infty)$
-     *   <tr><td>h-coarsening
-     *       <td>$\eta_{K,\text{pred}} = \sum\limits_{K_c} \eta_{K_c} /
-     *            (\gamma_\text{h} \, 0.5^{p_{K_c}})
-     *            \quad \forall K_c \text{ children of } K$
+     *   <tr><td>hp-coarsening
+     *       <td>$\eta_{K,\text{pred}} = \eta_{K} \,
+     *            (\gamma_\text{h} \, 0.5^{p_{K,\text{future}}})^{-1} \,
+     *            \gamma_\text{p}^{(p_{K,\text{future}} - p_{K})}$
+     * </table>
+     *
+     * On basis of the refinement history, we use the predicted error estimates
+     * to decide how cells will be adapted in the next adaptation step.
+     * Comparing the predicted error from the previous adaptation step to the
+     * error estimates of the current step allows us to justify whether our
+     * previous choice of adaptation was justified, and lets us decide how to
+     * adapt in the next one.
+     *
+     * We thus have to transfer the predicted error from the old to the adapted
+     * mesh. When transferring the predicted error to the adapted mesh, make
+     * sure to configure your CellDataTransfer object with
+     * AdaptationStrategies::Refinement::l2_norm() as a refinement strategy and
+     * AdaptationStrategies::Coarsening::l2_norm() as a coarsening strategy.
+     * This ensures that the $l_2$-norm of the predict errors is preserved on
+     * both meshes.
+     *
+     * In this context, we assume that the local error on a cell to be h-refined
+     * will be divided equally on all of its $n_{K_c}$ children, whereas local
+     * errors on siblings will be summed up on the parent cell in case of
+     * h-coarsening. This assumption is often not satisfied in practice: For
+     * example, if a cell is at a corner singularity, then the one child cell
+     * that ends up closest to the singularity will inherit the majority of the
+     * remaining error -- but this function can not know where the singularity
+     * will be, and consequently assumes equal distribution.
+     *
+     * Incorporating the transfer from the old to the adapted mesh, the complete
+     * error prediction algorithm reads as follows:
+     * <table>
+     *   <tr><th>Adaptation type <th colspan="2">Prediction formula
+     *   <tr><td>no adaptation
+     *       <td>$\eta_{K,\text{pred}} = \eta_{K} \,
+     *            \gamma_\text{n}$
+     *       <td>$\gamma_\text{n} \in (0,\infty)$
+     *   <tr><td>p-adaptation
+     *       <td>$\eta_{K,\text{pred}} = \eta_{K} \,
+     *            \gamma_\text{p}^{(p_{K,\text{future}} - p_K)}$
+     *       <td>$\gamma_\text{p} \in (0,1)$
+     *   <tr><td>hp-refinement
+     *       <td>$\left( \eta_{K_c,\text{pred}} \right)^2 = n_{K_c}^{-1}
+     *            \left( \eta_{K_p} \,
+     *            \gamma_\text{h} \, 0.5^{p_{K_c,\text{future}}} \,
+     *            \gamma_\text{p}^{(p_{K_c,\text{future}} - p_{K_p})} \right)^2
+     *            \quad \forall K_c \text{ children of } K_p$
+     *       <td rowspan="2">$\gamma_\text{h} \in (0,\infty)$
+     *   <tr><td>hp-coarsening
+     *       <td>$\left( \eta_{K_p,\text{pred}} \right)^2 = \sum\limits_{K_c}
+     *            \left( \eta_{K_c} \,
+     *            (\gamma_\text{h} \, 0.5^{p_{K_p,\text{future}}})^{-1} \,
+     *            \gamma_\text{p}^{(p_{K_p,\text{future}} - p_{K_c})} \right)^2
+     *            \quad \forall K_c \text{ children of } K_p$
      * </table>
      *
      * With these predicted error estimates, we are capable of adapting the
@@ -462,14 +491,19 @@ namespace hp
      * $\eta_{K} < \eta_{K,\text{pred}}$, where the subscript $\text{pred}$
      * denotes the predicted error. This corresponds to our assumption of
      * smoothness being correct, else h-adaptation is applied. We achieve this
-     * with the function hp::Refinement::p_adaptivity_from_criteria() and a
+     * with the function hp::Refinement::p_adaptivity_from_reference() and a
      * function object `std::less<Number>()` for both comparator parameters.
      *
-     * For the very first adaptation step, the user needs to decide whether h-
-     * or p-adaptation is supposed to happen. An h-step will be applied with
-     * $\eta_{K,\text{pred}} = 0$, whereas $\eta_{K,\text{pred}} = \infty$
-     * ensures a p-step. The latter may be realised with
-     * `std::numeric_limits::infinity()`.
+     * Also with an alternative strategy, we can determine the fractions of
+     * cells to be h- and p-adapted among all cells to be adapted. For this, use
+     * hp::Refinement::p_adaptivity_fixed_number() with criteria
+     * $(\eta_{K,\text{pred}} - \eta_{K})$.
+     *
+     * For the very first adaptation step in either case, the user needs to
+     * decide whether h- or p-adaptation is supposed to happen. An h-step will
+     * be applied with $\eta_{K,\text{pred}} = 0$, whereas
+     * $\eta_{K,\text{pred}} = \infty$ ensures a p-step. The latter may be
+     * realized with `std::numeric_limits::infinity()`.
      *
      * The following code snippet demonstrates how to impose hp-adaptivity based
      * on refinement history in an application:
@@ -483,7 +517,7 @@ namespace hp
      * // set h-adaptivity flags
      * Vector<float> estimated_error_per_cell(triangulation.n_active_cells());
      * KellyErrorEstimator::estimate(...);
-     * GridRefinemet::refine_and_coarsen_fixed_fraction(...);
+     * GridRefinemet::refine_and_coarsen_fixed_{number|fraction}(...);
      *
      * // set p-adaptivity flags
      * hp::Refinement::p_adaptivity_from_reference(
@@ -502,9 +536,11 @@ namespace hp
      *   predicted_error_per_cell);
      *
      * // perform adaptation
-     * CellDataTransfer<dim, spacedim, Vector<float>>
-     *   cell_data_transfer(triangulation);
-     * cell_data_transfer.prepare_for_coarsening_and_refinement();
+     * CellDataTransfer<dim, spacedim, Vector<float>> cell_data_transfer(
+     *   triangulation,
+     *   &AdaptationStrategies::Refinement::l2_norm<dim, spacedim, float>,
+     *   &AdaptationStrategies::Coarsening::l2_norm<dim, spacedim, float>);
+     * cell_data_transfer.prepare_coarsening_and_refinement();
      *
      * triangulation.execute_coarsening_and_refinement();
      *
@@ -513,35 +549,22 @@ namespace hp
      * predicted_error_per_cell = std::move(transferred_errors);
      * @endcode
      *
-     * For more theoretical details see
-     * @code{.bib}
-     * @article{Melenk2001,
-     *  author    = {Melenk, Jens Markus and Wohlmuth, Barbara I.},
-     *  title     = {{On residual-based a posteriori error estimation
-     *                in hp-FEM}},
-     *  journal   = {{Advances in Computational Mathematics}},
-     *  volume    = {15},
-     *  number    = {1},
-     *  pages     = {311--331},
-     *  publisher = {Springer US},
-     *  year      = {2001},
-     *  doi       = {10.1023/A:1014268310921}
-     * }
-     * @endcode
-     *
-     * @note This feature is currently only implemented for isotropic refinement.
+     * For more theoretical details see @cite melenk2001hp , where the default
+     * parameters for this function come from as well, i.e.
+     * $\gamma_\text{p}^2 = 0.4$, $\gamma_\text{h}^2 = 4$,
+     * $\gamma_\text{n}^2 = 1$.
      *
      * @note We want to predict the error by how adaptation will actually happen.
      *   Thus, this function needs to be called after
-     *   Triangulation::prepare_for_coarsening_and_refinement().
+     *   Triangulation::prepare_coarsening_and_refinement().
      */
     template <int dim, typename Number, int spacedim>
     void
     predict_error(const hp::DoFHandler<dim, spacedim> &dof_handler,
                   const Vector<Number> &               error_indicators,
                   Vector<Number> &                     predicted_errors,
-                  const double                         gamma_p = std::sqrt(0.1),
-                  const double                         gamma_h = 1.,
+                  const double                         gamma_p = std::sqrt(0.4),
+                  const double                         gamma_h = 2.,
                   const double                         gamma_n = 1.);
 
     /**
@@ -559,7 +582,7 @@ namespace hp
      * Removes all refine and coarsen flags on cells that have a
      * @p future_fe_index assigned.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */
@@ -583,14 +606,17 @@ namespace hp
      * all siblings together how they will be coarsened. We distinguish between
      * three different cases:
      * <ol>
-     * <li> Not all siblings flagged for coarsening: p-coarsening<br>
+     * <li> Not all siblings flagged for coarsening: p-coarsening.
+     *   <br>
      *   We keep the @p future_fe_indices and clear the coarsen flags
      *   on all siblings.
      * <li> All siblings flagged for coarsening, but not all for
-     *   p-adaptation: h-coarsening<br>
+     *   p-adaptation: h-coarsening.
+     *   <br>
      *   We keep the coarsen flags and clear all @p future_fe_indices
      *   on all siblings.
-     * <li> All siblings flagged for coarsening and p-adaptation: p-coarsening<br>
+     * <li> All siblings flagged for coarsening and p-adaptation: p-coarsening.
+     *   <br>
      *   We keep the @p future_fe_indices and clear the coarsen flags
      *   on all siblings.
      * </ol>
@@ -603,7 +629,7 @@ namespace hp
      *   the decision that Triangulation::prepare_coarsening_and_refinement()
      *   would have made later on.
      *
-     * @note Triangulation::prepare_for_coarsening_and_refinement() may change
+     * @note Triangulation::prepare_coarsening_and_refinement() may change
      *   refine and coarsen flags. Avoid calling it before this particular
      *   function.
      */

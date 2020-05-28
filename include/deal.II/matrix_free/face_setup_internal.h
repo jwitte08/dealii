@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 - 2019 by the deal.II authors
+// Copyright (C) 2018 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -937,9 +937,6 @@ namespace internal
           task_info.boundary_partition_data[partition + 1] =
             task_info.boundary_partition_data[partition] + boundary_counter;
         }
-      Assert(refinement_edge_faces.empty(),
-             ExcNotImplemented("Setting up data structures on MG levels with "
-                               "hanging nodes is currently not supported."));
       task_info.ghost_face_partition_data.resize(2);
       task_info.ghost_face_partition_data[0] = 0;
       task_info.ghost_face_partition_data[1] = inner_ghost_faces.size();
@@ -1010,7 +1007,7 @@ namespace internal
      * face number, subface index and orientation are the same. This is used
      * to batch similar faces together for vectorization.
      */
-    bool
+    inline bool
     compare_faces_for_vectorization(const FaceToCellTopology<1> &face1,
                                     const FaceToCellTopology<1> &face2)
     {

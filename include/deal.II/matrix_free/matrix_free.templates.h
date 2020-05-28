@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2019 by the deal.II authors
+// Copyright (C) 2011 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -29,15 +29,16 @@
 
 #include <deal.II/dofs/dof_accessor.h>
 
+#include <deal.II/fe/fe_dgp.h>
+#include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_poly.h>
+#include <deal.II/fe/fe_q_dg0.h>
 
 #include <deal.II/hp/q_collection.h>
 
-#include <deal.II/matrix_free/dof_info.templates.h>
 #include <deal.II/matrix_free/face_info.h>
 #include <deal.II/matrix_free/face_setup_internal.h>
 #include <deal.II/matrix_free/matrix_free.h>
-#include <deal.II/matrix_free/shape_info.templates.h>
 
 #ifdef DEAL_II_WITH_THREADS
 #  include <deal.II/base/parallel.h>
@@ -459,11 +460,11 @@ MatrixFree<dim, Number, VectorizedArrayType>::internal_reinit(
       initialize_dof_handlers(dof_handler, additional_data);
       std::vector<unsigned int>  dummy;
       std::vector<unsigned char> dummy2;
-      task_info.collect_boundary_cells(cell_level_index.size(),
-                                       cell_level_index.size(),
-                                       VectorizedArrayType::size(),
-                                       dummy);
-      task_info.create_blocks_serial(dummy, 1, dummy, false, dummy, dummy2);
+      task_info.vectorization_length = VectorizedArrayType::size();
+      task_info.n_active_cells       = cell_level_index.size();
+      task_info.create_blocks_serial(
+        dummy, 1, false, dummy, false, dummy, dummy, dummy2);
+
       for (unsigned int i = 0; i < dof_info.size(); ++i)
         {
           Assert(dof_handler[i]->get_fe_collection().size() == 1,
@@ -554,14 +555,19 @@ MatrixFree<dim, Number, VectorizedArrayType>::is_supported(
     return false;
 
   // then check of the base element is supported
-  if (dynamic_cast<const FE_Poly<TensorProductPolynomials<dim>, dim, spacedim>
-                     *>(fe_ptr) != nullptr)
-    return true;
-  if (dynamic_cast<const FE_Poly<
-        TensorProductPolynomials<dim, Polynomials::PiecewisePolynomial<double>>,
-        dim,
-        spacedim> *>(fe_ptr) != nullptr)
-    return true;
+  if (dynamic_cast<const FE_Poly<dim, spacedim> *>(fe_ptr) != nullptr)
+    {
+      const FE_Poly<dim, spacedim> *fe_poly_ptr =
+        dynamic_cast<const FE_Poly<dim, spacedim> *>(fe_ptr);
+      if (dynamic_cast<const TensorProductPolynomials<dim> *>(
+            &fe_poly_ptr->get_poly_space()) != nullptr)
+        return true;
+      if (dynamic_cast<const TensorProductPolynomials<
+            dim,
+            Polynomials::PiecewisePolynomial<double>> *>(
+            &fe_poly_ptr->get_poly_space()) != nullptr)
+        return true;
+    }
   if (dynamic_cast<const FE_DGP<dim, spacedim> *>(fe_ptr) != nullptr)
     return true;
   if (dynamic_cast<const FE_Q_DG0<dim, spacedim> *>(fe_ptr) != nullptr)
@@ -616,9 +622,6 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_dof_handlers(
   for (unsigned int no = 0; no < dof_handlers.n_dof_handlers; ++no)
     dof_info[no].vectorization_length = VectorizedArrayType::size();
 
-  // Go through cells on zeroth level and then successively step down into
-  // children. This gives a z-ordering of the cells, which is beneficial when
-  // setting up neighboring relations between cells for thread parallelization
   const unsigned int n_mpi_procs = task_info.n_procs;
   const unsigned int my_pid      = task_info.my_pid;
 
@@ -629,15 +632,18 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_dof_handlers(
     {
       if (n_mpi_procs == 1)
         cell_level_index.reserve(tria.n_active_cells());
-      typename Triangulation<dim>::cell_iterator cell     = tria.begin(0),
-                                                 end_cell = tria.end(0);
       // For serial Triangulations always take all cells
       const unsigned int subdomain_id =
         (dynamic_cast<const parallel::TriangulationBase<dim> *>(
            &dof_handler[0]->get_triangulation()) != nullptr) ?
           my_pid :
           numbers::invalid_subdomain_id;
-      for (; cell != end_cell; ++cell)
+
+      // Go through cells on zeroth level and then successively step down into
+      // children. This gives a z-ordering of the cells, which is beneficial
+      // when setting up neighboring relations between cells for thread
+      // parallelization
+      for (const auto &cell : tria.cell_iterators_on_level(0))
         internal::MatrixFreeFunctions::resolve_cell(cell,
                                                     cell_level_index,
                                                     subdomain_id);
@@ -652,9 +658,7 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_dof_handlers(
       if (level < tria.n_levels())
         {
           cell_level_index.reserve(tria.n_cells(level));
-          typename Triangulation<dim>::cell_iterator cell = tria.begin(level),
-                                                     end_cell = tria.end(level);
-          for (; cell != end_cell; ++cell)
+          for (const auto &cell : tria.cell_iterators_on_level(level))
             if (cell->level_subdomain_id() == my_pid)
               cell_level_index.emplace_back(cell->level(), cell->index());
         }
@@ -688,9 +692,6 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_dof_handlers(
   for (unsigned int no = 0; no < dof_handlers.n_dof_handlers; ++no)
     dof_info[no].vectorization_length = VectorizedArrayType::size();
 
-  // go through cells on zeroth level and then successively step down into
-  // children. This gives a z-ordering of the cells, which is beneficial when
-  // setting up neighboring relations between cells for thread parallelization
   const unsigned int n_mpi_procs = task_info.n_procs;
   const unsigned int my_pid      = task_info.my_pid;
 
@@ -699,18 +700,19 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_dof_handlers(
   const Triangulation<dim> &tria = dof_handler[0]->get_triangulation();
 
   if (n_mpi_procs == 1)
-    {
-      cell_level_index.reserve(tria.n_active_cells());
-    }
-  typename hp::DoFHandler<dim>::cell_iterator cell = dof_handler[0]->begin(0),
-                                              end_cell = dof_handler[0]->end(0);
+    cell_level_index.reserve(tria.n_active_cells());
+
   // For serial Triangulations always take all cells
   const unsigned int subdomain_id =
     (dynamic_cast<const parallel::TriangulationBase<dim> *>(
        &dof_handler[0]->get_triangulation()) != nullptr) ?
       my_pid :
       numbers::invalid_subdomain_id;
-  for (; cell != end_cell; ++cell)
+
+  // go through cells on zeroth level and then successively step down into
+  // children. This gives a z-ordering of the cells, which is beneficial when
+  // setting up neighboring relations between cells for thread parallelization
+  for (const auto &cell : tria.cell_iterators_on_level(0))
     internal::MatrixFreeFunctions::resolve_cell(cell,
                                                 cell_level_index,
                                                 subdomain_id);
@@ -749,6 +751,8 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
   const unsigned int n_fe           = dof_handlers.n_dof_handlers;
   const unsigned int n_active_cells = cell_level_index.size();
 
+  std::vector<bool> is_fe_dg(n_fe, false);
+
   AssertDimension(n_active_cells, cell_level_index.size());
   AssertDimension(n_fe, locally_owned_set.size());
   AssertDimension(n_fe, constraint.size());
@@ -772,8 +776,11 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
             fes.push_back(&fe[f]);
 
           if (fe.size() > 1)
-            dof_info[no].cell_active_fe_index.resize(
-              n_active_cells, numbers::invalid_unsigned_int);
+            {
+              dof_info[no].cell_active_fe_index.resize(
+                n_active_cells, numbers::invalid_unsigned_int);
+              is_fe_dg[no] = fe[0].dofs_per_vertex == 0;
+            }
 
           Assert(additional_data.cell_vectorization_category.empty(),
                  ExcNotImplemented());
@@ -785,6 +792,7 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
           if (cell_categorization_enabled == true)
             dof_info[no].cell_active_fe_index.resize(
               n_active_cells, numbers::invalid_unsigned_int);
+          is_fe_dg[no] = dofh->get_fe().dofs_per_vertex == 0;
         }
       lexicographic[no].resize(fes.size());
 
@@ -973,11 +981,10 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
         subdomain_boundary_cells.push_back(counter);
     }
 
-  const unsigned int n_lanes = VectorizedArrayType::size();
-  task_info.collect_boundary_cells(cell_level_index_end_local,
-                                   n_active_cells,
-                                   n_lanes,
-                                   subdomain_boundary_cells);
+  const unsigned int n_lanes     = VectorizedArrayType::size();
+  task_info.n_active_cells       = cell_level_index_end_local;
+  task_info.n_ghost_cells        = n_active_cells - cell_level_index_end_local;
+  task_info.vectorization_length = n_lanes;
 
   // Finalize the creation of the ghost indices
   {
@@ -996,10 +1003,8 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
             std::vector<types::global_dof_index> dof_indices;
             if (additional_data.mg_level + 1 <
                 dof_handler.get_triangulation().n_global_levels())
-              for (typename DoFHandler<dim>::cell_iterator cell =
-                     dof_handler.begin(additional_data.mg_level + 1);
-                   cell != dof_handler.end(additional_data.mg_level + 1);
-                   ++cell)
+              for (const auto &cell : dof_handler.cell_iterators_on_level(
+                     additional_data.mg_level + 1))
                 if (cell->level_subdomain_id() == task_info.my_pid)
                   for (const unsigned int f : GeometryInfo<dim>::face_indices())
                     if ((cell->at_boundary(f) == false ||
@@ -1027,21 +1032,55 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
   std::vector<unsigned char> irregular_cells;
   if (task_info.scheme == internal::MatrixFreeFunctions::TaskInfo::none)
     {
-      const bool strict_categories =
+      bool strict_categories =
         additional_data.cell_vectorization_categories_strict ||
         dof_handlers.active_dof_handler == DoFHandlers::hp;
       unsigned int dofs_per_cell = 0;
       for (const auto &info : dof_info)
         dofs_per_cell = std::max(dofs_per_cell, info.dofs_per_cell[0]);
+
+      // Detect cells with the same parent to make sure they get scheduled
+      // together in the loop, which increases data locality.
+      std::vector<unsigned int> parent_relation(task_info.n_active_cells +
+                                                  task_info.n_ghost_cells,
+                                                numbers::invalid_unsigned_int);
+      std::map<std::pair<int, int>, std::vector<unsigned int>> cell_parents;
+      for (unsigned int c = 0; c < cell_level_index_end_local; ++c)
+        if (cell_level_index[c].first > 0)
+          {
+            typename Triangulation<dim>::cell_iterator cell(
+              dof_handlers.active_dof_handler == DoFHandlers::usual ?
+                &dof_handlers.dof_handler[0]->get_triangulation() :
+                &dof_handlers.hp_dof_handler[0]->get_triangulation(),
+              cell_level_index[c].first,
+              cell_level_index[c].second);
+            Assert(cell->level() > 0, ExcInternalError());
+            cell_parents[std::make_pair(cell->parent()->level(),
+                                        cell->parent()->index())]
+              .push_back(c);
+          }
+      unsigned int position = 0;
+      for (const auto &it : cell_parents)
+        if (it.second.size() == GeometryInfo<dim>::max_children_per_cell)
+          {
+            for (auto i : it.second)
+              parent_relation[i] = position;
+            ++position;
+          }
       task_info.create_blocks_serial(subdomain_boundary_cells,
                                      dofs_per_cell,
+                                     dof_handlers.active_dof_handler ==
+                                       DoFHandlers::hp,
                                      dof_info[0].cell_active_fe_index,
                                      strict_categories,
+                                     parent_relation,
                                      renumbering,
                                      irregular_cells);
     }
   else
     {
+      task_info.make_boundary_cells_divisible(subdomain_boundary_cells);
+
       // For strategy with blocking before partitioning: reorganize the indices
       // in order to overlap communication in MPI with computations: Place all
       // cells with ghost indices into one chunk. Also reorder cells so that we
@@ -1248,19 +1287,14 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
   }
 
   // set constraint pool from the std::map and reorder the indices
-  typename std::map<std::vector<double>,
-                    types::global_dof_index,
-                    internal::MatrixFreeFunctions::FPArrayComparator<double>>::
-    iterator it  = constraint_values.constraints.begin(),
-             end = constraint_values.constraints.end();
   std::vector<const std::vector<double> *> constraints(
     constraint_values.constraints.size());
   unsigned int length = 0;
-  for (; it != end; ++it)
+  for (const auto &it : constraint_values.constraints)
     {
-      AssertIndexRange(it->second, constraints.size());
-      constraints[it->second] = &it->first;
-      length += it->first.size();
+      AssertIndexRange(it.second, constraints.size());
+      constraints[it.second] = &it.first;
+      length += it.first.size();
     }
   constraint_pool_data.clear();
   constraint_pool_data.reserve(length);
@@ -1292,6 +1326,10 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
           dof_handlers.hp_dof_handler[0]->get_triangulation(),
         cell_level_index,
         task_info);
+      if (additional_data.mapping_update_flags_inner_faces != update_default)
+        Assert(face_setup.refinement_edge_faces.empty(),
+               ExcNotImplemented("Setting up data structures on MG levels with "
+                                 "hanging nodes is currently not supported."));
       face_info.faces.clear();
 
       std::vector<bool> hard_vectorization_boundary(
@@ -1401,8 +1439,10 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
           }
 
       // compute tighter index sets for various sets of face integrals
-      for (internal::MatrixFreeFunctions::DoFInfo &di : dof_info)
+      for (unsigned int no = 0; no < n_fe; ++no)
         {
+          internal::MatrixFreeFunctions::DoFInfo &di = dof_info[no];
+
           const Utilities::MPI::Partitioner &part = *di.vector_partitioner;
 
           // partitioner 0: no face integrals, simply use the indices present
@@ -1761,7 +1801,7 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_indices(
                             loop_over_faces);
 
 
-          if (additional_data.hold_all_faces_to_owned_cells)
+          if (additional_data.hold_all_faces_to_owned_cells && is_fe_dg[no])
             {
               ghost_indices.clear();
               // partitioner 3: values on all faces
@@ -1813,7 +1853,7 @@ MatrixFree<dim, Number, VectorizedArrayType>::clear()
 
 namespace internal
 {
-  void
+  inline void
   fill_index_subrange(
     const unsigned int                                        begin,
     const unsigned int                                        end,
@@ -1832,7 +1872,7 @@ namespace internal
   }
 
   template <int dim>
-  void
+  inline void
   fill_connectivity_subrange(
     const unsigned int                                        begin,
     const unsigned int                                        end,
@@ -1875,7 +1915,7 @@ namespace internal
       }
   }
 
-  void
+  inline void
   fill_connectivity_indirect_subrange(
     const unsigned int            begin,
     const unsigned int            end,

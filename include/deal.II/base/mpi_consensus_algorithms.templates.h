@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2019 by the deal.II authors
+// Copyright (C) 2011 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -220,7 +220,7 @@ namespace Utilities
 #  endif
 
             std::vector<T1> buffer_recv;
-            // get size of of incoming message
+            // get size of incoming message
             int  number_amount;
             auto ierr = MPI_Get_count(&status, MPI_BYTE, &number_amount);
             AssertThrowMPI(ierr);
@@ -238,10 +238,8 @@ namespace Utilities
             AssertThrowMPI(ierr);
 
             // allocate memory for answer message
-            request_buffers.emplace_back(
-              std_cxx14::make_unique<std::vector<T2>>());
-            request_requests.emplace_back(
-              std_cxx14::make_unique<MPI_Request>());
+            request_buffers.emplace_back(std::make_unique<std::vector<T2>>());
+            request_requests.emplace_back(std::make_unique<MPI_Request>());
 
             // process request
             auto &request_buffer = *request_buffers.back();

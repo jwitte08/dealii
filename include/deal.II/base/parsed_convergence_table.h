@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -34,7 +34,7 @@
 
 #include <deal.II/lac/vector.h>
 
-#include <deal.II/numerics/vector_tools.h>
+#include <deal.II/numerics/vector_tools_integrate_difference.h>
 
 DEAL_II_NAMESPACE_OPEN
 
@@ -200,7 +200,7 @@ public:
    * output_table() also writes in this file in the format deduced from its
    * extension;
    * @param precision How many digits to use when writing the error;
-   * @param compute_error Control wether the filling of the table is enabled
+   * @param compute_error Control whether the filling of the table is enabled
    * or not. This flag may be used to disable at run time any error computation;
    *
    * The parameters you specify with this constructor can be written to a

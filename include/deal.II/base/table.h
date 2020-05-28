@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2002 - 2019 by the deal.II authors
+// Copyright (C) 2002 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -224,10 +224,8 @@ namespace internal
       friend class dealii::Table;
       template <int N1, typename T1, bool C1, unsigned int P1>
       friend class Accessor;
-#ifndef DEAL_II_TEMPL_SPEC_FRIEND_BUG
       friend class dealii::Table<N, T>;
       friend class Accessor<N, T, C, P + 1>;
-#endif
     };
 
 
@@ -331,10 +329,8 @@ namespace internal
       friend class dealii::Table;
       template <int N1, typename T1, bool C1, unsigned int P1>
       friend class Accessor;
-#ifndef DEAL_II_TEMPL_SPEC_FRIEND_BUG
       friend class dealii::Table<2, T>;
       friend class Accessor<N, T, C, 2>;
-#endif
     };
   } // namespace TableBaseAccessors
 
@@ -910,6 +906,19 @@ namespace MatrixTableIterators
      */
     AccessorBase(const container_pointer_type table,
                  const std::ptrdiff_t         linear_index);
+
+    /**
+     * Comparison operator.
+     */
+    template <bool OtherConstness>
+    friend bool
+    operator==(
+      const AccessorBase<TableType, Constness, storage_order> &     left,
+      const AccessorBase<TableType, OtherConstness, storage_order> &right)
+    {
+      return left.container == right.container &&
+             left.linear_index == right.linear_index;
+    }
 
     /**
      * Get a constant reference to the value of the element represented by
@@ -2300,7 +2309,7 @@ template <int N, typename T>
 inline TableBase<N, T> &
 TableBase<N, T>::operator=(TableBase<N, T> &&m) noexcept
 {
-  static_cast<Subscriptor &>(*this) = std::move(m);
+  static_cast<Subscriptor &>(*this) = std::move(static_cast<Subscriptor &>(m));
   values                            = std::move(m.values);
   table_size                        = m.table_size;
   m.table_size                      = TableIndices<N>();

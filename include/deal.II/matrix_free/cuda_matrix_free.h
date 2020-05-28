@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2019 by the deal.II authors
+// Copyright (C) 2016 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -105,19 +105,27 @@ namespace CUDAWrappers
       AdditionalData(
         const ParallelizationScheme parallelization_scheme = parallel_in_elem,
         const UpdateFlags           mapping_update_flags   = update_gradients |
-                                                 update_JxW_values,
-        const bool use_coloring = false,
-        const bool n_colors     = 1)
+                                                 update_JxW_values |
+                                                 update_quadrature_points,
+        const bool use_coloring                      = false,
+        const bool overlap_communication_computation = false)
         : parallelization_scheme(parallelization_scheme)
         , mapping_update_flags(mapping_update_flags)
         , use_coloring(use_coloring)
-        , n_colors(n_colors)
-      {}
-
-      /**
-       * Number of colors created by the graph coloring algorithm.
-       */
-      unsigned int n_colors;
+        , overlap_communication_computation(overlap_communication_computation)
+      {
+#  ifndef DEAL_II_MPI_WITH_CUDA_SUPPORT
+        AssertThrow(
+          overlap_communication_computation == false,
+          ExcMessage(
+            "Overlapping communication and computation requires CUDA-aware MPI."));
+#  endif
+        if (overlap_communication_computation == true)
+          AssertThrow(
+            use_coloring == false || overlap_communication_computation == false,
+            ExcMessage(
+              "Overlapping communication and coloring are incompatible options. Only one of them can be enabled."));
+      }
       /**
        * Parallelization scheme used, parallelization over degrees of freedom or
        * over cells.
@@ -140,6 +148,12 @@ namespace CUDAWrappers
        * newer architectures.
        */
       bool use_coloring;
+
+      /**
+       *  Overlap MPI communications with computation. This requires CUDA-aware
+       *  MPI and use_coloring must be false.
+       */
+      bool overlap_communication_computation;
     };
 
     /**
@@ -443,6 +457,12 @@ namespace CUDAWrappers
     bool use_coloring;
 
     /**
+     *  Overlap MPI communications with computation. This requires CUDA-aware
+     *  MPI and use_coloring must be false.
+     */
+    bool overlap_communication_computation;
+
+    /**
      * Total number of degrees of freedom.
      */
     types::global_dof_index n_dofs;
@@ -507,7 +527,7 @@ namespace CUDAWrappers
     types::global_dof_index *constrained_dofs;
 
     /**
-     *  Mask deciding where constraints are set on a given cell.
+     * Mask deciding where constraints are set on a given cell.
      */
     std::vector<unsigned int *> constraint_mask;
 
@@ -623,7 +643,7 @@ namespace CUDAWrappers
   /**
    * Compute the quadrature point index in the local cell of a given thread.
    *
-   * @relates MatrixFree
+   * @relates CUDAWrappers::MatrixFree
    */
   template <int dim>
   __device__ inline unsigned int
@@ -643,7 +663,7 @@ namespace CUDAWrappers
    * Return the quadrature point index local of a given thread. The index is
    * only unique for a given MPI process.
    *
-   * @relates MatrixFree
+   * @relates CUDAWrappers::MatrixFree
    */
   template <int dim, typename Number>
   __device__ inline unsigned int
@@ -662,7 +682,7 @@ namespace CUDAWrappers
   /**
    * Return the quadrature point associated with a given thread.
    *
-   * @relates MatrixFree
+   * @relates CUDAWrappers::MatrixFree
    */
   template <int dim, typename Number>
   __device__ inline typename CUDAWrappers::MatrixFree<dim, Number>::point_type &

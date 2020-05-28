@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2004 - 2018 by the deal.II authors
+// Copyright (C) 2004 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -17,7 +17,6 @@
 #include <deal.II/base/polynomials_p.h>
 #include <deal.II/base/qprojector.h>
 #include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/std_cxx14/memory.h>
 
 #include <deal.II/dofs/dof_accessor.h>
 
@@ -31,6 +30,7 @@
 #include <deal.II/grid/tria_iterator.h>
 
 #include <iostream>
+#include <memory>
 #include <sstream>
 
 
@@ -82,7 +82,7 @@ template <int dim>
 std::unique_ptr<FiniteElement<dim, dim>>
 FE_BernardiRaugel<dim>::clone() const
 {
-  return std_cxx14::make_unique<FE_BernardiRaugel<dim>>(*this);
+  return std::make_unique<FE_BernardiRaugel<dim>>(*this);
 }
 
 
@@ -177,7 +177,6 @@ FE_BernardiRaugel<dim>::initialize_support_points()
     }
 }
 
-template class FE_BernardiRaugel<1>;
 template class FE_BernardiRaugel<2>;
 template class FE_BernardiRaugel<3>;
 

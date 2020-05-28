@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2018 by the deal.II authors
+// Copyright (C) 2005 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -115,7 +115,7 @@ protected:
 template <int N>
 template <typename... T>
 constexpr TableIndices<N>::TableIndices(const T... args)
-  : indices{static_cast<const unsigned int>(args)...}
+  : indices{static_cast<std::size_t>(args)...}
 {
   static_assert(internal::TemplateConstraints::all_true<
                   std::is_integral<T>::value...>::value,

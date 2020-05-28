@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2019 by the deal.II authors
+// Copyright (C) 2017 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -140,21 +140,6 @@ namespace GridTools
       }
     return cell_bounding_boxes_rtree;
   }
-
-
-#ifdef DEAL_II_WITH_NANOFLANN
-  template <int dim, int spacedim>
-  const KDTree<spacedim> &
-  Cache<dim, spacedim>::get_vertex_kdtree() const
-  {
-    if (update_flags & update_vertex_kdtree)
-      {
-        vertex_kdtree.set_points(tria->get_vertices());
-        update_flags = update_flags & ~update_vertex_kdtree;
-      }
-    return vertex_kdtree;
-  }
-#endif
 
 
 

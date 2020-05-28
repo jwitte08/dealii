@@ -36,9 +36,14 @@ pipeline
       {
         stage("permission")
         {
-          // skip permission check on master:
+          // skip permission check on master and release branches
           when {
-              not {branch 'master'}
+              not {
+	        anyOf {
+	          branch 'master'
+		  branch pattern: "dealii-*", comparator: "GLOB"
+		}
+	      }
           }
           steps
           {
@@ -134,7 +139,6 @@ pipeline
                    -D DEAL_II_CXX_FLAGS='-Werror' \
                    -D CMAKE_BUILD_TYPE=Debug \
                    -D DEAL_II_WITH_MPI=OFF \
-                   -D DEAL_II_WITH_CXX14=OFF \
                    -D DEAL_II_UNITY_BUILD=ON \
                    $WORKSPACE/
                  time ninja -j $NP

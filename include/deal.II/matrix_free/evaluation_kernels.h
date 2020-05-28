@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2019 by the deal.II authors
+// Copyright (C) 2017 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -2532,7 +2532,7 @@ namespace internal
 
       VectorizedArrayType
                            temp_data[static_dofs_per_face < stack_array_size_threshold ?
-                    n_components * 2 * static_dofs_per_face :
+                    n_components * 2ull * static_dofs_per_face :
                     1];
       VectorizedArrayType *temp1;
       if (static_dofs_per_face < stack_array_size_threshold)

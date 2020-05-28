@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2019 by the deal.II authors
+// Copyright (C) 1998 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -512,6 +512,24 @@ namespace Functions
   }
 
 
+
+  template <int dim, typename RangeNumberType>
+  SymmetricTensor<2, dim, RangeNumberType>
+  ConstantFunction<dim, RangeNumberType>::hessian(const Point<dim> &,
+                                                  const unsigned int) const
+  {
+    return SymmetricTensor<2, dim, RangeNumberType>();
+  }
+
+
+
+  template <int dim, typename RangeNumberType>
+  RangeNumberType
+  ConstantFunction<dim, RangeNumberType>::laplacian(const Point<dim> &,
+                                                    const unsigned int) const
+  {
+    return 0;
+  }
 } // namespace Functions
 
 //---------------------------------------------------------------------------

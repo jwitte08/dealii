@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2019 by the deal.II authors
+// Copyright (C) 2005 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1584,8 +1584,8 @@ LAPACKFullMatrix<number>::compute_svd()
   std::fill(wr.begin(), wr.end(), 0.);
   ipiv.resize(8 * mm);
 
-  svd_u  = std_cxx14::make_unique<LAPACKFullMatrix<number>>(mm, mm);
-  svd_vt = std_cxx14::make_unique<LAPACKFullMatrix<number>>(nn, nn);
+  svd_u                = std::make_unique<LAPACKFullMatrix<number>>(mm, mm);
+  svd_vt               = std::make_unique<LAPACKFullMatrix<number>>(nn, nn);
   types::blas_int info = 0;
 
   // First determine optimal workspace size

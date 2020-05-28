@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2004 - 2018 by the deal.II authors
+// Copyright (C) 2004 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -16,11 +16,11 @@
 
 #include <deal.II/base/polynomials_raviart_thomas.h>
 #include <deal.II/base/quadrature_lib.h>
-#include <deal.II/base/std_cxx14/memory.h>
 #include <deal.II/base/thread_management.h>
 
 #include <iomanip>
 #include <iostream>
+#include <memory>
 
 // TODO[WB]: This class is not thread-safe: it uses mutable member variables
 // that contain temporary state. this is not what one would want when one uses a
@@ -188,7 +188,7 @@ template <int dim>
 std::unique_ptr<TensorPolynomialsBase<dim>>
 PolynomialsRaviartThomas<dim>::clone() const
 {
-  return std_cxx14::make_unique<PolynomialsRaviartThomas<dim>>(*this);
+  return std::make_unique<PolynomialsRaviartThomas<dim>>(*this);
 }
 
 

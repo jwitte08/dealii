@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2008 - 2019 by the deal.II authors
+// Copyright (C) 2008 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -62,11 +62,13 @@ namespace parallel
    * @endcode
    *
    * All parallel triangulations share certain traits, such as the fact that
-   * they communicate via @ref GlossMPICommunicator "MPI communicators" or
-   * that they have
+   * they communicate via
+   * @ref GlossMPICommunicator "MPI communicators"
+   * or that they have
    * @ref GlossLocallyOwnedCell "locally owned",
    * @ref GlossGhostCell "ghost", and possibly
-   * @ref GlossArtificialCell "artificial cells". This class provides
+   * @ref GlossArtificialCell "artificial cells".
+   * This class provides
    * a number of member functions that allows querying some information
    * about the triangulation that is independent of how exactly a
    * parallel triangulation is implemented (i.e., which of the various
@@ -113,17 +115,6 @@ namespace parallel
     virtual void
     copy_triangulation(
       const dealii::Triangulation<dim, spacedim> &old_tria) override;
-
-    /**
-     * Return the number of active cells owned by each of the MPI processes
-     * that contribute to this triangulation. The element of this vector
-     * indexed by locally_owned_subdomain() equals the result of
-     * n_locally_owned_active_cells().
-     *
-     * @note This function involves global communication!
-     */
-    std::vector<unsigned int>
-    compute_n_locally_owned_active_cells_per_processor() const;
 
     /**
      * Return the number of active cells in the triangulation that are locally
@@ -213,8 +204,13 @@ namespace parallel
     /**
      * Return a map that, for each vertex, lists all the processors whose
      * subdomains are adjacent to that vertex.
+     *
+     * @deprecated Use GridTools::compute_vertices_with_ghost_neighbors()
+     * instead of
+     * parallel::TriangulationBase::compute_vertices_with_ghost_neighbors().
      */
-    virtual std::map<unsigned int, std::set<dealii::types::subdomain_id>>
+    DEAL_II_DEPRECATED virtual std::map<unsigned int,
+                                        std::set<dealii::types::subdomain_id>>
     compute_vertices_with_ghost_neighbors() const;
 
     /**
@@ -296,12 +292,6 @@ namespace parallel
      */
     virtual void
     update_number_cache();
-
-    /**
-     * Store MPI ranks of level ghost owners of this processor on all levels.
-     */
-    void
-    fill_level_ghost_owners();
   };
 
   /**
@@ -319,9 +309,13 @@ namespace parallel
    * every detail of a triangulation may be known on each processor.
    * In particular, you have to expect that triangulations of classes
    * derived from this one only store some of the active cells (namely,
-   * the @ref GlossLocallyOwnedCell "locally owned cells"), along
-   * with @ref GlossGhostCell "ghost cells" and possibly
-   * @ref GlossArtificialCell "artificial cells". In contrast to the classes
+   * the
+   * @ref GlossLocallyOwnedCell "locally owned cells"),
+   * along with
+   * @ref GlossGhostCell "ghost cells"
+   * and possibly
+   * @ref GlossArtificialCell "artificial cells".
+   * In contrast to the classes
    * derived from parallel::TriangulationBase, it is certain that the
    * classes derived from the current class will not store the entire
    * triangulation as long as it has a large enough number of cells. (The
