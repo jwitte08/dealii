@@ -41,7 +41,6 @@ namespace Physics
      *
      * @relatesalso Tensor
      * @relatesalso SymmetricTensor
-     * @author Jean-Paul Pelteret, Andrew McBride, 2016
      */
     template <int dim>
     class StandardTensors
@@ -153,12 +152,12 @@ namespace Physics
        *  \dealcoloneq \{ \bullet \} - \frac{1}{\textrm{dim}}
        *  \left[ \{ \bullet \} : \mathbf{I} \right]\mathbf{I}
        *  = \mathcal{P}^{T} : \{ \bullet \}
-       *  = \texttt{dev\_P} \left( \{ \bullet \} \right)
+       *  = \mathtt{dev\_P} \left( \{ \bullet \} \right)
        * @f]
        * and, therefore,
        * @f[
-       * \texttt{dev\_P} \left( \{ \bullet \} \right) : \mathbf{I}
-       *   = \textrm{trace}(\texttt{dev\_P} \left( \{ \bullet \} \right)) = 0 \,
+       * \mathtt{dev\_P} \left( \{ \bullet \} \right) : \mathbf{I}
+       *   = \mathrm{trace}(\mathtt{dev\_P} \left( \{ \bullet \} \right)) = 0 \,
        * .
        * @f]
        *
@@ -201,12 +200,12 @@ namespace Physics
        *  \{ \bullet \} : \hat{\mathcal{P}}
        *    \dealcoloneq J^{-2/\textrm{dim}} \left[ \{ \bullet \} -
        * \frac{1}{\textrm{dim}}\left[\mathbf{C} : \{ \bullet \}\right]
-       * \mathbf{C}^{-1} \right] = \texttt{Dev\_P} \left( \{ \bullet \} \right)
+       * \mathbf{C}^{-1} \right] = \mathtt{Dev\_P} \left( \{ \bullet \} \right)
        * \, .
        * @f]
        * It can therefore be readily shown that
        * @f[
-       *  \texttt{Dev\_P} \left( \{ \bullet \} \right) : \mathbf{C} = 0 \, .
+       *  \mathtt{Dev\_P} \left( \{ \bullet \} \right) : \mathbf{C} = 0 \, .
        * @f]
        *
        * @note It may be observed that we have defined the tensor as the
@@ -244,7 +243,7 @@ namespace Physics
        *  \hat{\mathcal{P}}^{T} : \{ \bullet \}
        *    = J^{-2/\textrm{dim}} \left[ \{ \bullet \} - \frac{1}{\textrm{dim}}
        * \left[\mathbf{C}^{-1} : \{ \bullet \}\right] \mathbf{C} \right] =
-       * \texttt{Dev\_P\_T} \{ \bullet \}
+       * \mathtt{Dev\_P\_T} \{ \bullet \}
        * @f]
        */
       template <typename Number>

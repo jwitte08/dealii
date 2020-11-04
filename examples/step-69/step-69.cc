@@ -88,6 +88,7 @@
 #include <fstream>
 #include <future>
 
+
 // @sect3{Class template declarations}
 //
 // We begin our actual implementation by declaring all classes with their
@@ -367,7 +368,7 @@ namespace Step69
   // <code>U</code> and a time point <code>t</code> (as input arguments)
   // computes the updated solution, stores it in the vector
   // <code>temp</code>, swaps its contents with the vector <code>U</code>,
-  // and returns the chosen \step-size $\tau$.
+  // and returns the chosen step-size $\tau$.
   //
   // The other important method is <code>prepare()</code> which primarily
   // sets the proper partition and sparsity pattern for the temporary
@@ -630,7 +631,7 @@ namespace Step69
 
     for (const auto &cell : triangulation.active_cell_iterators())
       {
-        for (unsigned int v = 0; v < GeometryInfo<dim>::vertices_per_cell; ++v)
+        for (const auto v : cell->vertex_indices())
           {
             if (cell->vertex(v)[0] <= -disk_diameter + 1.e-6)
               cell->vertex(v)[0] = -disk_position;
@@ -639,7 +640,7 @@ namespace Step69
 
     for (const auto &cell : triangulation.active_cell_iterators())
       {
-        for (auto f : GeometryInfo<dim>::face_indices())
+        for (const auto f : cell->face_indices())
           {
             const auto face = cell->face(f);
 
@@ -767,7 +768,8 @@ namespace Step69
 
       DynamicSparsityPattern dsp(n_locally_relevant, n_locally_relevant);
 
-      const auto dofs_per_cell = discretization->finite_element.dofs_per_cell;
+      const auto dofs_per_cell =
+        discretization->finite_element.n_dofs_per_cell();
       std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
       for (const auto &cell : dof_handler.active_cell_iterators())
@@ -991,20 +993,14 @@ namespace Step69
   //
   // @f{align*}
   // \widehat{\boldsymbol{\nu}}_i \dealcoloneq
-  // \frac{\boldsymbol{\nu}_i}{|\boldsymbol{\nu}_i|} \ \text{ where }
-  // \boldsymbol{\nu}_i \dealcoloneq \sum_{T \subset \text{supp}(\phi_i)}
-  // \sum_{F \subset \partial T \cap \partial \Omega}
-  // \sum_{\mathbf{x}_{q,F}} \nu(\mathbf{x}_{q,F})
-  // \phi_i(\mathbf{x}_{q,F}).
+  //  \frac{\int_{\partial\Omega} \phi_i \widehat{\boldsymbol{\nu}} \,
+  //  \, \mathrm{d}\mathbf{s}}{\big|\int_{\partial\Omega} \phi_i
+  //  \widehat{\boldsymbol{\nu}} \, \mathrm{d}\mathbf{s}\big|}
   // @f}
   //
-  // Here $T$ denotes elements,
-  // $\text{supp}(\phi_i)$ the support of the shape function $\phi_i$,
-  // $F$ are faces of the element $T$, and $\mathbf{x}_{q,F}$
-  // are quadrature points on such face. Note that this formula for
-  // $\widehat{\boldsymbol{\nu}}_i$ is nothing else than some form of
-  // weighted averaging. Other more sophisticated definitions for $\nu_i$
-  // are possible but none of them have much influence in theory or practice.
+  // We will compute the numerator of this expression first and store it in
+  // <code>OfflineData<dim>::BoundaryNormalMap</code>. We will normalize these
+  // vectors in a posterior loop.
 
   template <int dim>
   void OfflineData<dim>::assemble()
@@ -1016,8 +1012,9 @@ namespace Step69
     for (auto &matrix : nij_matrix)
       matrix = 0.;
 
-    unsigned int dofs_per_cell = discretization->finite_element.dofs_per_cell;
-    unsigned int n_q_points    = discretization->quadrature.size();
+    unsigned int dofs_per_cell =
+      discretization->finite_element.n_dofs_per_cell();
+    unsigned int n_q_points = discretization->quadrature.size();
 
     // What follows is the initialization of the scratch data required by
     // WorkStream
@@ -1088,7 +1085,7 @@ namespace Step69
           // Now we have to compute the boundary normals. Note that the
           // following loop does not do much unless the element has faces on
           // the boundary of the domain.
-          for (auto f : GeometryInfo<dim>::face_indices())
+          for (const auto f : cell->face_indices())
             {
               const auto face = cell->face(f);
               const auto id   = face->boundary_id();
@@ -1124,9 +1121,7 @@ namespace Step69
                   const auto index = copy.local_dof_indices[j];
 
                   Point<dim> position;
-                  for (unsigned int v = 0;
-                       v < GeometryInfo<dim>::vertices_per_cell;
-                       ++v)
+                  for (const auto v : cell->vertex_indices())
                     if (cell->vertex_dof_index(v, 0) ==
                         partitioner->local_to_global(index))
                       {
@@ -1258,10 +1253,7 @@ namespace Step69
         0, n_locally_relevant);
 
       const auto on_subranges = //
-        [&](
-          std_cxx20::ranges::iota_view<unsigned int, unsigned int>::iterator i1,
-          const std_cxx20::ranges::iota_view<unsigned int,
-                                             unsigned int>::iterator i2) {
+        [&](const auto i1, const auto i2) {
           for (const auto row_index :
                std_cxx20::ranges::iota_view<unsigned int, unsigned int>(*i1,
                                                                         *i2))
@@ -1297,122 +1289,6 @@ namespace Step69
           auto &normal = std::get<0>(it.second);
           normal /= (normal.norm() + std::numeric_limits<double>::epsilon());
         }
-    }
-
-    // As commented in the introduction (see section titled "Stable boundary
-    // conditions and conservation properties") we use three different types of
-    // boundary conditions: essential-like boundary conditions (we prescribe a
-    // state in the left portion of our domain), outflow boundary conditions
-    // (also called "do-nothing" boundary conditions) in the right portion of
-    // the domain, and "reflecting" boundary conditions (also called "free
-    // slip" boundary conditions). With these boundary conditions we should
-    // not expect any form of conservation to hold.
-    //
-    // However, if we were to use reflecting boundary conditions
-    // $\mathbf{m} \cdot \boldsymbol{\nu}_i =0$ on the entirety of the
-    // boundary we should preserve the density and total (mechanical)
-    // energy. This requires us to modify the $\mathbf{c}_{ij}$ vectors at
-    // the boundary as follows @cite GuermondEtAl2018 :
-    //
-    // @f{align*}
-    // \mathbf{c}_{ij} \, +\!\!= \int_{\partial \Omega}
-    // (\boldsymbol{\nu}_j - \boldsymbol{\nu}(\mathbf{s})) \phi_i \phi_j \,
-    // \mathrm{d}\mathbf{s} \ \text{whenever} \ \mathbf{x}_i \text{ and }
-    // \mathbf{x}_j \text{ lie in the boundary.}
-    // @f}
-    //
-    // The ideas repeat themselves: we use WorkStream in order to compute
-    // this correction, most of the following code is about the definition
-    // of the worker <code>local_assemble_system()</code>.
-    {
-      TimerOutput::Scope scope(computing_timer,
-                               "offline_data - fix slip boundary c_ij");
-
-      const auto local_assemble_system = //
-        [&](const typename DoFHandler<dim>::cell_iterator &cell,
-            MeshWorker::ScratchData<dim> &                 scratch,
-            CopyData<dim> &                                copy) {
-          copy.is_artificial = cell->is_artificial();
-
-          if (copy.is_artificial)
-            return;
-
-          for (auto &matrix : copy.cell_cij_matrix)
-            matrix.reinit(dofs_per_cell, dofs_per_cell);
-
-          copy.local_dof_indices.resize(dofs_per_cell);
-          cell->get_dof_indices(copy.local_dof_indices);
-          std::transform(copy.local_dof_indices.begin(),
-                         copy.local_dof_indices.end(),
-                         copy.local_dof_indices.begin(),
-                         [&](types::global_dof_index index) {
-                           return partitioner->global_to_local(index);
-                         });
-
-          for (auto &matrix : copy.cell_cij_matrix)
-            matrix = 0.;
-
-          for (auto f : GeometryInfo<dim>::face_indices())
-            {
-              const auto face = cell->face(f);
-              const auto id   = face->boundary_id();
-
-              if (!face->at_boundary())
-                continue;
-
-              if (id != Boundaries::free_slip)
-                continue;
-
-              const auto &fe_face_values = scratch.reinit(cell, f);
-
-              const unsigned int n_face_q_points =
-                fe_face_values.get_quadrature().size();
-
-              for (unsigned int q = 0; q < n_face_q_points; ++q)
-                {
-                  const auto JxW      = fe_face_values.JxW(q);
-                  const auto normal_q = fe_face_values.normal_vector(q);
-
-                  for (unsigned int j = 0; j < dofs_per_cell; ++j)
-                    {
-                      if (!discretization->finite_element.has_support_on_face(
-                            j, f))
-                        continue;
-
-                      const auto &normal_j = std::get<0>(
-                        boundary_normal_map[copy.local_dof_indices[j]]);
-
-                      const auto value_JxW =
-                        fe_face_values.shape_value(j, q) * JxW;
-
-                      for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                        {
-                          const auto value = fe_face_values.shape_value(i, q);
-
-                          /* This is the correction of the boundary c_ij */
-                          for (unsigned int d = 0; d < dim; ++d)
-                            copy.cell_cij_matrix[d](i, j) +=
-                              (normal_j[d] - normal_q[d]) * (value * value_JxW);
-                        } /* i */
-                    }     /* j */
-                }         /* q */
-            }             /* f */
-        };
-
-      const auto copy_local_to_global = [&](const CopyData<dim> &copy) {
-        if (copy.is_artificial)
-          return;
-
-        for (int k = 0; k < dim; ++k)
-          cij_matrix[k].add(copy.local_dof_indices, copy.cell_cij_matrix[k]);
-      };
-
-      WorkStream::run(dof_handler.begin_active(),
-                      dof_handler.end(),
-                      local_assemble_system,
-                      copy_local_to_global,
-                      scratch_data,
-                      CopyData<dim>());
     }
   }
 
@@ -1923,10 +1799,7 @@ namespace Step69
                                "time_stepping - 1 compute d_ij");
 
       const auto on_subranges = //
-        [&](
-          std_cxx20::ranges::iota_view<unsigned int, unsigned int>::iterator i1,
-          const std_cxx20::ranges::iota_view<unsigned int,
-                                             unsigned int>::iterator i2) {
+        [&](const auto i1, const auto i2) {
           for (const auto i :
                std_cxx20::ranges::iota_view<unsigned int, unsigned int>(*i1,
                                                                         *i2))
@@ -2022,10 +1895,7 @@ namespace Step69
       // locally.
 
       const auto on_subranges = //
-        [&](
-          std_cxx20::ranges::iota_view<unsigned int, unsigned int>::iterator i1,
-          const std_cxx20::ranges::iota_view<unsigned int,
-                                             unsigned int>::iterator i2) {
+        [&](const auto i1, const auto i2) {
           double tau_max_on_subrange = std::numeric_limits<double>::infinity();
 
           for (const auto i :
@@ -2110,11 +1980,8 @@ namespace Step69
       TimerOutput::Scope scope(computing_timer,
                                "time_stepping - 3 perform update");
 
-      const auto on_subranges =
-        [&](
-          std_cxx20::ranges::iota_view<unsigned int, unsigned int>::iterator i1,
-          const std_cxx20::ranges::iota_view<unsigned int,
-                                             unsigned int>::iterator i2) {
+      const auto on_subranges = //
+        [&](const auto i1, const auto i2) {
           for (const auto i : boost::make_iterator_range(i1, i2))
             {
               Assert(i < n_locally_owned, ExcInternalError());
@@ -2316,7 +2183,7 @@ namespace Step69
   // The second thing to note is that we have to compute global minimum and
   // maximum $\max_j |\nabla r_j|$ and $\min_j |\nabla r_j|$. Following the
   // same ideas used to compute the time step size in the class member
-  // <code>%TimeStepping%<dim%>::%step()</code> we define $\max_j |\nabla r_j|$
+  // <code>%TimeStepping\<dim>::%step()</code> we define $\max_j |\nabla r_j|$
   // and $\min_j |\nabla r_j|$ as atomic doubles in order to resolve any
   // conflicts between threads. As usual, we use
   // <code>Utilities::MPI::max()</code> and
@@ -2364,10 +2231,7 @@ namespace Step69
     // global maxima and minima of the gradients.
     {
       const auto on_subranges = //
-        [&](
-          std_cxx20::ranges::iota_view<unsigned int, unsigned int>::iterator i1,
-          const std_cxx20::ranges::iota_view<unsigned int,
-                                             unsigned int>::iterator i2) {
+        [&](const auto i1, const auto i2) {
           double r_i_max_on_subrange = 0.;
           double r_i_min_on_subrange = std::numeric_limits<double>::infinity();
 
@@ -2451,10 +2315,7 @@ namespace Step69
 
     {
       const auto on_subranges = //
-        [&](
-          std_cxx20::ranges::iota_view<unsigned int, unsigned int>::iterator i1,
-          const std_cxx20::ranges::iota_view<unsigned int,
-                                             unsigned int>::iterator i2) {
+        [&](const auto i1, const auto i2) {
           for (const auto i : boost::make_iterator_range(i1, i2))
             {
               Assert(i < n_locally_owned, ExcInternalError());
@@ -2479,7 +2340,7 @@ namespace Step69
   //
   // With all classes implemented it is time to create an instance of
   // <code>Discretization<dim></code>, <code>OfflineData<dim></code>,
-  // <code>InitialValues<dim></code>, <code>TimeStepping<dim></code>, and
+  // <code>InitialValues<dim></code>, <code>%TimeStepping\<dim></code>, and
   // <code>SchlierenPostprocessor<dim></code>, and run the forward Euler
   // step in a loop.
   //
@@ -2525,11 +2386,7 @@ namespace Step69
                   output_granularity,
                   "time interval for output");
 
-#ifdef DEAL_II_WITH_THREADS
     asynchronous_writeback = true;
-#else
-    asynchronous_writeback = false;
-#endif
     add_parameter("asynchronous writeback",
                   asynchronous_writeback,
                   "Write out solution in a background thread performing IO");
@@ -2885,15 +2742,7 @@ namespace Step69
     // run in the background.
     if (asynchronous_writeback)
       {
-#ifdef DEAL_II_WITH_THREADS
         background_thread_state = std::async(std::launch::async, output_worker);
-#else
-        AssertThrow(
-          false,
-          ExcMessage(
-            "\"asynchronous_writeback\" was set to true but deal.II was built "
-            "without thread support (\"DEAL_II_WITH_THREADS=false\")."));
-#endif
       }
     else
       {

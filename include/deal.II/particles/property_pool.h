@@ -20,25 +20,31 @@
 
 #include <deal.II/base/array_view.h>
 
+#include <set>
+
+
 DEAL_II_NAMESPACE_OPEN
 
 namespace Particles
 {
   /**
-   * This class manages a memory space in which particles store their
-   * properties. Because this is dynamic memory and often every particle
-   * needs the same amount, it is more efficient to let this be handled by a
-   * central manager that does not need to allocate/deallocate memory every
-   * time a particle is constructed/destroyed.
-   * The current implementation uses simple new/delete allocation for every
-   * block. Additionally, the current implementation
-   * assumes the same number of properties per particle, but of course the
-   * PropertyType could contain a pointer to dynamically allocated memory
-   * with varying sizes per particle (this memory would not be managed by this
-   * class).
-   * Because PropertyPool only returns handles it could be enhanced internally
-   * (e.g. to allow for varying number of properties per handle) without
-   * affecting its interface.
+   * This class manages a memory space in which all particles associated with
+   * a ParticleHandler store their properties. The rationale for this class is
+   * that because typically every particle stores the same number of
+   * properties, and because algorithms generally traverse over all particles
+   * doing the same operation on all particles' properties, it is more efficient
+   * to let the memory used for properties be handled by a central manager.
+   * Particles then do not store a pointer to a memory area in which they store
+   * their properties, but instead a "handle" that the PropertyPool class then
+   * translates into a pointer to concrete memory.
+   *
+   * All this said, the current implementation only provides this kind of
+   * interface, but still uses simple new/delete allocation for every
+   * set of properties requested by a particle. Additionally, the current
+   * implementation assumes the same number of properties per particle, but of
+   * course the PropertyType could contain a pointer to dynamically allocated
+   * memory with varying sizes per particle (this memory would not be managed by
+   * this class).
    */
   class PropertyPool
   {
@@ -59,6 +65,13 @@ namespace Particles
      * Constructor. Stores the number of properties per reserved slot.
      */
     PropertyPool(const unsigned int n_properties_per_slot);
+
+    /**
+     * Destructor. This function ensures that all memory that had
+     * previously been allocated using allocate_properties_array()
+     * has also been returned via deallocate_properties_array().
+     */
+    ~PropertyPool();
 
     /**
      * Return a new handle that allows accessing the reserved block
@@ -101,6 +114,13 @@ namespace Particles
      * The number of properties that are reserved per particle.
      */
     const unsigned int n_properties;
+
+    /**
+     * A collection of handles that have been created by
+     * allocate_properties_array() and have not been destroyed by
+     * deallocate_properties_array().
+     */
+    std::set<Handle> currently_open_handles;
   };
 
 

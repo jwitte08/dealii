@@ -88,8 +88,6 @@ class Vector;
  * To enable the use of the MappingQEulerian class also in the context of
  * parallel codes using the PETSc or Trilinos wrapper classes, the type
  * of the vector can be specified as template parameter <tt>VectorType</tt>.
- *
- * @author Joshua White, 2008
  */
 template <int dim, typename VectorType = Vector<double>, int spacedim = dim>
 class MappingQEulerian : public MappingQ<dim, spacedim>
@@ -122,7 +120,8 @@ public:
    * cell but instead evaluates an externally given displacement field in
    * addition to the geometry of the cell.
    */
-  virtual std::array<Point<spacedim>, GeometryInfo<dim>::vertices_per_cell>
+  virtual boost::container::small_vector<Point<spacedim>,
+                                         GeometryInfo<dim>::vertices_per_cell>
   get_vertices(const typename Triangulation<dim, spacedim>::cell_iterator &cell)
     const override;
 
@@ -206,7 +205,8 @@ private:
      * current cell but instead evaluates an externally given displacement
      * field in addition to the geometry of the cell.
      */
-    virtual std::array<Point<spacedim>, GeometryInfo<dim>::vertices_per_cell>
+    virtual boost::container::small_vector<Point<spacedim>,
+                                           GeometryInfo<dim>::vertices_per_cell>
     get_vertices(const typename Triangulation<dim, spacedim>::cell_iterator
                    &cell) const override;
 

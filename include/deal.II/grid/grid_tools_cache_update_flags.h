@@ -29,8 +29,6 @@ namespace GridTools
    *
    * You can select more than one flag by concatenation using the bitwise or
    * <code>operator|(CacheUpdateFlags,CacheUpdateFlags)</code>.
-   *
-   * @author Luca Heltai, 2017.
    */
   enum CacheUpdateFlags
   {
@@ -73,14 +71,23 @@ namespace GridTools
      * boxes are used to describe approximately which portion
      * of the mesh contains locally owned cells by the
      * process of rank the second element of the pair.
-     *
      */
     update_covering_rtree = 0x040,
 
     /**
+     * Update an RTree of locally owned cell bounding boxes.
+     */
+    update_locally_owned_cell_bounding_boxes_rtree = 0x080,
+
+    /**
+     * Update vertex to neighbhor subdomain
+     */
+    update_vertex_to_neighbor_subdomain = 0x100,
+
+    /**
      * Update all objects.
      */
-    update_all = 0x0FF,
+    update_all = 0xFFF,
   };
 
 

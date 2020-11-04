@@ -296,7 +296,6 @@ enum MappingKind
  * by Ronald H. W. Hoppe, University of Houston, Chapter 7.
  *
  * @ingroup mapping
- * @author Guido Kanschat, Ralf Hartmann 2000, 2001
  */
 template <int dim, int spacedim = dim>
 class Mapping : public Subscriptor
@@ -333,7 +332,8 @@ public:
    * information stored by the triangulation, i.e.,
    * <code>cell-@>vertex(v)</code>.
    */
-  virtual std::array<Point<spacedim>, GeometryInfo<dim>::vertices_per_cell>
+  virtual boost::container::small_vector<Point<spacedim>,
+                                         GeometryInfo<dim>::vertices_per_cell>
   get_vertices(
     const typename Triangulation<dim, spacedim>::cell_iterator &cell) const;
 
@@ -359,8 +359,6 @@ public:
    * for the computation of the cell center from
    * transform_unit_to_real_cell() applied to the center of the reference cell
    * to computing the vertex averages.
-   *
-   * @author Luca Heltai, 2019.
    */
   virtual Point<spacedim>
   get_center(const typename Triangulation<dim, spacedim>::cell_iterator &cell,
@@ -382,8 +380,6 @@ public:
    * may be smaller than the true bounding box.
    *
    * @param[in] cell The cell for which you want to compute the bounding box
-   *
-   * @author Luca Heltai, 2019.
    */
   virtual BoundingBox<spacedim>
   get_bounding_box(
@@ -456,6 +452,23 @@ public:
   transform_real_to_unit_cell(
     const typename Triangulation<dim, spacedim>::cell_iterator &cell,
     const Point<spacedim> &                                     p) const = 0;
+
+  /**
+   * Map multiple points from the real point locations to points in reference
+   * locations. The functionality is essentially the same as looping over all
+   * points and calling the Mapping::transform_real_to_unit_cell() function
+   * for each point individually, but it can be much faster for certain
+   * mappings that implement a more specialized version such as
+   * MappingQGeneric. The only difference in behavior is that this function
+   * will never throw an ExcTransformationFailed() exception. If the
+   * transformation fails for `real_points[i]`, the returned `unit_points[i]`
+   * contains std::numeric_limits<double>::infinity() as the first entry.
+   */
+  virtual void
+  transform_points_real_to_unit_cell(
+    const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+    const ArrayView<const Point<spacedim>> &                    real_points,
+    const ArrayView<Point<dim>> &unit_points) const;
 
   /**
    * Transform the point @p p on the real @p cell to the corresponding point

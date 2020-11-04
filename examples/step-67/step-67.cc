@@ -565,7 +565,7 @@ namespace Euler_DG
   // \frac{\lambda}{2}\left[\mathbf{w}^--\mathbf{w}^+\right]\otimes
   // \mathbf{n^-}$, where the factor $\lambda =
   // \max\left(\|\mathbf{u}^-\|+c^-, \|\mathbf{u}^+\|+c^+\right)$ gives the
-  // maximal wave speed and $c = \sqrt{\lambda p / \rho}$ is the speed of
+  // maximal wave speed and $c = \sqrt{\gamma p / \rho}$ is the speed of
   // sound. Here, we choose two modifications of that expression for reasons
   // of computational efficiency, given the small impact of the flux on the
   // solution. For the above definition of the factor $\lambda$, we would need
@@ -1066,7 +1066,7 @@ namespace Euler_DG
     for (unsigned int cell = cell_range.first; cell < cell_range.second; ++cell)
       {
         phi.reinit(cell);
-        phi.gather_evaluate(src, true, false);
+        phi.gather_evaluate(src, EvaluationFlags::values);
 
         for (unsigned int q = 0; q < phi.n_q_points; ++q)
           {
@@ -1089,7 +1089,11 @@ namespace Euler_DG
               }
           }
 
-        phi.integrate_scatter(body_force.get() != nullptr, true, dst);
+        phi.integrate_scatter(((body_force.get() != nullptr) ?
+                                 EvaluationFlags::values :
+                                 EvaluationFlags::nothing) |
+                                EvaluationFlags::gradients,
+                              dst);
       }
   }
 
@@ -1148,10 +1152,10 @@ namespace Euler_DG
     for (unsigned int face = face_range.first; face < face_range.second; ++face)
       {
         phi_p.reinit(face);
-        phi_p.gather_evaluate(src, true, false);
+        phi_p.gather_evaluate(src, EvaluationFlags::values);
 
         phi_m.reinit(face);
-        phi_m.gather_evaluate(src, true, false);
+        phi_m.gather_evaluate(src, EvaluationFlags::values);
 
         for (unsigned int q = 0; q < phi_m.n_q_points; ++q)
           {
@@ -1163,8 +1167,8 @@ namespace Euler_DG
             phi_p.submit_value(numerical_flux, q);
           }
 
-        phi_p.integrate_scatter(true, false, dst);
-        phi_m.integrate_scatter(true, false, dst);
+        phi_p.integrate_scatter(EvaluationFlags::values, dst);
+        phi_m.integrate_scatter(EvaluationFlags::values, dst);
       }
   }
 
@@ -1233,7 +1237,7 @@ namespace Euler_DG
     for (unsigned int face = face_range.first; face < face_range.second; ++face)
       {
         phi.reinit(face);
-        phi.gather_evaluate(src, true, false);
+        phi.gather_evaluate(src, EvaluationFlags::values);
 
         for (unsigned int q = 0; q < phi.n_q_points; ++q)
           {
@@ -1289,7 +1293,7 @@ namespace Euler_DG
             phi.submit_value(-flux, q);
           }
 
-        phi.integrate_scatter(true, false, dst);
+        phi.integrate_scatter(EvaluationFlags::values, dst);
       }
   }
 
@@ -1621,7 +1625,7 @@ namespace Euler_DG
     for (unsigned int cell = 0; cell < data.n_cell_batches(); ++cell)
       {
         phi.reinit(cell);
-        phi.gather_evaluate(solution, true, false);
+        phi.gather_evaluate(solution, EvaluationFlags::values);
         VectorizedArray<Number> local_errors_squared[3] = {};
         for (unsigned int q = 0; q < phi.n_q_points; ++q)
           {
@@ -1703,7 +1707,7 @@ namespace Euler_DG
     for (unsigned int cell = 0; cell < data.n_cell_batches(); ++cell)
       {
         phi.reinit(cell);
-        phi.gather_evaluate(solution, true, false);
+        phi.gather_evaluate(solution, EvaluationFlags::values);
         VectorizedArray<Number> local_max = 0.;
         for (unsigned int q = 0; q < phi.n_q_points; ++q)
           {
@@ -2088,8 +2092,8 @@ namespace Euler_DG
   // than the standard library's `std::ofstream` variants used in most other
   // tutorial programs. A particularly nice feature of the
   // `write_vtu_in_parallel()` function is the fact that it can combine output
-  // from all MPI ranks into a single file, obviating a VTU master file (the
-  // "pvtu" file).
+  // from all MPI ranks into a single file, making it unnecessary to have a
+  // central record of all such files (namely, the "pvtu" file).
   //
   // For parallel programs, it is often instructive to look at the partitioning
   // of cells among processors. To this end, one can pass a vector of numbers

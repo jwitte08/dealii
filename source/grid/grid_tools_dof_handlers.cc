@@ -253,7 +253,7 @@ namespace GridTools
     // list, but std::set throws out those cells already entered
     for (; cell != endc; ++cell)
       {
-        for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+        for (const unsigned int v : cell->vertex_indices())
           if (cell->vertex_index(v) == vertex)
             {
               // OK, we found a cell that contains
@@ -295,7 +295,7 @@ namespace GridTools
         // in 3d also loop over the edges
         if (dim >= 3)
           {
-            for (unsigned int e = 0; e < GeometryInfo<dim>::lines_per_cell; ++e)
+            for (unsigned int e = 0; e < cell->n_lines(); ++e)
               if (cell->line(e)->has_children())
                 // the only place where this vertex could have been
                 // hiding is on the mid-edge point of the edge we
@@ -402,139 +402,6 @@ namespace GridTools
               }
         }
     }
-
-
-
-    template <int dim, template <int, int> class MeshType, int spacedim>
-#ifndef _MSC_VER
-    std::pair<typename MeshType<dim, spacedim>::active_cell_iterator,
-              Point<dim>>
-#else
-    std::pair<
-      typename dealii::internal::
-        ActiveCellIterator<dim, spacedim, MeshType<dim, spacedim>>::type,
-      Point<dim>>
-#endif
-    find_active_cell_around_point_tolerance(
-      const Mapping<dim, spacedim> & mapping,
-      const MeshType<dim, spacedim> &mesh,
-      const Point<spacedim> &        p,
-      const std::vector<bool> &      marked_vertices,
-      const double                   tolerance)
-    {
-      using active_cell_iterator = typename dealii::internal::
-        ActiveCellIterator<dim, spacedim, MeshType<dim, spacedim>>::type;
-
-      // The best distance is set to the
-      // maximum allowable distance from
-      // the unit cell; we assume a
-      // max. deviation of the given tolerance
-      double                                      best_distance = tolerance;
-      int                                         best_level    = -1;
-      std::pair<active_cell_iterator, Point<dim>> best_cell;
-
-      // Find closest vertex and determine
-      // all adjacent cells
-      std::vector<active_cell_iterator> adjacent_cells_tmp =
-        find_cells_adjacent_to_vertex(
-          mesh, find_closest_vertex(mapping, mesh, p, marked_vertices));
-
-      // Make sure that we have found
-      // at least one cell adjacent to vertex.
-      Assert(adjacent_cells_tmp.size() > 0, ExcInternalError());
-
-      // Copy all the cells into a std::set
-      std::set<active_cell_iterator> adjacent_cells(adjacent_cells_tmp.begin(),
-                                                    adjacent_cells_tmp.end());
-      std::set<active_cell_iterator> searched_cells;
-
-      // Determine the maximal number of cells
-      // in the grid.
-      // As long as we have not found
-      // the cell and have not searched
-      // every cell in the triangulation,
-      // we keep on looking.
-      const unsigned int n_active_cells =
-        mesh.get_triangulation().n_active_cells();
-      bool         found          = false;
-      unsigned int cells_searched = 0;
-      while (!found && cells_searched < n_active_cells)
-        {
-          typename std::set<active_cell_iterator>::const_iterator
-            cell = adjacent_cells.begin(),
-            endc = adjacent_cells.end();
-          for (; cell != endc; ++cell)
-            {
-              try
-                {
-                  const Point<dim> p_cell =
-                    mapping.transform_real_to_unit_cell(*cell, p);
-
-                  // calculate the infinity norm of
-                  // the distance vector to the unit cell.
-                  const double dist =
-                    GeometryInfo<dim>::distance_to_unit_cell(p_cell);
-
-                  // We compare if the point is inside the
-                  // unit cell (or at least not too far
-                  // outside). If it is, it is also checked
-                  // that the cell has a more refined state
-                  if ((dist < best_distance) ||
-                      ((dist == best_distance) &&
-                       ((*cell)->level() > best_level)))
-                    {
-                      found         = true;
-                      best_distance = dist;
-                      best_level    = (*cell)->level();
-                      best_cell     = std::make_pair(*cell, p_cell);
-                    }
-                }
-              catch (
-                typename MappingQGeneric<dim, spacedim>::ExcTransformationFailed
-                  &)
-                {
-                  // ok, the transformation
-                  // failed presumably
-                  // because the point we
-                  // are looking for lies
-                  // outside the current
-                  // cell. this means that
-                  // the current cell can't
-                  // be the cell around the
-                  // point, so just ignore
-                  // this cell and move on
-                  // to the next
-                }
-            }
-
-          // update the number of cells searched
-          cells_searched += adjacent_cells.size();
-
-          // if the user provided a custom mask for vertices,
-          // terminate the search without trying to expand the search
-          // to all cells of the triangulation, as done below.
-          if (marked_vertices.size() > 0)
-            cells_searched = n_active_cells;
-
-          // if we have not found the cell in
-          // question and have not yet searched every
-          // cell, we expand our search to
-          // all the not already searched neighbors of
-          // the cells in adjacent_cells. This is
-          // what find_active_cell_around_point_internal
-          // is for.
-          if (!found && cells_searched < n_active_cells)
-            {
-              find_active_cell_around_point_internal<dim, MeshType, spacedim>(
-                mesh, searched_cells, adjacent_cells);
-            }
-        }
-
-      AssertThrow(best_cell.first.state() == IteratorState::valid,
-                  ExcPointNotFound<spacedim>(p));
-
-      return best_cell;
-    }
   } // namespace
 
 
@@ -548,10 +415,15 @@ namespace GridTools
 #endif
   find_active_cell_around_point(const MeshType<dim, spacedim> &mesh,
                                 const Point<spacedim> &        p,
-                                const std::vector<bool> &      marked_vertices)
+                                const std::vector<bool> &      marked_vertices,
+                                const double                   tolerance)
   {
     return find_active_cell_around_point<dim, MeshType, spacedim>(
-             StaticMappingQ1<dim, spacedim>::mapping, mesh, p, marked_vertices)
+             StaticMappingQ1<dim, spacedim>::mapping,
+             mesh,
+             p,
+             marked_vertices,
+             tolerance)
       .first;
   }
 
@@ -568,10 +440,124 @@ namespace GridTools
   find_active_cell_around_point(const Mapping<dim, spacedim> & mapping,
                                 const MeshType<dim, spacedim> &mesh,
                                 const Point<spacedim> &        p,
-                                const std::vector<bool> &      marked_vertices)
+                                const std::vector<bool> &      marked_vertices,
+                                const double                   tolerance)
   {
-    return find_active_cell_around_point_tolerance(
-      mapping, mesh, p, marked_vertices, 1e-10);
+    using active_cell_iterator = typename dealii::internal::
+      ActiveCellIterator<dim, spacedim, MeshType<dim, spacedim>>::type;
+
+    // The best distance is set to the
+    // maximum allowable distance from
+    // the unit cell; we assume a
+    // max. deviation of the given tolerance
+    double                                      best_distance = tolerance;
+    int                                         best_level    = -1;
+    std::pair<active_cell_iterator, Point<dim>> best_cell;
+
+    // Find closest vertex and determine
+    // all adjacent cells
+    std::vector<active_cell_iterator> adjacent_cells_tmp =
+      find_cells_adjacent_to_vertex(
+        mesh, find_closest_vertex(mapping, mesh, p, marked_vertices));
+
+    // Make sure that we have found
+    // at least one cell adjacent to vertex.
+    Assert(adjacent_cells_tmp.size() > 0, ExcInternalError());
+
+    // Copy all the cells into a std::set
+    std::set<active_cell_iterator> adjacent_cells(adjacent_cells_tmp.begin(),
+                                                  adjacent_cells_tmp.end());
+    std::set<active_cell_iterator> searched_cells;
+
+    // Determine the maximal number of cells
+    // in the grid.
+    // As long as we have not found
+    // the cell and have not searched
+    // every cell in the triangulation,
+    // we keep on looking.
+    const unsigned int n_active_cells =
+      mesh.get_triangulation().n_active_cells();
+    bool         found          = false;
+    unsigned int cells_searched = 0;
+    while (!found && cells_searched < n_active_cells)
+      {
+        typename std::set<active_cell_iterator>::const_iterator
+          cell = adjacent_cells.begin(),
+          endc = adjacent_cells.end();
+        for (; cell != endc; ++cell)
+          {
+            if ((*cell)->is_artificial() == false)
+              {
+                try
+                  {
+                    const Point<dim> p_cell =
+                      mapping.transform_real_to_unit_cell(*cell, p);
+
+                    // calculate the infinity norm of
+                    // the distance vector to the unit cell.
+                    const double dist =
+                      GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+
+                    // We compare if the point is inside the
+                    // unit cell (or at least not too far
+                    // outside). If it is, it is also checked
+                    // that the cell has a more refined state
+                    if ((dist < best_distance) ||
+                        ((dist == best_distance) &&
+                         ((*cell)->level() > best_level)))
+                      {
+                        found         = true;
+                        best_distance = dist;
+                        best_level    = (*cell)->level();
+                        best_cell     = std::make_pair(*cell, p_cell);
+                      }
+                  }
+                catch (
+                  typename MappingQGeneric<dim,
+                                           spacedim>::ExcTransformationFailed &)
+                  {
+                    // ok, the transformation
+                    // failed presumably
+                    // because the point we
+                    // are looking for lies
+                    // outside the current
+                    // cell. this means that
+                    // the current cell can't
+                    // be the cell around the
+                    // point, so just ignore
+                    // this cell and move on
+                    // to the next
+                  }
+              }
+          }
+
+        // update the number of cells searched
+        cells_searched += adjacent_cells.size();
+
+        // if the user provided a custom mask for vertices,
+        // terminate the search without trying to expand the search
+        // to all cells of the triangulation, as done below.
+        if (marked_vertices.size() > 0)
+          cells_searched = n_active_cells;
+
+        // if we have not found the cell in
+        // question and have not yet searched every
+        // cell, we expand our search to
+        // all the not already searched neighbors of
+        // the cells in adjacent_cells. This is
+        // what find_active_cell_around_point_internal
+        // is for.
+        if (!found && cells_searched < n_active_cells)
+          {
+            find_active_cell_around_point_internal<dim, MeshType, spacedim>(
+              mesh, searched_cells, adjacent_cells);
+          }
+      }
+
+    AssertThrow(best_cell.first.state() == IteratorState::valid,
+                ExcPointNotFound<spacedim>(p));
+
+    return best_cell;
   }
 
 
@@ -592,133 +578,156 @@ namespace GridTools
                                      const double                   tolerance,
                                      const std::vector<bool> &marked_vertices)
   {
-    // first use the result of the single point function as a guess. In order
-    // not to make the other find_all_active_cells_around_point more expensive
-    // and avoid some additional logic there, we first start with one cell as
-    // given by that other function (that possibly goes through a larger set
-    // of cells) and later add a list of more cells as appropriate.
-    std::vector<
-      std::pair<typename MeshType<dim, spacedim>::active_cell_iterator,
-                Point<dim>>>
-      cells_and_points;
     try
       {
-        cells_and_points.push_back(find_active_cell_around_point_tolerance(
-          mapping, mesh, p, marked_vertices, tolerance));
+        const auto cell_and_point = find_active_cell_around_point(
+          mapping, mesh, p, marked_vertices, tolerance);
+
+        return find_all_active_cells_around_point(
+          mapping, mesh, p, tolerance, cell_and_point);
       }
     catch (ExcPointNotFound<spacedim> &)
       {}
 
-    if (!cells_and_points.empty())
+    return {};
+  }
+
+
+
+  template <int dim, template <int, int> class MeshType, int spacedim>
+#ifndef _MSC_VER
+  std::vector<std::pair<typename MeshType<dim, spacedim>::active_cell_iterator,
+                        Point<dim>>>
+#else
+  std::vector<std::pair<
+    typename dealii::internal::
+      ActiveCellIterator<dim, spacedim, MeshType<dim, spacedim>>::type,
+    Point<dim>>>
+#endif
+  find_all_active_cells_around_point(
+    const Mapping<dim, spacedim> & mapping,
+    const MeshType<dim, spacedim> &mesh,
+    const Point<spacedim> &        p,
+    const double                   tolerance,
+    const std::pair<typename MeshType<dim, spacedim>::active_cell_iterator,
+                    Point<dim>> &  first_cell)
+  {
+    std::vector<
+      std::pair<typename MeshType<dim, spacedim>::active_cell_iterator,
+                Point<dim>>>
+      cells_and_points;
+
+    // insert the fist cell and point into the vector
+    cells_and_points.push_back(first_cell);
+
+    // check if the given point is on the surface of the unit cell. if yes,
+    // need to find all neighbors
+    const Point<dim> unit_point = cells_and_points.front().second;
+    const auto       my_cell    = cells_and_points.front().first;
+    Tensor<1, dim>   distance_to_center;
+    unsigned int     n_dirs_at_threshold     = 0;
+    unsigned int     last_point_at_threshold = numbers::invalid_unsigned_int;
+    for (unsigned int d = 0; d < dim; ++d)
       {
-        // check if the given point is on the surface of the unit cell. if yes,
-        // need to find all neighbors
-        const Point<dim> unit_point = cells_and_points.front().second;
-        const auto       my_cell    = cells_and_points.front().first;
-        Tensor<1, dim>   distance_to_center;
-        unsigned int     n_dirs_at_threshold = 0;
-        unsigned int last_point_at_threshold = numbers::invalid_unsigned_int;
-        for (unsigned int d = 0; d < dim; ++d)
+        distance_to_center[d] = std::abs(unit_point[d] - 0.5);
+        if (distance_to_center[d] > 0.5 - tolerance)
           {
-            distance_to_center[d] = std::abs(unit_point[d] - 0.5);
-            if (distance_to_center[d] > 0.5 - tolerance)
-              {
-                ++n_dirs_at_threshold;
-                last_point_at_threshold = d;
-              }
-          }
-
-        std::vector<typename MeshType<dim, spacedim>::active_cell_iterator>
-          cells_to_add;
-        // point is within face -> only need neighbor
-        if (n_dirs_at_threshold == 1)
-          {
-            unsigned int neighbor_index =
-              2 * last_point_at_threshold +
-              (unit_point[last_point_at_threshold] > 0.5 ? 1 : 0);
-            if (!my_cell->at_boundary(neighbor_index))
-              cells_to_add.push_back(my_cell->neighbor(neighbor_index));
-          }
-        // corner point -> use all neighbors
-        else if (n_dirs_at_threshold == dim)
-          {
-            unsigned int local_vertex_index = 0;
-            for (unsigned int d = 0; d < dim; ++d)
-              local_vertex_index += (unit_point[d] > 0.5 ? 1 : 0) << d;
-            std::vector<typename MeshType<dim, spacedim>::active_cell_iterator>
-              cells = find_cells_adjacent_to_vertex(
-                mesh, my_cell->vertex_index(local_vertex_index));
-            for (const auto &cell : cells)
-              if (cell != my_cell)
-                cells_to_add.push_back(cell);
-          }
-        // point on line in 3D: We cannot simply take the intersection between
-        // the two vertices of cels because of hanging nodes. So instead we
-        // list the vertices around both points and then select the
-        // appropriate cells according to the result of read_to_unit_cell
-        // below.
-        else if (n_dirs_at_threshold == 2)
-          {
-            std::pair<unsigned int, unsigned int> vertex_indices[3];
-            unsigned int                          count_vertex_indices = 0;
-            unsigned int free_direction = numbers::invalid_unsigned_int;
-            for (unsigned int d = 0; d < dim; ++d)
-              {
-                if (distance_to_center[d] > 0.5 - tolerance)
-                  {
-                    vertex_indices[count_vertex_indices].first = d;
-                    vertex_indices[count_vertex_indices].second =
-                      unit_point[d] > 0.5 ? 1 : 0;
-                    count_vertex_indices++;
-                  }
-                else
-                  free_direction = d;
-              }
-
-            AssertDimension(count_vertex_indices, 2);
-            Assert(free_direction != numbers::invalid_unsigned_int,
-                   ExcInternalError());
-
-            const unsigned int first_vertex =
-              (vertex_indices[0].second << vertex_indices[0].first) +
-              (vertex_indices[1].second << vertex_indices[1].first);
-            for (unsigned int d = 0; d < 2; ++d)
-              {
-                auto tentative_cells = find_cells_adjacent_to_vertex(
-                  mesh,
-                  my_cell->vertex_index(first_vertex + (d << free_direction)));
-                for (const auto &cell : tentative_cells)
-                  {
-                    bool cell_not_yet_present = true;
-                    for (const auto &other_cell : cells_to_add)
-                      if (cell == other_cell)
-                        {
-                          cell_not_yet_present = false;
-                          break;
-                        }
-                    if (cell_not_yet_present)
-                      cells_to_add.push_back(cell);
-                  }
-              }
-          }
-
-        const double original_distance_to_unit_cell =
-          GeometryInfo<dim>::distance_to_unit_cell(unit_point);
-        for (const auto &cell : cells_to_add)
-          {
-            if (cell != my_cell)
-              try
-                {
-                  const Point<dim> p_unit =
-                    mapping.transform_real_to_unit_cell(cell, p);
-                  if (GeometryInfo<dim>::distance_to_unit_cell(p_unit) <
-                      original_distance_to_unit_cell + tolerance)
-                    cells_and_points.emplace_back(cell, p_unit);
-                }
-              catch (typename Mapping<dim>::ExcTransformationFailed &)
-                {}
+            ++n_dirs_at_threshold;
+            last_point_at_threshold = d;
           }
       }
+
+    std::vector<typename MeshType<dim, spacedim>::active_cell_iterator>
+      cells_to_add;
+    // point is within face -> only need neighbor
+    if (n_dirs_at_threshold == 1)
+      {
+        unsigned int neighbor_index =
+          2 * last_point_at_threshold +
+          (unit_point[last_point_at_threshold] > 0.5 ? 1 : 0);
+        if (!my_cell->at_boundary(neighbor_index))
+          cells_to_add.push_back(my_cell->neighbor(neighbor_index));
+      }
+    // corner point -> use all neighbors
+    else if (n_dirs_at_threshold == dim)
+      {
+        unsigned int local_vertex_index = 0;
+        for (unsigned int d = 0; d < dim; ++d)
+          local_vertex_index += (unit_point[d] > 0.5 ? 1 : 0) << d;
+        std::vector<typename MeshType<dim, spacedim>::active_cell_iterator>
+          cells = find_cells_adjacent_to_vertex(
+            mesh, my_cell->vertex_index(local_vertex_index));
+        for (const auto &cell : cells)
+          if (cell != my_cell)
+            cells_to_add.push_back(cell);
+      }
+    // point on line in 3D: We cannot simply take the intersection between
+    // the two vertices of cells because of hanging nodes. So instead we
+    // list the vertices around both points and then select the
+    // appropriate cells according to the result of read_to_unit_cell
+    // below.
+    else if (n_dirs_at_threshold == 2)
+      {
+        std::pair<unsigned int, unsigned int> vertex_indices[3];
+        unsigned int                          count_vertex_indices = 0;
+        unsigned int free_direction = numbers::invalid_unsigned_int;
+        for (unsigned int d = 0; d < dim; ++d)
+          {
+            if (distance_to_center[d] > 0.5 - tolerance)
+              {
+                vertex_indices[count_vertex_indices].first = d;
+                vertex_indices[count_vertex_indices].second =
+                  unit_point[d] > 0.5 ? 1 : 0;
+                count_vertex_indices++;
+              }
+            else
+              free_direction = d;
+          }
+
+        AssertDimension(count_vertex_indices, 2);
+        Assert(free_direction != numbers::invalid_unsigned_int,
+               ExcInternalError());
+
+        const unsigned int first_vertex =
+          (vertex_indices[0].second << vertex_indices[0].first) +
+          (vertex_indices[1].second << vertex_indices[1].first);
+        for (unsigned int d = 0; d < 2; ++d)
+          {
+            auto tentative_cells = find_cells_adjacent_to_vertex(
+              mesh,
+              my_cell->vertex_index(first_vertex + (d << free_direction)));
+            for (const auto &cell : tentative_cells)
+              {
+                bool cell_not_yet_present = true;
+                for (const auto &other_cell : cells_to_add)
+                  if (cell == other_cell)
+                    {
+                      cell_not_yet_present = false;
+                      break;
+                    }
+                if (cell_not_yet_present)
+                  cells_to_add.push_back(cell);
+              }
+          }
+      }
+
+    const double original_distance_to_unit_cell =
+      GeometryInfo<dim>::distance_to_unit_cell(unit_point);
+    for (const auto &cell : cells_to_add)
+      {
+        if (cell != my_cell)
+          try
+            {
+              const Point<dim> p_unit =
+                mapping.transform_real_to_unit_cell(cell, p);
+              if (GeometryInfo<dim>::distance_to_unit_cell(p_unit) <
+                  original_distance_to_unit_cell + tolerance)
+                cells_and_points.emplace_back(cell, p_unit);
+            }
+          catch (typename Mapping<dim>::ExcTransformationFailed &)
+            {}
+      }
+
     std::sort(
       cells_and_points.begin(),
       cells_and_points.end(),
@@ -748,8 +757,7 @@ namespace GridTools
     // the halo layer
     for (const auto &cell : mesh.active_cell_iterators())
       if (predicate(cell)) // True predicate --> Part of subdomain
-        for (const unsigned int v :
-             GeometryInfo<MeshType::dimension>::vertex_indices())
+        for (const auto v : cell->vertex_indices())
           locally_active_vertices_on_subdomain[cell->vertex_index(v)] = true;
 
     // Find the cells that do not conform to the predicate
@@ -757,8 +765,7 @@ namespace GridTools
     // These comprise the halo layer
     for (const auto &cell : mesh.active_cell_iterators())
       if (!predicate(cell)) // False predicate --> Potential halo cell
-        for (const unsigned int v :
-             GeometryInfo<MeshType::dimension>::vertex_indices())
+        for (const auto v : cell->vertex_indices())
           if (locally_active_vertices_on_subdomain[cell->vertex_index(v)] ==
               true)
             {
@@ -790,8 +797,7 @@ namespace GridTools
          cell != mesh.end(level);
          ++cell)
       if (predicate(cell)) // True predicate --> Part of subdomain
-        for (const unsigned int v :
-             GeometryInfo<MeshType::dimension>::vertex_indices())
+        for (const unsigned int v : cell->vertex_indices())
           locally_active_vertices_on_level_subdomain[cell->vertex_index(v)] =
             true;
 
@@ -802,8 +808,7 @@ namespace GridTools
          cell != mesh.end(level);
          ++cell)
       if (!predicate(cell)) // False predicate --> Potential halo cell
-        for (const unsigned int v :
-             GeometryInfo<MeshType::dimension>::vertex_indices())
+        for (const unsigned int v : cell->vertex_indices())
           if (locally_active_vertices_on_level_subdomain[cell->vertex_index(
                 v)] == true)
             {
@@ -902,8 +907,7 @@ namespace GridTools
     for (const auto &cell : mesh.active_cell_iterators())
       if (!predicate(cell)) // Negation of predicate --> Not Part of subdomain
         {
-          for (const unsigned int v :
-               GeometryInfo<MeshType::dimension>::vertex_indices())
+          for (const unsigned int v : cell->vertex_indices())
             vertices_outside_subdomain[cell->vertex_index(v)] = true;
           n_non_predicate_cells++;
         }
@@ -921,8 +925,7 @@ namespace GridTools
     for (const auto &cell : mesh.active_cell_iterators())
       if (predicate(cell)) // True predicate --> Potential boundary cell of the
                            // subdomain
-        for (const unsigned int v :
-             GeometryInfo<MeshType::dimension>::vertex_indices())
+        for (const unsigned int v : cell->vertex_indices())
           if (vertices_outside_subdomain[cell->vertex_index(v)] == true)
             {
               subdomain_boundary_cells.push_back(cell);
@@ -1087,8 +1090,7 @@ namespace GridTools
     // if it belongs to the predicate domain, extend the bounding box.
     for (const auto &cell : mesh.active_cell_iterators())
       if (predicate(cell)) // True predicate --> Part of subdomain
-        for (const unsigned int v :
-             GeometryInfo<MeshType::dimension>::vertex_indices())
+        for (const unsigned int v : cell->vertex_indices())
           if (locally_active_vertices_on_subdomain[cell->vertex_index(v)] ==
               false)
             {
@@ -1231,9 +1233,13 @@ namespace GridTools
                                                            mesh_2.begin(0),
                                                          endc = mesh_1.end(0);
     for (; cell_1 != endc; ++cell_1, ++cell_2)
-      for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
-        if (cell_1->vertex(v) != cell_2->vertex(v))
+      {
+        if (cell_1->n_vertices() != cell_2->n_vertices())
           return false;
+        for (const unsigned int v : cell_1->vertex_indices())
+          if (cell_1->vertex(v) != cell_2->vertex(v))
+            return false;
+      }
 
     // if we've gotten through all
     // this, then the meshes really
@@ -1255,12 +1261,13 @@ namespace GridTools
 
 
   template <int dim, int spacedim>
-  std::pair<typename hp::DoFHandler<dim, spacedim>::active_cell_iterator,
+  std::pair<typename dealii::DoFHandler<dim, spacedim>::active_cell_iterator,
             Point<dim>>
   find_active_cell_around_point(
     const hp::MappingCollection<dim, spacedim> &mapping,
-    const hp::DoFHandler<dim, spacedim> &       mesh,
-    const Point<spacedim> &                     p)
+    const DoFHandler<dim, spacedim> &           mesh,
+    const Point<spacedim> &                     p,
+    const double                                tolerance)
   {
     Assert((mapping.size() == 1) ||
              (mapping.size() == mesh.get_fe_collection().size()),
@@ -1269,21 +1276,24 @@ namespace GridTools
                       "the FECollection."));
 
     using cell_iterator =
-      typename hp::DoFHandler<dim, spacedim>::active_cell_iterator;
+      typename dealii::DoFHandler<dim, spacedim>::active_cell_iterator;
 
     std::pair<cell_iterator, Point<dim>> best_cell;
     // If we have only one element in the MappingCollection,
     // we use find_active_cell_around_point using only one
     // mapping.
     if (mapping.size() == 1)
-      best_cell = find_active_cell_around_point(mapping[0], mesh, p);
+      {
+        const std::vector<bool> marked_vertices = {};
+        best_cell                               = find_active_cell_around_point(
+          mapping[0], mesh, p, marked_vertices, tolerance);
+      }
     else
       {
         // The best distance is set to the
         // maximum allowable distance from
-        // the unit cell; we assume a
-        // max. deviation of 1e-10
-        double best_distance = 1e-10;
+        // the unit cell
+        double best_distance = tolerance;
         int    best_level    = -1;
 
 
@@ -1371,7 +1381,7 @@ namespace GridTools
             if (!found && cells_searched < n_cells)
               {
                 find_active_cell_around_point_internal<dim,
-                                                       hp::DoFHandler,
+                                                       dealii::DoFHandler,
                                                        spacedim>(
                   mesh, searched_cells, adjacent_cells);
               }
@@ -1396,8 +1406,7 @@ namespace GridTools
 
     std::vector<typename MeshType::active_cell_iterator> patch;
     patch.push_back(cell);
-    for (const unsigned int face_number :
-         GeometryInfo<MeshType::dimension>::face_indices())
+    for (const unsigned int face_number : cell->face_indices())
       if (cell->face(face_number)->at_boundary() == false)
         {
           if (cell->neighbor(face_number)->has_children() == false)
@@ -1506,8 +1515,7 @@ namespace GridTools
          uniform_cell != uniform_cells.end();
          ++uniform_cell)
       {
-        for (const unsigned int v :
-             GeometryInfo<Container::dimension>::vertex_indices())
+        for (const unsigned int v : (*uniform_cell)->vertex_indices())
           {
             Point<Container::space_dimension> position =
               (*uniform_cell)->vertex(v);
@@ -1583,7 +1591,7 @@ namespace GridTools
                       // adjust the cell vertices of the local_triangulation to
                       // match cell vertices of the global triangulation
                       for (const unsigned int v :
-                           GeometryInfo<Container::dimension>::vertex_indices())
+                           active_tria_cell->vertex_indices())
                         active_tria_cell->vertex(v) = patch[i]->vertex(v);
 
                       Assert(active_tria_cell->center().distance(
@@ -1695,10 +1703,11 @@ namespace GridTools
 
 
 
-  template <class DoFHandlerType>
-  std::map<types::global_dof_index,
-           std::vector<typename DoFHandlerType::active_cell_iterator>>
-  get_dof_to_support_patch_map(DoFHandlerType &dof_handler)
+  template <int dim, int spacedim>
+  std::map<
+    types::global_dof_index,
+    std::vector<typename DoFHandler<dim, spacedim>::active_cell_iterator>>
+  get_dof_to_support_patch_map(DoFHandler<dim, spacedim> &dof_handler)
   {
     // This is the map from global_dof_index to
     // a set of cells on patch.  We first map into
@@ -1711,7 +1720,7 @@ namespace GridTools
     // since that is the preferred output for other
     // functions.
     std::map<types::global_dof_index,
-             std::set<typename DoFHandlerType::active_cell_iterator>>
+             std::set<typename DoFHandler<dim, spacedim>::active_cell_iterator>>
       dof_to_set_of_cells_map;
 
     std::vector<types::global_dof_index> local_dof_indices;
@@ -1725,22 +1734,21 @@ namespace GridTools
 
     // in 3d, we need pointers from active lines to the
     // active parent lines, so we construct it as needed.
-    std::map<typename DoFHandlerType::active_line_iterator,
-             typename DoFHandlerType::line_iterator>
+    std::map<typename DoFHandler<dim, spacedim>::active_line_iterator,
+             typename DoFHandler<dim, spacedim>::line_iterator>
       lines_to_parent_lines_map;
-    if (DoFHandlerType::dimension == 3)
+    if (dim == 3)
       {
         // save user flags as they will be modified and then later restored
         dof_handler.get_triangulation().save_user_flags(user_flags);
-        const_cast<dealii::Triangulation<DoFHandlerType::dimension,
-                                         DoFHandlerType::space_dimension> &>(
+        const_cast<dealii::Triangulation<dim, spacedim> &>(
           dof_handler.get_triangulation())
           .clear_user_flags();
 
 
-        typename DoFHandlerType::active_cell_iterator cell = dof_handler
-                                                               .begin_active(),
-                                                      endc = dof_handler.end();
+        typename DoFHandler<dim, spacedim>::active_cell_iterator
+          cell = dof_handler.begin_active(),
+          endc = dof_handler.end();
         for (; cell != endc; ++cell)
           {
             // We only want lines that are locally_relevant
@@ -1749,10 +1757,7 @@ namespace GridTools
             // few and we don't have to use them.
             if (cell->is_artificial() == false)
               {
-                for (unsigned int l = 0;
-                     l <
-                     GeometryInfo<DoFHandlerType::dimension>::lines_per_cell;
-                     ++l)
+                for (unsigned int l = 0; l < cell->n_lines(); ++l)
                   if (cell->line(l)->has_children())
                     for (unsigned int c = 0; c < cell->line(l)->n_children();
                          ++c)
@@ -1774,9 +1779,9 @@ namespace GridTools
     // which it is a part, mainly the ones that must
     // be added on account of adaptivity hanging node
     // constraints.
-    typename DoFHandlerType::active_cell_iterator cell =
-                                                    dof_handler.begin_active(),
-                                                  endc = dof_handler.end();
+    typename DoFHandler<dim, spacedim>::active_cell_iterator
+      cell = dof_handler.begin_active(),
+      endc = dof_handler.end();
     for (; cell != endc; ++cell)
       {
         // Need to loop through all cells that could
@@ -1784,7 +1789,8 @@ namespace GridTools
         // cells including ghost cells
         if (cell->is_artificial() == false)
           {
-            const unsigned int n_dofs_per_cell = cell->get_fe().dofs_per_cell;
+            const unsigned int n_dofs_per_cell =
+              cell->get_fe().n_dofs_per_cell();
             local_dof_indices.resize(n_dofs_per_cell);
 
             // Take care of adding cell pointer to each
@@ -1801,8 +1807,7 @@ namespace GridTools
             // face (or line).
 
             // Take care of dofs on neighbor faces
-            for (const unsigned int f :
-                 GeometryInfo<DoFHandlerType::dimension>::face_indices())
+            for (const unsigned int f : cell->face_indices())
               {
                 if (cell->face(f)->has_children())
                   {
@@ -1825,7 +1830,7 @@ namespace GridTools
                                ExcInternalError());
 
                         const unsigned int n_dofs_per_face =
-                          cell->get_fe().dofs_per_face;
+                          cell->get_fe().n_dofs_per_face(f, c);
                         local_face_dof_indices.resize(n_dofs_per_face);
 
                         cell->face(f)->child(c)->get_dof_indices(
@@ -1860,7 +1865,7 @@ namespace GridTools
                     unsigned int subface = neighbor_face_no_subface_no.second;
 
                     const unsigned int n_dofs_per_face =
-                      cell->get_fe().dofs_per_face;
+                      cell->get_fe().n_dofs_per_face(face_no);
                     local_face_dof_indices.resize(n_dofs_per_face);
 
                     cell->neighbor(f)->face(face_no)->get_dof_indices(
@@ -1879,7 +1884,7 @@ namespace GridTools
                                           // original cell
                           {
                             const unsigned int n_dofs_per_face =
-                              cell->get_fe().dofs_per_face;
+                              cell->get_fe().n_dofs_per_face(face_no, c);
                             local_face_dof_indices.resize(n_dofs_per_face);
 
                             Assert(cell->neighbor(f)
@@ -1907,12 +1912,9 @@ namespace GridTools
             // if cell's line has an active parent, then
             // distribute cell to dofs on parent line
             // and dofs on all children of parent line.
-            if (DoFHandlerType::dimension == 3)
+            if (dim == 3)
               {
-                for (unsigned int l = 0;
-                     l <
-                     GeometryInfo<DoFHandlerType::dimension>::lines_per_cell;
-                     ++l)
+                for (unsigned int l = 0; l < cell->n_lines(); ++l)
                   {
                     if (cell->line(l)->has_children())
                       {
@@ -1927,8 +1929,8 @@ namespace GridTools
                             // dofs_per_line returns number of dofs
                             // on line not including the vertices of the line.
                             const unsigned int n_dofs_per_line =
-                              2 * cell->get_fe().dofs_per_vertex +
-                              cell->get_fe().dofs_per_line;
+                              2 * cell->get_fe().n_dofs_per_vertex() +
+                              cell->get_fe().n_dofs_per_line();
                             local_line_dof_indices.resize(n_dofs_per_line);
 
                             cell->line(l)->child(c)->get_dof_indices(
@@ -1944,15 +1946,16 @@ namespace GridTools
                     // children
                     else if (cell->line(l)->user_flag_set() == true)
                       {
-                        typename DoFHandlerType::line_iterator parent_line =
-                          lines_to_parent_lines_map[cell->line(l)];
+                        typename DoFHandler<dim, spacedim>::line_iterator
+                          parent_line =
+                            lines_to_parent_lines_map[cell->line(l)];
                         Assert(parent_line->has_children(), ExcInternalError());
 
                         // dofs_per_line returns number of dofs
                         // on line not including the vertices of the line.
                         const unsigned int n_dofs_per_line =
-                          2 * cell->get_fe().dofs_per_vertex +
-                          cell->get_fe().dofs_per_line;
+                          2 * cell->get_fe().n_dofs_per_vertex() +
+                          cell->get_fe().n_dofs_per_line();
                         local_line_dof_indices.resize(n_dofs_per_line);
 
                         parent_line->get_dof_indices(local_line_dof_indices);
@@ -1968,8 +1971,8 @@ namespace GridTools
                                    ExcInternalError());
 
                             const unsigned int n_dofs_per_line =
-                              2 * cell->get_fe().dofs_per_vertex +
-                              cell->get_fe().dofs_per_line;
+                              2 * cell->get_fe().n_dofs_per_vertex() +
+                              cell->get_fe().n_dofs_per_line();
                             local_line_dof_indices.resize(n_dofs_per_line);
 
                             parent_line->child(c)->get_dof_indices(
@@ -1980,30 +1983,31 @@ namespace GridTools
                           }
                       }
                   } // for lines l
-              }     // if DoFHandlerType::dimension == 3
+              }     // if dim == 3
           }         // if cell->is_locally_owned()
       }             // for cells
 
 
-    if (DoFHandlerType::dimension == 3)
+    if (dim == 3)
       {
         // finally, restore user flags that were changed above
         // to when we constructed the pointers to parent of lines
         // Since dof_handler is const, we must leave it unchanged.
-        const_cast<dealii::Triangulation<DoFHandlerType::dimension,
-                                         DoFHandlerType::space_dimension> &>(
+        const_cast<dealii::Triangulation<dim, spacedim> &>(
           dof_handler.get_triangulation())
           .load_user_flags(user_flags);
       }
 
     // Finally, we copy map of sets to
     // map of vectors using the std::vector::assign() function
-    std::map<types::global_dof_index,
-             std::vector<typename DoFHandlerType::active_cell_iterator>>
+    std::map<
+      types::global_dof_index,
+      std::vector<typename DoFHandler<dim, spacedim>::active_cell_iterator>>
       dof_to_cell_patches;
 
-    typename std::map<types::global_dof_index,
-                      std::set<typename DoFHandlerType::active_cell_iterator>>::
+    typename std::map<
+      types::global_dof_index,
+      std::set<typename DoFHandler<dim, spacedim>::active_cell_iterator>>::
       iterator it     = dof_to_set_of_cells_map.begin(),
                it_end = dof_to_set_of_cells_map.end();
     for (; it != it_end; ++it)
@@ -2219,7 +2223,7 @@ namespace GridTools
          cell != mesh.end(0);
          ++cell)
       {
-        for (unsigned int i : GeometryInfo<dim>::face_indices())
+        for (unsigned int i : cell->face_indices())
           {
             const typename MeshType::face_iterator face = cell->face(i);
             if (face->at_boundary() && face->boundary_id() == b_id1)
@@ -2434,11 +2438,13 @@ namespace GridTools
 
     std::array<unsigned int, GeometryInfo<dim>::vertices_per_face> matching;
 
+    AssertDimension(face1->n_vertices(), face2->n_vertices());
+
     std::set<unsigned int> face2_vertices;
-    for (unsigned int i = 0; i < GeometryInfo<dim>::vertices_per_face; ++i)
+    for (unsigned int i = 0; i < face1->n_vertices(); ++i)
       face2_vertices.insert(i);
 
-    for (unsigned int i = 0; i < GeometryInfo<dim>::vertices_per_face; ++i)
+    for (unsigned int i = 0; i < face1->n_vertices(); ++i)
       {
         for (std::set<unsigned int>::iterator it = face2_vertices.begin();
              it != face2_vertices.end();

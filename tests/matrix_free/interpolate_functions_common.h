@@ -86,7 +86,8 @@ public:
       {
         fe_eval.reinit(cell);
         fe_eval.read_dof_values(src);
-        fe_eval.evaluate(true, true, true);
+        fe_eval.evaluate(EvaluationFlags::values | EvaluationFlags::gradients |
+                         EvaluationFlags::hessians);
 
         for (unsigned int j = 0; j < data.n_components_filled(cell); ++j)
           for (unsigned int q = 0; q < fe_eval.n_q_points; ++q)
@@ -125,10 +126,10 @@ public:
       {
         fe_evalm.reinit(face);
         fe_evalm.read_dof_values(src);
-        fe_evalm.evaluate(true, true);
+        fe_evalm.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
         fe_evalp.reinit(face);
         fe_evalp.read_dof_values(src);
-        fe_evalp.evaluate(true, true);
+        fe_evalp.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
         for (unsigned int j = 0; j < VectorizedArray<Number>::size(); ++j)
           {
@@ -191,7 +192,7 @@ public:
       {
         fe_evalm.reinit(face);
         fe_evalm.read_dof_values(src);
-        fe_evalm.evaluate(true, true);
+        fe_evalm.evaluate(EvaluationFlags::values | EvaluationFlags::gradients);
 
         for (unsigned int j = 0; j < VectorizedArray<Number>::size(); ++j)
           {
@@ -329,11 +330,11 @@ do_test(const DoFHandler<dim> &          dof,
     typename MatrixFree<dim, number>::AdditionalData data;
     data.tasks_parallel_scheme = MatrixFree<dim, number>::AdditionalData::none;
     data.mapping_update_flags =
-      update_gradients | update_second_derivatives | update_quadrature_points;
+      update_gradients | update_hessians | update_quadrature_points;
     data.mapping_update_flags_boundary_faces =
-      update_gradients | update_second_derivatives | update_quadrature_points;
+      update_gradients | update_hessians | update_quadrature_points;
     data.mapping_update_flags_inner_faces =
-      update_gradients | update_second_derivatives | update_quadrature_points;
+      update_gradients | update_hessians | update_quadrature_points;
     mf_data.reinit(dof, constraints, quad, data);
   }
 

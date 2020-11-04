@@ -57,10 +57,6 @@ DEAL_II_NAMESPACE_OPEN
  * support points are at the vertices, then on the line, on the quads, and
  * finally (for 3d) on the hexes. See the documentation of FE_Q for more
  * details.
- *
- *
- * @author Marco Tezzele, Luca Heltai
- * @date 2013, 2015
  */
 
 template <int dim, int spacedim = dim>
@@ -121,7 +117,8 @@ public:
    */
   virtual void
   get_face_interpolation_matrix(const FiniteElement<dim, spacedim> &source,
-                                FullMatrix<double> &matrix) const override;
+                                FullMatrix<double> &                matrix,
+                                const unsigned int face_no = 0) const override;
 
   /**
    * Return the matrix interpolating from a face of one element to the face of
@@ -133,9 +130,11 @@ public:
    * FiniteElement<dim,spacedim>::ExcInterpolationNotImplemented is thrown.
    */
   virtual void
-  get_subface_interpolation_matrix(const FiniteElement<dim, spacedim> &source,
-                                   const unsigned int                  subface,
-                                   FullMatrix<double> &matrix) const override;
+  get_subface_interpolation_matrix(
+    const FiniteElement<dim, spacedim> &source,
+    const unsigned int                  subface,
+    FullMatrix<double> &                matrix,
+    const unsigned int                  face_no = 0) const override;
 
   /**
    * Return whether this element implements its hanging node constraints in
@@ -154,10 +153,10 @@ public:
    * reference to a finite element object representing one of the other finite
    * elements active on this particular vertex. The function computes which of
    * the degrees of freedom of the two finite element objects are equivalent,
-   * both numbered between zero and the corresponding value of dofs_per_vertex
-   * of the two finite elements. The first index of each pair denotes one of
-   * the vertex dofs of the present element, whereas the second is the
-   * corresponding index of the other finite element.
+   * both numbered between zero and the corresponding value of
+   * n_dofs_per_vertex() of the two finite elements. The first index of each
+   * pair denotes one of the vertex dofs of the present element, whereas the
+   * second is the corresponding index of the other finite element.
    */
   virtual std::vector<std::pair<unsigned int, unsigned int>>
   hp_vertex_dof_identities(
@@ -176,8 +175,8 @@ public:
    * of freedom on quads.
    */
   virtual std::vector<std::pair<unsigned int, unsigned int>>
-  hp_quad_dof_identities(
-    const FiniteElement<dim, spacedim> &fe_other) const override;
+  hp_quad_dof_identities(const FiniteElement<dim, spacedim> &fe_other,
+                         const unsigned int face_no = 0) const override;
 
   /**
    * @copydoc FiniteElement::compare_for_domination()

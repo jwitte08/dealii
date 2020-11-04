@@ -40,14 +40,19 @@ IF(DEAL_II_COMPONENT_EXAMPLES)
     PATTERN "output.reference.dat"              # step-39
     PATTERN "postprocess.pl"                    # step-39
     PATTERN "obstacle.pbm"                      # step-42
-    PATTERN "untitled.geo"                      # step-49
-    PATTERN "untitled.msh"                      # step-49
+    PATTERN "example.geo"                       # step-49
+    PATTERN "example.msh"                       # step-49
     PATTERN "topography.txt.gz"                 # step-53
     PATTERN "input/initial_mesh_3d.vtk"         # step-54
     PATTERN "input/DTMB-5415_bulbous_bow.iges"  # step-54
     )
 
   IF(DEAL_II_COMPILE_EXAMPLES)
+    #
+    # Make sure that there are no deprecated functions used in the tutorials.
+    #
+    STRIP_FLAG(DEAL_II_CXX_FLAGS "-Wno-deprecated-declarations")
+
     #
     # Set up all executables:
     #

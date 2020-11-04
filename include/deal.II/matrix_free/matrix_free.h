@@ -107,8 +107,6 @@ DEAL_II_NAMESPACE_OPEN
  * @ref matrixfree "matrix-free module".
  *
  * @ingroup matrixfree
- *
- * @author Katharina Kormann, Martin Kronbichler, 2010, 2011
  */
 
 template <int dim,
@@ -209,6 +207,9 @@ public:
       color = internal::MatrixFreeFunctions::TaskInfo::color
     };
 
+    // remove with level_mg_handler
+    DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
+
     /**
      * Constructor for AdditionalData.
      */
@@ -242,6 +243,8 @@ public:
       , hold_all_faces_to_owned_cells(hold_all_faces_to_owned_cells)
       , cell_vectorization_categories_strict(
           cell_vectorization_categories_strict)
+      , communicator_sm(MPI_COMM_SELF)
+      , use_vector_data_exchanger_full(false)
     {}
 
     /**
@@ -267,7 +270,12 @@ public:
       , cell_vectorization_category(other.cell_vectorization_category)
       , cell_vectorization_categories_strict(
           other.cell_vectorization_categories_strict)
+      , communicator_sm(other.communicator_sm)
+      , use_vector_data_exchanger_full(other.use_vector_data_exchanger_full)
     {}
+
+    // remove with level_mg_handler
+    DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
     /**
      * Copy assignment.
@@ -293,6 +301,8 @@ public:
       cell_vectorization_category   = other.cell_vectorization_category;
       cell_vectorization_categories_strict =
         other.cell_vectorization_categories_strict;
+      communicator_sm                = other.communicator_sm;
+      use_vector_data_exchanger_full = other.use_vector_data_exchanger_full;
 
       return *this;
     }
@@ -525,6 +535,18 @@ public:
      * them in a single vectorized array.
      */
     bool cell_vectorization_categories_strict;
+
+    /**
+     * Shared-memory MPI communicator. Default: MPI_COMM_SELF.
+     */
+    MPI_Comm communicator_sm;
+
+    /**
+     * Experimental: flag to switch between
+     * internal::MatrixFreeFunctions::VectorDataExchange::PartitionerWrapper and
+     * internal::MatrixFreeFunctions::VectorDataExchange::Full.
+     */
+    bool use_vector_data_exchanger_full;
   };
 
   /**
@@ -558,10 +580,10 @@ public:
    * not allowed. In that case, use the initialization function with
    * several DoFHandler arguments.
    */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
+  template <typename QuadratureType, typename number2>
   void
   reinit(const Mapping<dim> &              mapping,
-         const DoFHandlerType &            dof_handler,
+         const DoFHandler<dim> &           dof_handler,
          const AffineConstraints<number2> &constraint,
          const QuadratureType &            quad,
          const AdditionalData &            additional_data = AdditionalData());
@@ -570,26 +592,10 @@ public:
    * Initializes the data structures. Same as above, but using a $Q_1$
    * mapping.
    */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
+  template <typename QuadratureType, typename number2>
   void
-  reinit(const DoFHandlerType &            dof_handler,
+  reinit(const DoFHandler<dim> &           dof_handler,
          const AffineConstraints<number2> &constraint,
-         const QuadratureType &            quad,
-         const AdditionalData &            additional_data = AdditionalData());
-
-  /**
-   * Same as above.
-   *
-   * @deprecated Setting the index set specifically is not supported any
-   * more. Use the reinit function without index set argument to choose the
-   * one provided by DoFHandler::locally_owned_dofs().
-   */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
-  DEAL_II_DEPRECATED void
-  reinit(const Mapping<dim> &              mapping,
-         const DoFHandlerType &            dof_handler,
-         const AffineConstraints<number2> &constraint,
-         const IndexSet &                  locally_owned_dofs,
          const QuadratureType &            quad,
          const AdditionalData &            additional_data = AdditionalData());
 
@@ -614,10 +620,23 @@ public:
    * can be sets independently from the number of DoFHandlers, when several
    * elements are always integrated with the same quadrature formula.
    */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
+  template <typename QuadratureType, typename number2>
   void
   reinit(const Mapping<dim> &                                   mapping,
-         const std::vector<const DoFHandlerType *> &            dof_handler,
+         const std::vector<const DoFHandler<dim> *> &           dof_handler,
+         const std::vector<const AffineConstraints<number2> *> &constraint,
+         const std::vector<QuadratureType> &                    quad,
+         const AdditionalData &additional_data = AdditionalData());
+
+  /**
+   * Initializes the data structures. Same as above, but  using hp::DoFHandlers.
+   *
+   * @deprecated Use the overload taking a DoFHandler object instead.
+   */
+  template <typename QuadratureType, typename number2>
+  DEAL_II_DEPRECATED void
+  reinit(const Mapping<dim> &                                   mapping,
+         const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
          const std::vector<const AffineConstraints<number2> *> &constraint,
          const std::vector<QuadratureType> &                    quad,
          const AdditionalData &additional_data = AdditionalData());
@@ -626,28 +645,24 @@ public:
    * Initializes the data structures. Same as above, but  using a $Q_1$
    * mapping.
    */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
+  template <typename QuadratureType, typename number2>
   void
-  reinit(const std::vector<const DoFHandlerType *> &            dof_handler,
+  reinit(const std::vector<const DoFHandler<dim> *> &           dof_handler,
          const std::vector<const AffineConstraints<number2> *> &constraint,
          const std::vector<QuadratureType> &                    quad,
          const AdditionalData &additional_data = AdditionalData());
 
   /**
-   * Same as above.
+   * Initializes the data structures. Same as above, but  using hp::DoFHandlers.
    *
-   * @deprecated Setting the index set specifically is not supported any
-   * more. Use the reinit function without index set argument to choose the
-   * one provided by DoFHandler::locally_owned_dofs().
+   * @deprecated Use the overload taking a DoFHandler object instead.
    */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
-  DEAL_II_DEPRECATED void
-  reinit(const Mapping<dim> &                                   mapping,
-         const std::vector<const DoFHandlerType *> &            dof_handler,
+  template <typename QuadratureType, typename number2>
+  void
+  reinit(const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
          const std::vector<const AffineConstraints<number2> *> &constraint,
-         const std::vector<IndexSet> &      locally_owned_set,
-         const std::vector<QuadratureType> &quad,
-         const AdditionalData &             additional_data = AdditionalData());
+         const std::vector<QuadratureType> &                    quad,
+         const AdditionalData &additional_data = AdditionalData());
 
   /**
    * Initializes the data structures. Same as before, but now the index set
@@ -656,10 +671,23 @@ public:
    * as might be necessary when several components in a vector-valued problem
    * are integrated together based on the same quadrature formula.
    */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
+  template <typename QuadratureType, typename number2>
   void
   reinit(const Mapping<dim> &                                   mapping,
-         const std::vector<const DoFHandlerType *> &            dof_handler,
+         const std::vector<const DoFHandler<dim> *> &           dof_handler,
+         const std::vector<const AffineConstraints<number2> *> &constraint,
+         const QuadratureType &                                 quad,
+         const AdditionalData &additional_data = AdditionalData());
+
+  /**
+   * Initializes the data structures. Same as above, but  using hp::DoFHandlers.
+   *
+   * @deprecated Use the overload taking a DoFHandler object instead.
+   */
+  template <typename QuadratureType, typename number2>
+  DEAL_II_DEPRECATED void
+  reinit(const Mapping<dim> &                                   mapping,
+         const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
          const std::vector<const AffineConstraints<number2> *> &constraint,
          const QuadratureType &                                 quad,
          const AdditionalData &additional_data = AdditionalData());
@@ -668,9 +696,21 @@ public:
    * Initializes the data structures. Same as above, but  using a $Q_1$
    * mapping.
    */
-  template <typename DoFHandlerType, typename QuadratureType, typename number2>
+  template <typename QuadratureType, typename number2>
   void
-  reinit(const std::vector<const DoFHandlerType *> &            dof_handler,
+  reinit(const std::vector<const DoFHandler<dim> *> &           dof_handler,
+         const std::vector<const AffineConstraints<number2> *> &constraint,
+         const QuadratureType &                                 quad,
+         const AdditionalData &additional_data = AdditionalData());
+
+  /**
+   * Initializes the data structures. Same as above, but  using hp::DoFHandlers.
+   *
+   * @deprecated Use the overload taking a DoFHandler object instead.
+   */
+  template <typename QuadratureType, typename number2>
+  DEAL_II_DEPRECATED void
+  reinit(const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
          const std::vector<const AffineConstraints<number2> *> &constraint,
          const QuadratureType &                                 quad,
          const AdditionalData &additional_data = AdditionalData());
@@ -728,12 +768,13 @@ public:
 
     /**
      * The loop does only involve FEFaceEvaluation access into neighbors by
-     * function values, such as `FEFaceEvaluation::gather_evaluate(src, true,
-     * false)`, but no access to shape function derivatives (which typically
-     * need to access more data). For FiniteElement types where only some of
-     * the shape functions have support on a face, such as an FE_DGQ element
-     * with Lagrange polynomials with nodes on the element surface, the data
-     * exchange is reduced from `(k+1)^dim` to `(k+1)^(dim-1)`.
+     * function values, such as FEFaceEvaluation::gather_evaluate() with
+     * argument EvaluationFlags::values, but no access to shape function
+     * derivatives (which typically need to access more data). For FiniteElement
+     * types where only some of the shape functions have support on a face, such
+     * as an FE_DGQ element with Lagrange polynomials with nodes on the element
+     * surface, the data exchange is reduced from `(k+1)^dim` to
+     * `(k+1)^(dim-1)`.
      */
     values,
 
@@ -750,12 +791,12 @@ public:
     /**
      * The loop does involve FEFaceEvaluation access into neighbors by
      * function values and gradients, but no second derivatives, such as
-     * `FEFaceEvaluation::gather_evaluate(src, true, true)`. For
-     * FiniteElement types where only some of the shape functions have
-     * non-zero value and first derivative on a face, such as an FE_DGQHermite
-     * element, the data exchange is reduced, e.g. from `(k+1)^dim` to
-     * `2(k+1)^(dim-1)`. Note that for bases that do not have this special
-     * property, the full neighboring data is sent anyway.
+     * FEFaceEvaluation::gather_evaluate() with EvaluationFlags::values and
+     * EvaluationFlags::gradients set. For FiniteElement types where only some
+     * of the shape functions have non-zero value and first derivative on a
+     * face, such as an FE_DGQHermite element, the data exchange is reduced,
+     * e.g. from `(k+1)^dim` to `2(k+1)^(dim-1)`. Note that for bases that do
+     * not have this special property, the full neighboring data is sent anyway.
      */
     gradients,
 
@@ -1491,7 +1532,7 @@ public:
   get_vector_partitioner(const unsigned int dof_handler_index = 0) const;
 
   /**
-   * Return the set of cells that are oned by the processor.
+   * Return the set of cells that are owned by the processor.
    */
   const IndexSet &
   get_locally_owned_set(const unsigned int dof_handler_index = 0) const;
@@ -1707,7 +1748,7 @@ public:
    * different MPI processors need to be accessed at a certain time when
    * accessing remote data and overlapping communication with computation.
    */
-  typename hp::DoFHandler<dim>::active_cell_iterator
+  typename DoFHandler<dim>::active_cell_iterator
   get_hp_cell_iterator(const unsigned int macro_cell_number,
                        const unsigned int vector_number,
                        const unsigned int dof_handler_index = 0) const;
@@ -1984,11 +2025,11 @@ private:
    * This is the actual reinit function that sets up the indices for the
    * DoFHandler case.
    */
-  template <typename number2, template <int, int> class DoFHandlerType>
+  template <typename number2>
   void
   internal_reinit(
     const Mapping<dim> &                                   mapping,
-    const std::vector<const DoFHandlerType<dim, dim> *> &  dof_handler,
+    const std::vector<const DoFHandler<dim, dim> *> &      dof_handlers,
     const std::vector<const AffineConstraints<number2> *> &constraint,
     const std::vector<IndexSet> &                          locally_owned_set,
     const std::vector<hp::QCollection<1>> &                quad,
@@ -2012,56 +2053,13 @@ private:
    */
   void
   initialize_dof_handlers(
-    const std::vector<const DoFHandler<dim> *> &dof_handlers,
-    const AdditionalData &                      additional_data);
-
-  /**
-   * Initializes the DoFHandlers based on a hp::DoFHandler<dim> argument.
-   */
-  void
-  initialize_dof_handlers(
-    const std::vector<const hp::DoFHandler<dim> *> &dof_handlers,
-    const AdditionalData &                          additional_data);
-
-  /**
-   * Setup connectivity graph with information on the dependencies between
-   * block due to shared faces.
-   */
-  void
-  make_connectivity_graph_faces(DynamicSparsityPattern &connectivity);
-
-  /**
-   * This struct defines which DoFHandler has actually been given at
-   * construction, in order to define the correct behavior when querying the
-   * underlying DoFHandler.
-   */
-  struct DoFHandlers
-  {
-    DoFHandlers()
-      : active_dof_handler(usual)
-      , n_dof_handlers(0)
-    {}
-
-    std::vector<SmartPointer<const DoFHandler<dim>>>     dof_handler;
-    std::vector<SmartPointer<const hp::DoFHandler<dim>>> hp_dof_handler;
-    enum ActiveDoFHandler
-    {
-      /**
-       * Use DoFHandler.
-       */
-      usual,
-      /**
-       * Use hp::DoFHandler.
-       */
-      hp
-    } active_dof_handler;
-    unsigned int n_dof_handlers;
-  };
+    const std::vector<const DoFHandler<dim, dim> *> &dof_handlers,
+    const AdditionalData &                           additional_data);
 
   /**
    * Pointers to the DoFHandlers underlying the current problem.
    */
-  DoFHandlers dof_handlers;
+  std::vector<SmartPointer<const DoFHandler<dim>>> dof_handlers;
 
   /**
    * Contains the information about degrees of freedom on the individual cells
@@ -2190,7 +2188,7 @@ MatrixFree<dim, Number, VectorizedArrayType>::initialize_dof_vector(
   const unsigned int                           comp) const
 {
   AssertIndexRange(comp, n_components());
-  vec.reinit(dof_info[comp].vector_partitioner);
+  vec.reinit(dof_info[comp].vector_partitioner, task_info.communicator_sm);
 }
 
 
@@ -2221,8 +2219,8 @@ template <int dim, typename Number, typename VectorizedArrayType>
 inline unsigned int
 MatrixFree<dim, Number, VectorizedArrayType>::n_components() const
 {
-  AssertDimension(dof_handlers.n_dof_handlers, dof_info.size());
-  return dof_handlers.n_dof_handlers;
+  AssertDimension(dof_handlers.size(), dof_info.size());
+  return dof_handlers.size();
 }
 
 
@@ -2232,9 +2230,9 @@ inline unsigned int
 MatrixFree<dim, Number, VectorizedArrayType>::n_base_elements(
   const unsigned int dof_no) const
 {
-  AssertDimension(dof_handlers.n_dof_handlers, dof_info.size());
-  AssertIndexRange(dof_no, dof_handlers.n_dof_handlers);
-  return dof_handlers.dof_handler[dof_no]->get_fe().n_base_elements();
+  AssertDimension(dof_handlers.size(), dof_info.size());
+  AssertIndexRange(dof_no, dof_handlers.size());
+  return dof_handlers[dof_no]->get_fe().n_base_elements();
 }
 
 
@@ -2803,22 +2801,6 @@ namespace internal
 {
   namespace MatrixFreeImplementation
   {
-    template <typename DoFHandlerType>
-    inline std::vector<IndexSet>
-    extract_locally_owned_index_sets(
-      const std::vector<const DoFHandlerType *> &dofh,
-      const unsigned int                         level)
-    {
-      std::vector<IndexSet> locally_owned_set;
-      locally_owned_set.reserve(dofh.size());
-      for (unsigned int j = 0; j < dofh.size(); j++)
-        if (level == numbers::invalid_unsigned_int)
-          locally_owned_set.push_back(dofh[j]->locally_owned_dofs());
-        else
-          AssertThrow(false, ExcNotImplemented());
-      return locally_owned_set;
-    }
-
     template <int dim, int spacedim>
     inline std::vector<IndexSet>
     extract_locally_owned_index_sets(
@@ -2840,16 +2822,16 @@ namespace internal
 
 
 template <int dim, typename Number, typename VectorizedArrayType>
-template <typename DoFHandlerType, typename QuadratureType, typename number2>
+template <typename QuadratureType, typename number2>
 void
 MatrixFree<dim, Number, VectorizedArrayType>::reinit(
-  const DoFHandlerType &            dof_handler,
+  const DoFHandler<dim> &           dof_handler,
   const AffineConstraints<number2> &constraints_in,
   const QuadratureType &            quad,
   const typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
     &additional_data)
 {
-  std::vector<const DoFHandlerType *>             dof_handlers;
+  std::vector<const DoFHandler<dim, dim> *>       dof_handlers;
   std::vector<const AffineConstraints<number2> *> constraints;
   std::vector<QuadratureType>                     quads;
 
@@ -2875,17 +2857,17 @@ MatrixFree<dim, Number, VectorizedArrayType>::reinit(
 
 
 template <int dim, typename Number, typename VectorizedArrayType>
-template <typename DoFHandlerType, typename QuadratureType, typename number2>
+template <typename QuadratureType, typename number2>
 void
 MatrixFree<dim, Number, VectorizedArrayType>::reinit(
   const Mapping<dim> &              mapping,
-  const DoFHandlerType &            dof_handler,
+  const DoFHandler<dim> &           dof_handler,
   const AffineConstraints<number2> &constraints_in,
   const QuadratureType &            quad,
   const typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
     &additional_data)
 {
-  std::vector<const DoFHandlerType *>             dof_handlers;
+  std::vector<const DoFHandler<dim, dim> *>       dof_handlers;
   std::vector<const AffineConstraints<number2> *> constraints;
 
   dof_handlers.push_back(&dof_handler);
@@ -2909,10 +2891,10 @@ MatrixFree<dim, Number, VectorizedArrayType>::reinit(
 
 
 template <int dim, typename Number, typename VectorizedArrayType>
-template <typename DoFHandlerType, typename QuadratureType, typename number2>
+template <typename QuadratureType, typename number2>
 void
 MatrixFree<dim, Number, VectorizedArrayType>::reinit(
-  const std::vector<const DoFHandlerType *> &            dof_handler,
+  const std::vector<const DoFHandler<dim> *> &           dof_handler,
   const std::vector<const AffineConstraints<number2> *> &constraint,
   const std::vector<QuadratureType> &                    quad,
   const typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -2935,10 +2917,30 @@ MatrixFree<dim, Number, VectorizedArrayType>::reinit(
 
 
 template <int dim, typename Number, typename VectorizedArrayType>
-template <typename DoFHandlerType, typename QuadratureType, typename number2>
+template <typename QuadratureType, typename number2>
 void
 MatrixFree<dim, Number, VectorizedArrayType>::reinit(
-  const std::vector<const DoFHandlerType *> &            dof_handler,
+  const Mapping<dim> &                                   mapping,
+  const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
+  const std::vector<const AffineConstraints<number2> *> &constraint,
+  const std::vector<QuadratureType> &                    quad,
+  const AdditionalData &                                 additional_data)
+{
+  std::vector<const DoFHandler<dim> *> dof_handlers;
+
+  for (const auto dof_handler : dof_handler_hp)
+    dof_handlers.push_back(dof_handler);
+
+  this->reinit(mapping, dof_handlers, constraint, quad, additional_data);
+}
+
+
+
+template <int dim, typename Number, typename VectorizedArrayType>
+template <typename QuadratureType, typename number2>
+void
+MatrixFree<dim, Number, VectorizedArrayType>::reinit(
+  const std::vector<const DoFHandler<dim> *> &           dof_handler,
   const std::vector<const AffineConstraints<number2> *> &constraint,
   const QuadratureType &                                 quad,
   const typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -2960,11 +2962,30 @@ MatrixFree<dim, Number, VectorizedArrayType>::reinit(
 
 
 template <int dim, typename Number, typename VectorizedArrayType>
-template <typename DoFHandlerType, typename QuadratureType, typename number2>
+template <typename QuadratureType, typename number2>
+void
+MatrixFree<dim, Number, VectorizedArrayType>::reinit(
+  const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
+  const std::vector<const AffineConstraints<number2> *> &constraint,
+  const std::vector<QuadratureType> &                    quad,
+  const AdditionalData &                                 additional_data)
+{
+  std::vector<const DoFHandler<dim> *> dof_handlers;
+
+  for (const auto dof_handler : dof_handler_hp)
+    dof_handlers.push_back(dof_handler);
+
+  this->reinit(dof_handlers, constraint, quad, additional_data);
+}
+
+
+
+template <int dim, typename Number, typename VectorizedArrayType>
+template <typename QuadratureType, typename number2>
 void
 MatrixFree<dim, Number, VectorizedArrayType>::reinit(
   const Mapping<dim> &                                   mapping,
-  const std::vector<const DoFHandlerType *> &            dof_handler,
+  const std::vector<const DoFHandler<dim> *> &           dof_handler,
   const std::vector<const AffineConstraints<number2> *> &constraint,
   const QuadratureType &                                 quad,
   const typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -2986,11 +3007,11 @@ MatrixFree<dim, Number, VectorizedArrayType>::reinit(
 
 
 template <int dim, typename Number, typename VectorizedArrayType>
-template <typename DoFHandlerType, typename QuadratureType, typename number2>
+template <typename QuadratureType, typename number2>
 void
 MatrixFree<dim, Number, VectorizedArrayType>::reinit(
   const Mapping<dim> &                                   mapping,
-  const std::vector<const DoFHandlerType *> &            dof_handler,
+  const std::vector<const DoFHandler<dim> *> &           dof_handler,
   const std::vector<const AffineConstraints<number2> *> &constraint,
   const std::vector<QuadratureType> &                    quad,
   const typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
@@ -3013,27 +3034,40 @@ MatrixFree<dim, Number, VectorizedArrayType>::reinit(
 
 
 template <int dim, typename Number, typename VectorizedArrayType>
-template <typename DoFHandlerType, typename QuadratureType, typename number2>
+template <typename QuadratureType, typename number2>
 void
 MatrixFree<dim, Number, VectorizedArrayType>::reinit(
   const Mapping<dim> &                                   mapping,
-  const std::vector<const DoFHandlerType *> &            dof_handler,
+  const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
   const std::vector<const AffineConstraints<number2> *> &constraint,
-  const std::vector<IndexSet> &                          locally_owned_set,
-  const std::vector<QuadratureType> &                    quad,
-  const typename MatrixFree<dim, Number, VectorizedArrayType>::AdditionalData
-    &additional_data)
+  const QuadratureType &                                 quad,
+  const AdditionalData &                                 additional_data)
 {
-  // find out whether we use a hp Quadrature or a standard quadrature
-  std::vector<hp::QCollection<1>> quad_hp;
-  for (unsigned int q = 0; q < quad.size(); ++q)
-    quad_hp.emplace_back(quad[q]);
-  internal_reinit(mapping,
-                  dof_handler,
-                  constraint,
-                  locally_owned_set,
-                  quad_hp,
-                  additional_data);
+  std::vector<const DoFHandler<dim> *> dof_handlers;
+
+  for (const auto dof_handler : dof_handler_hp)
+    dof_handlers.push_back(dof_handler);
+
+  this->reinit(mapping, dof_handlers, constraint, quad, additional_data);
+}
+
+
+
+template <int dim, typename Number, typename VectorizedArrayType>
+template <typename QuadratureType, typename number2>
+void
+MatrixFree<dim, Number, VectorizedArrayType>::reinit(
+  const std::vector<const hp::DoFHandler<dim> *> &       dof_handler_hp,
+  const std::vector<const AffineConstraints<number2> *> &constraint,
+  const QuadratureType &                                 quad,
+  const AdditionalData &                                 additional_data)
+{
+  std::vector<const DoFHandler<dim> *> dof_handlers;
+
+  for (const auto dof_handler : dof_handler_hp)
+    dof_handlers.push_back(dof_handler);
+
+  this->reinit(dof_handlers, constraint, quad, additional_data);
 }
 
 
@@ -3092,7 +3126,7 @@ namespace internal
             DataAccessOnFaces::unspecified)
         for (unsigned int c = 0; c < matrix_free.n_components(); ++c)
           AssertDimension(
-            matrix_free.get_dof_info(c).vector_partitioner_face_variants.size(),
+            matrix_free.get_dof_info(c).vector_exchanger_face_variants.size(),
             5);
     }
 
@@ -3121,7 +3155,6 @@ namespace internal
     find_vector_in_mf(const VectorType &vec,
                       const bool        check_global_compatibility = true) const
     {
-      unsigned int mf_component = numbers::invalid_unsigned_int;
       (void)check_global_compatibility;
       for (unsigned int c = 0; c < matrix_free.n_components(); ++c)
         if (
@@ -3132,11 +3165,12 @@ namespace internal
 #  endif
             vec.get_partitioner()->is_compatible(
               *matrix_free.get_dof_info(c).vector_partitioner))
-          {
-            mf_component = c;
-            break;
-          }
-      return mf_component;
+          return c;
+
+      Assert(false,
+             ExcNotImplemented("Could not find partitioner that fits vector"));
+
+      return numbers::invalid_unsigned_int;
     }
 
 
@@ -3145,37 +3179,39 @@ namespace internal
      * Get partitioner for the given @p mf_component taking into
      * account vector_face_access set in constructor.
      */
-    const Utilities::MPI::Partitioner &
+    const internal::MatrixFreeFunctions::VectorDataExchange::Base &
     get_partitioner(const unsigned int mf_component) const
     {
       AssertDimension(matrix_free.get_dof_info(mf_component)
-                        .vector_partitioner_face_variants.size(),
+                        .vector_exchanger_face_variants.size(),
                       5);
       if (vector_face_access ==
           dealii::MatrixFree<dim, Number, VectorizedArrayType>::
             DataAccessOnFaces::none)
         return *matrix_free.get_dof_info(mf_component)
-                  .vector_partitioner_face_variants[0];
+                  .vector_exchanger_face_variants[0];
       else if (vector_face_access ==
                dealii::MatrixFree<dim, Number, VectorizedArrayType>::
                  DataAccessOnFaces::values)
         return *matrix_free.get_dof_info(mf_component)
-                  .vector_partitioner_face_variants[1];
+                  .vector_exchanger_face_variants[1];
       else if (vector_face_access ==
                dealii::MatrixFree<dim, Number, VectorizedArrayType>::
                  DataAccessOnFaces::gradients)
         return *matrix_free.get_dof_info(mf_component)
-                  .vector_partitioner_face_variants[2];
+                  .vector_exchanger_face_variants[2];
       else if (vector_face_access ==
                dealii::MatrixFree<dim, Number, VectorizedArrayType>::
                  DataAccessOnFaces::values_all_faces)
         return *matrix_free.get_dof_info(mf_component)
-                  .vector_partitioner_face_variants[3];
-      else /*if (vector_face_access ==
-               dealii::MatrixFree<dim,
-              Number>::DataAccessOnFaces::gradients_all_faces)*/
+                  .vector_exchanger_face_variants[3];
+      else if (vector_face_access ==
+               dealii::MatrixFree<dim, Number, VectorizedArrayType>::
+                 DataAccessOnFaces::gradients_all_faces)
         return *matrix_free.get_dof_info(mf_component)
-                  .vector_partitioner_face_variants[4];
+                  .vector_exchanger_face_variants[4];
+      else
+        return *matrix_free.get_dof_info(mf_component).vector_exchanger.get();
     }
 
 
@@ -3261,27 +3297,16 @@ namespace internal
       bool ghosts_set = vec.has_ghost_elements();
       if (ghosts_set)
         ghosts_were_set = true;
-      if (vector_face_access ==
-            dealii::MatrixFree<dim, Number, VectorizedArrayType>::
-              DataAccessOnFaces::unspecified ||
-          vec.size() == 0)
-        vec.update_ghost_values_start(component_in_block_vector +
-                                      channel_shift);
-      else
+
+      if (vec.size() != 0)
         {
 #  ifdef DEAL_II_WITH_MPI
           const unsigned int mf_component = find_vector_in_mf(vec);
-          if (&get_partitioner(mf_component) ==
-              matrix_free.get_dof_info(mf_component).vector_partitioner.get())
-            {
-              vec.update_ghost_values_start(component_in_block_vector +
-                                            channel_shift);
-              return;
-            }
 
-          const Utilities::MPI::Partitioner &part =
-            get_partitioner(mf_component);
-          if (part.n_ghost_indices() == 0 && part.n_import_indices() == 0)
+          const auto &part = get_partitioner(mf_component);
+
+          if (part.n_ghost_indices() == 0 && part.n_import_indices() == 0 &&
+              part.n_import_sm_procs() == 0)
             return;
 
           tmp_data[component_in_block_vector] =
@@ -3291,13 +3316,15 @@ namespace internal
           AssertDimension(requests.size(), tmp_data.size());
 
           part.export_to_ghosted_array_start(
-            component_in_block_vector + channel_shift,
+            component_in_block_vector * 2 + channel_shift,
             ArrayView<const Number>(vec.begin(), part.local_size()),
+            vec.shared_vector_data(),
+            ArrayView<Number>(const_cast<Number *>(vec.begin()) +
+                                part.local_size(),
+                              matrix_free.get_dof_info(mf_component)
+                                .vector_partitioner->n_ghost_indices()),
             ArrayView<Number>(tmp_data[component_in_block_vector]->begin(),
                               part.n_import_indices()),
-            ArrayView<Number>(const_cast<Number *>(vec.begin()) +
-                                vec.get_partitioner()->local_size(),
-                              vec.get_partitioner()->n_ghost_indices()),
             this->requests[component_in_block_vector]);
 #  endif
         }
@@ -3359,46 +3386,38 @@ namespace internal
         std::is_same<Number, typename VectorType::value_type>::value,
         "Type mismatch between VectorType and VectorDataExchange");
       (void)component_in_block_vector;
-      if (vector_face_access ==
-            dealii::MatrixFree<dim, Number, VectorizedArrayType>::
-              DataAccessOnFaces::unspecified ||
-          vec.size() == 0)
-        vec.update_ghost_values_finish();
-      else
+
+      if (vec.size() != 0)
         {
 #  ifdef DEAL_II_WITH_MPI
-
           AssertIndexRange(component_in_block_vector, tmp_data.size());
           AssertDimension(requests.size(), tmp_data.size());
 
           const unsigned int mf_component = find_vector_in_mf(vec);
-          const Utilities::MPI::Partitioner &part =
-            get_partitioner(mf_component);
-          if (&part ==
-              matrix_free.get_dof_info(mf_component).vector_partitioner.get())
+
+          const auto &part = get_partitioner(mf_component);
+
+          if (part.n_ghost_indices() != 0 || part.n_import_indices() != 0 ||
+              part.n_import_sm_procs() != 0)
             {
-              vec.update_ghost_values_finish();
-              return;
+              part.export_to_ghosted_array_finish(
+                ArrayView<const Number>(vec.begin(), part.local_size()),
+                vec.shared_vector_data(),
+                ArrayView<Number>(const_cast<Number *>(vec.begin()) +
+                                    part.local_size(),
+                                  matrix_free.get_dof_info(mf_component)
+                                    .vector_partitioner->n_ghost_indices()),
+                this->requests[component_in_block_vector]);
+
+              matrix_free.release_scratch_data_non_threadsafe(
+                tmp_data[component_in_block_vector]);
+              tmp_data[component_in_block_vector] = nullptr;
             }
-
-          if (part.n_ghost_indices() == 0 && part.n_import_indices() == 0)
-            return;
-
-          part.export_to_ghosted_array_finish(
-            ArrayView<Number>(const_cast<Number *>(vec.begin()) +
-                                vec.get_partitioner()->local_size(),
-                              vec.get_partitioner()->n_ghost_indices()),
-            this->requests[component_in_block_vector]);
-
-          matrix_free.release_scratch_data_non_threadsafe(
-            tmp_data[component_in_block_vector]);
-          tmp_data[component_in_block_vector] = nullptr;
-
-          // let vector know that ghosts are being updated and we can read from
-          // them
-          vec.set_ghost_state(true);
 #  endif
         }
+      // let vector know that ghosts are being updated and we can read from
+      // them
+      vec.set_ghost_state(true);
     }
 
 
@@ -3476,26 +3495,16 @@ namespace internal
         "Type mismatch between VectorType and VectorDataExchange");
       (void)component_in_block_vector;
       Assert(vec.has_ghost_elements() == false, ExcNotImplemented());
-      if (vector_face_access ==
-            dealii::MatrixFree<dim, Number, VectorizedArrayType>::
-              DataAccessOnFaces::unspecified ||
-          vec.size() == 0)
-        vec.compress_start(component_in_block_vector + channel_shift);
-      else
+
+      if (vec.size() != 0)
         {
 #  ifdef DEAL_II_WITH_MPI
-
           const unsigned int mf_component = find_vector_in_mf(vec);
-          const Utilities::MPI::Partitioner &part =
-            get_partitioner(mf_component);
-          if (&part ==
-              matrix_free.get_dof_info(mf_component).vector_partitioner.get())
-            {
-              vec.compress_start(component_in_block_vector + channel_shift);
-              return;
-            }
 
-          if (part.n_ghost_indices() == 0 && part.n_import_indices() == 0)
+          const auto &part = get_partitioner(mf_component);
+
+          if (part.n_ghost_indices() == 0 && part.n_import_indices() == 0 &&
+              part.n_import_sm_procs() == 0)
             return;
 
           tmp_data[component_in_block_vector] =
@@ -3506,9 +3515,12 @@ namespace internal
 
           part.import_from_ghosted_array_start(
             dealii::VectorOperation::add,
-            component_in_block_vector + channel_shift,
-            ArrayView<Number>(vec.begin() + vec.get_partitioner()->local_size(),
-                              vec.get_partitioner()->n_ghost_indices()),
+            component_in_block_vector * 2 + channel_shift,
+            ArrayView<Number>(vec.begin(), part.local_size()),
+            vec.shared_vector_data(),
+            ArrayView<Number>(vec.begin() + part.local_size(),
+                              matrix_free.get_dof_info(mf_component)
+                                .vector_partitioner->n_ghost_indices()),
             ArrayView<Number>(tmp_data[component_in_block_vector]->begin(),
                               part.n_import_indices()),
             this->requests[component_in_block_vector]);
@@ -3571,12 +3583,7 @@ namespace internal
         std::is_same<Number, typename VectorType::value_type>::value,
         "Type mismatch between VectorType and VectorDataExchange");
       (void)component_in_block_vector;
-      if (vector_face_access ==
-            dealii::MatrixFree<dim, Number, VectorizedArrayType>::
-              DataAccessOnFaces::unspecified ||
-          vec.size() == 0)
-        vec.compress_finish(dealii::VectorOperation::add);
-      else
+      if (vec.size() != 0)
         {
 #  ifdef DEAL_II_WITH_MPI
           AssertIndexRange(component_in_block_vector, tmp_data.size());
@@ -3584,31 +3591,30 @@ namespace internal
 
           const unsigned int mf_component = find_vector_in_mf(vec);
 
-          const Utilities::MPI::Partitioner &part =
-            get_partitioner(mf_component);
-          if (&part ==
-              matrix_free.get_dof_info(mf_component).vector_partitioner.get())
+          const auto &part = get_partitioner(mf_component);
+
+          if (part.n_ghost_indices() != 0 || part.n_import_indices() != 0 ||
+              part.n_import_sm_procs() != 0)
             {
-              vec.compress_finish(dealii::VectorOperation::add);
-              return;
+              part.import_from_ghosted_array_finish(
+                VectorOperation::add,
+                ArrayView<Number>(vec.begin(), part.local_size()),
+                vec.shared_vector_data(),
+                ArrayView<Number>(vec.begin() + part.local_size(),
+                                  matrix_free.get_dof_info(mf_component)
+                                    .vector_partitioner->n_ghost_indices()),
+                ArrayView<const Number>(
+                  tmp_data[component_in_block_vector]->begin(),
+                  part.n_import_indices()),
+                this->requests[component_in_block_vector]);
+
+              matrix_free.release_scratch_data_non_threadsafe(
+                tmp_data[component_in_block_vector]);
+              tmp_data[component_in_block_vector] = nullptr;
             }
 
-          if (part.n_ghost_indices() == 0 && part.n_import_indices() == 0)
-            return;
-
-          part.import_from_ghosted_array_finish(
-            VectorOperation::add,
-            ArrayView<const Number>(
-              tmp_data[component_in_block_vector]->begin(),
-              part.n_import_indices()),
-            ArrayView<Number>(vec.begin(), part.local_size()),
-            ArrayView<Number>(vec.begin() + vec.get_partitioner()->local_size(),
-                              vec.get_partitioner()->n_ghost_indices()),
-            this->requests[component_in_block_vector]);
-
-          matrix_free.release_scratch_data_non_threadsafe(
-            tmp_data[component_in_block_vector]);
-          tmp_data[component_in_block_vector] = nullptr;
+          if (Utilities::MPI::job_supports_mpi())
+            MPI_Barrier(matrix_free.get_task_info().communicator_sm);
 #  endif
         }
     }
@@ -3664,43 +3670,29 @@ namespace internal
       if (ghosts_were_set == true)
         return;
 
-      if (vector_face_access ==
-            dealii::MatrixFree<dim, Number, VectorizedArrayType>::
-              DataAccessOnFaces::unspecified ||
-          vec.size() == 0)
-        vec.zero_out_ghosts();
-      else
+      if (vec.size() != 0)
         {
 #  ifdef DEAL_II_WITH_MPI
           AssertDimension(requests.size(), tmp_data.size());
 
           const unsigned int mf_component = find_vector_in_mf(vec);
-          const Utilities::MPI::Partitioner &part =
-            get_partitioner(mf_component);
-          if (&part ==
-              matrix_free.get_dof_info(mf_component).vector_partitioner.get())
-            vec.zero_out_ghosts();
-          else if (part.n_ghost_indices() > 0)
+
+          const auto &part = get_partitioner(mf_component);
+
+          if (part.n_ghost_indices() > 0)
             {
-              for (std::vector<std::pair<unsigned int, unsigned int>>::
-                     const_iterator my_ghosts =
-                       part.ghost_indices_within_larger_ghost_set().begin();
-                   my_ghosts !=
-                   part.ghost_indices_within_larger_ghost_set().end();
-                   ++my_ghosts)
-                for (unsigned int j = my_ghosts->first; j < my_ghosts->second;
-                     j++)
-                  {
-                    const_cast<LinearAlgebra::distributed::Vector<Number> &>(
-                      vec)
-                      .local_element(j + part.local_size()) = 0.;
-                  }
+              part.reset_ghost_values(ArrayView<Number>(
+                const_cast<LinearAlgebra::distributed::Vector<Number> &>(vec)
+                    .begin() +
+                  part.local_size(),
+                matrix_free.get_dof_info(mf_component)
+                  .vector_partitioner->n_ghost_indices()));
             }
 
-          // let vector know that it's not ghosted anymore
-          vec.set_ghost_state(false);
 #  endif
         }
+      // let vector know that it's not ghosted anymore
+      vec.set_ghost_state(false);
     }
 
 

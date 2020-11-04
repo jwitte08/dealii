@@ -24,6 +24,8 @@
 #include <deal.II/base/point.h>
 #include <deal.II/base/table.h>
 
+#include <deal.II/grid/reference_cell.h>
+
 #include <deal.II/numerics/data_component_interpretation.h>
 
 // To be able to serialize XDMFEntry
@@ -215,8 +217,6 @@ class XDMFEntry;
  * </ul>
  *
  * @ingroup output
- * @author Wolfgang Bangerth, Guido Kanschat 1999, 2000, 2001, 2002, 2005,
- * 2006.
  */
 namespace DataOutBase
 {
@@ -241,8 +241,6 @@ namespace DataOutBase
    * <tt>2<sup>dim</sup></tt>.
    *
    * @ingroup output
-   *
-   * @author Wolfgang Bangerth, Guido Kanschat
    */
   template <int dim, int spacedim = dim>
   struct Patch
@@ -298,7 +296,7 @@ namespace DataOutBase
      * output point <tt>j</tt>, where <tt>j</tt> denotes the usual
      * lexicographic ordering in deal.II. This is also the order of points as
      * provided by the <tt>QIterated</tt> class when used with the
-     * <tt>QTrapez</tt> class as subquadrature.
+     * <tt>QTrapezoid</tt> class as subquadrature.
      *
      * Since the number of data vectors is usually the same for all patches to
      * be printed, <tt>data.size()</tt> should yield the same value for all
@@ -322,6 +320,11 @@ namespace DataOutBase
      * in the Patch structure.
      */
     bool points_are_available;
+
+    /**
+     * Reference-cell type of the underlying cell of this patch.
+     */
+    ReferenceCell::Type reference_cell_type;
 
     /**
      * Default constructor. Sets #n_subdivisions to one, #points_are_available
@@ -390,8 +393,6 @@ namespace DataOutBase
    * member variable that make no sense for zero-dimensional patches because
    * points have no natural neighbors across their non-existent faces, nor
    * can they reasonably be subdivided.
-   *
-   * @author Wolfgang Bangerth, 2017.
    */
   template <int spacedim>
   struct Patch<0, spacedim>
@@ -469,6 +470,11 @@ namespace DataOutBase
      * in the Patch structure.
      */
     bool points_are_available;
+
+    /**
+     * Reference-cell type of the underlying cell of this patch.
+     */
+    ReferenceCell::Type reference_cell_type;
 
     /**
      * Default constructor. Sets #points_are_available
@@ -1047,15 +1053,6 @@ namespace DataOutBase
   struct TecplotFlags : public OutputFlagsBase<TecplotFlags>
   {
     /**
-     * This variable is needed to hold the output file name when using the
-     * Tecplot API to write binary files.  If the user doesn't set the file
-     * name with this variable only ASCII Tecplot output will be produced.
-     *
-     * @deprecated Using Tecplot binary output is deprecated.
-     */
-    DEAL_II_DEPRECATED const char *tecplot_binary_file_name;
-
-    /**
      * Tecplot allows to assign names to zones. This variable stores this
      * name.
      */
@@ -1070,14 +1067,9 @@ namespace DataOutBase
 
     /**
      * Constructor.
-     *
-     * @deprecated Using this constructor is deprecated. Set the member variables
-     * directly instead.
      */
-    DEAL_II_DEPRECATED
-    TecplotFlags(const char * tecplot_binary_file_name = nullptr,
-                 const char * zone_name                = nullptr,
-                 const double solution_time            = -1.0);
+    TecplotFlags(const char * zone_name     = nullptr,
+                 const double solution_time = -1.0);
 
     /**
      * Return an estimate for the memory consumption, in bytes, of this
@@ -1371,6 +1363,15 @@ namespace DataOutBase
                const unsigned int d3);
 
     /**
+     * Record a single deal.II cell without subdivisions (e.g. simplex) in the
+     * internal reordered format.
+     */
+    void
+    write_cell_single(const unsigned int index,
+                      const unsigned int start,
+                      const unsigned int n_points);
+
+    /**
      * Filter and record a data set. If there are multiple values at a given
      * vertex and redundant values are being removed, one is arbitrarily
      * chosen as the recorded value. In the future this can be expanded to
@@ -1495,12 +1496,9 @@ namespace DataOutBase
     unsigned int node_dim;
 
     /**
-     * The number of vertices per cell. Equal to
-     * GeometryInfo<node_dim>::vertices_per_cell. We need to store
-     * it as a run-time variable here because the dimension
-     * node_dim is also a run-time variable.
+     * The number of cells stored in @ref filtered_cells.
      */
-    unsigned int vertices_per_cell;
+    unsigned int num_cells;
 
     /**
      * Map of points to an internal index.
@@ -1894,41 +1892,6 @@ namespace DataOutBase
     std::ostream &      out);
 
   /**
-   * Write the given list of patches to the output stream in Tecplot binary
-   * format.
-   *
-   * For this to work properly <tt>./configure</tt> checks for the Tecplot API
-   * at build time. To write Tecplot binary files directly make sure that the
-   * TECHOME environment variable points to the Tecplot installation
-   * directory, and that the files \$TECHOME/include/TECIO.h and
-   * \$TECHOME/lib/tecio.a are readable. If these files are not available (or
-   * in the case of 1D) this function will simply call write_tecplot() and
-   * thus larger ASCII data files will be produced rather than more efficient
-   * Tecplot binary files.
-   *
-   * @warning TecplotFlags::tecplot_binary_file_name indicates the name of the
-   * file to be written.  If the file name is not set ASCII output is
-   * produced.
-   *
-   * For more information consult the Tecplot Users and Reference manuals.
-   *
-   * @deprecated Using Tecplot binary output is deprecated.
-   */
-  template <int dim, int spacedim>
-  DEAL_II_DEPRECATED void
-  write_tecplot_binary(
-    const std::vector<Patch<dim, spacedim>> &patches,
-    const std::vector<std::string> &         data_names,
-    const std::vector<
-      std::tuple<unsigned int,
-                 unsigned int,
-                 std::string,
-                 DataComponentInterpretation::DataComponentInterpretation>>
-      &                 nonscalar_data_ranges,
-    const TecplotFlags &flags,
-    std::ostream &      out);
-
-  /**
    * Write the given list of patches to the output stream in UCD format
    * described in the AVS developer's guide (now AVS). Due to limitations in
    * the present format, only node based data can be output, which in one
@@ -2005,11 +1968,11 @@ namespace DataOutBase
    * Some visualization programs, such as ParaView, can read several separate
    * VTU files to parallelize visualization. In that case, you need a
    * <code>.pvtu</code> file that describes which VTU files form a group. The
-   * DataOutInterface::write_pvtu_record() function can generate such a master
-   * record. Likewise, DataOutInterface::write_visit_record() does the same
-   * for VisIt (although VisIt can also read <code>pvtu</code> records since
-   * version 2.5.1). Finally, for time dependent problems, you may also want
-   * to look at DataOutInterface::write_pvd_record()
+   * DataOutInterface::write_pvtu_record() function can generate such a
+   * centralized record. Likewise, DataOutInterface::write_visit_record() does
+   * the same for VisIt (although VisIt can also read <code>pvtu</code> records
+   * since version 2.5.1). Finally, for time dependent problems, you may also
+   * want to look at DataOutInterface::write_pvd_record()
    *
    * The use of this function is explained in step-40.
    */
@@ -2070,7 +2033,7 @@ namespace DataOutBase
    * parallelize visualization. In that case, you need a
    * <code>.pvtu</code> file that describes which VTU files (written, for
    * example, through the DataOutInterface::write_vtu() function) form a group.
-   * The current function can generate such a master record.
+   * The current function can generate such a centralized record.
    *
    * This function is typically not called by itself from user space, but
    * you may want to call it through DataOutInterface::write_pvtu_record()
@@ -2078,7 +2041,7 @@ namespace DataOutBase
    * would have to provide to the current function by hand.
    *
    * In any case, whether this function is called directly or via
-   * DataOutInterface::write_pvtu_record(), the master record file so
+   * DataOutInterface::write_pvtu_record(), the central record file so
    * written contains a list of (scalar or vector) fields that describes which
    * fields can actually be found in the individual files that comprise the set
    * of parallel VTU files along with the names of these files. This function
@@ -2164,8 +2127,6 @@ namespace DataOutBase
    * references other files. For example, it could be the name for a
    * <code>.pvtu</code> file that references multiple parts of a parallel
    * computation.
-   *
-   * @author Marco Engelhard, 2012
    */
   void
   write_pvd_record(
@@ -2204,7 +2165,7 @@ namespace DataOutBase
    * piece_names[2].emplace_back("subdomain_01.time_step_2.vtk");
    * piece_names[2].emplace_back("subdomain_02.time_step_2.vtk");
    *
-   * std::ofstream visit_output ("master_file.visit");
+   * std::ofstream visit_output ("solution.visit");
    *
    * DataOutBase::write_visit_record(visit_output, piece_names);
    * @endcode
@@ -2240,7 +2201,7 @@ namespace DataOutBase
    * times_and_piece_names[2].second.emplace_back("subdomain_01.time_step_2.vtk");
    * times_and_piece_names[2].second.emplace_back("subdomain_02.time_step_2.vtk");
    *
-   * std::ofstream visit_output ("master_file.visit");
+   * std::ofstream visit_output ("solution.visit");
    *
    * DataOutBase::write_visit_record(visit_output, times_and_piece_names);
    * @endcode
@@ -2592,7 +2553,6 @@ namespace DataOutBase
  * name can be obtained by <tt>default_suffix</tt> without arguments.
  *
  * @ingroup output
- * @author Wolfgang Bangerth, 1999, Denis Davydov, 2018
  */
 template <int dim, int spacedim = dim>
 class DataOutInterface
@@ -2652,17 +2612,6 @@ public:
   write_tecplot(std::ostream &out) const;
 
   /**
-   * Obtain data through get_patches() and write it in the Tecplot binary
-   * output format. Note that the name of the output file must be specified
-   * through the TecplotFlags interface.
-   *
-   * @deprecated Using Tecplot binary output is deprecated.
-   */
-  DEAL_II_DEPRECATED
-  void
-  write_tecplot_binary(std::ostream &out) const;
-
-  /**
    * Obtain data through get_patches() and write it to <tt>out</tt> in UCD
    * format for AVS. See DataOutBase::write_ucd.
    */
@@ -2690,9 +2639,9 @@ public:
    * Some visualization programs, such as ParaView, can read several separate
    * VTU files to parallelize visualization. In that case, you need a
    * <code>.pvtu</code> file that describes which VTU files form a group. The
-   * DataOutInterface::write_pvtu_record() function can generate such a master
-   * record. Likewise, DataOutInterface::write_visit_record() does the same
-   * for older versions of VisIt (although VisIt can also read
+   * DataOutInterface::write_pvtu_record() function can generate such a
+   * centralized record. Likewise, DataOutInterface::write_visit_record() does
+   * the same for older versions of VisIt (although VisIt can also read
    * <code>pvtu</code> records since version 2.5.1). Finally,
    * DataOutInterface::write_pvd_record() can be used to group together the
    * files that jointly make up a time dependent simulation.
@@ -2717,9 +2666,9 @@ public:
    * parallelize visualization. In that case, you need a
    * <code>.pvtu</code> file that describes which VTU files (written, for
    * example, through the DataOutInterface::write_vtu() function) form a group.
-   * The current function can generate such a master record.
+   * The current function can generate such a centralized record.
    *
-   * The master record file generated by this function
+   * The central record file generated by this function
    * contains a list of (scalar or vector) fields that describes which
    * fields can actually be found in the individual files that comprise the set
    * of parallel VTU files along with the names of these files. This function
@@ -2795,7 +2744,8 @@ public:
    * generate the .pvtu file, where processor zero is chosen to take over this
    * job.
    *
-   * The return value is the filename of the master file for the pvtu record.
+   * The return value is the filename of the centralized file for the pvtu
+   * record.
    *
    * @note The code simply combines the strings @p directory and
    * @p filename_without_extension, i.e., the user has to make sure that
@@ -2804,8 +2754,6 @@ public:
    *
    * @note Use an empty string "" for the first argument if output is to be
    * written in the current working directory.
-   *
-   * @author Niklas Fehn, Martin Kronbichler, 2019
    */
   std::string
   write_vtu_with_pvtu_record(
@@ -3182,7 +3130,6 @@ private:
  * was used for writing.
  *
  * @ingroup input output
- * @author Wolfgang Bangerth, 2005
  */
 template <int dim, int spacedim = dim>
 class DataOutReader : public DataOutInterface<dim, spacedim>
@@ -3381,9 +3328,21 @@ public:
   /**
    * Get the XDMF content associated with this entry.
    * If the entry is not valid, this returns an empty string.
+   *
+   * @deprecated Use the overload taking an `unsigned int` and a
+   * `const ReferenceCell::Type &` instead.
    */
+  DEAL_II_DEPRECATED
   std::string
   get_xdmf_content(const unsigned int indent_level) const;
+
+  /**
+   * Get the XDMF content associated with this entry.
+   * If the entry is not valid, this returns an empty string.
+   */
+  std::string
+  get_xdmf_content(const unsigned int         indent_level,
+                   const ReferenceCell::Type &reference_cell_type) const;
 
 private:
   /**
@@ -3453,8 +3412,6 @@ namespace DataOutBase
    * operator dumps the intermediate graphics format represented by the patch
    * data structure. It may later be converted into regular formats for a
    * number of graphics programs.
-   *
-   * @author Wolfgang Bangerth, 2005
    */
   template <int dim, int spacedim>
   std::ostream &
@@ -3467,8 +3424,6 @@ namespace DataOutBase
    * operator reads the intermediate graphics format represented by the patch
    * data structure, using the format in which it was written using the
    * operator<<.
-   *
-   * @author Wolfgang Bangerth, 2005
    */
   template <int dim, int spacedim>
   std::istream &

@@ -52,8 +52,6 @@ DEAL_II_NAMESPACE_OPEN
  * are several pure virtual functions declared in the FiniteElement class
  * which cannot be implemented by this class but are left for implementation
  * in derived classes.
- *
- * @author Guido Kanschat, 2009
  */
 template <class PolynomialType,
           int dim      = PolynomialType::dimension + 1,
@@ -90,25 +88,31 @@ protected:
   virtual std::unique_ptr<
     typename FiniteElement<dim, spacedim>::InternalDataBase>
   get_data(
-    const UpdateFlags /*update_flags*/,
-    const Mapping<dim, spacedim> & /*mapping*/,
-    const Quadrature<dim> & /*quadrature*/,
+    const UpdateFlags             update_flags,
+    const Mapping<dim, spacedim> &mapping,
+    const Quadrature<dim> &       quadrature,
     dealii::internal::FEValuesImplementation::FiniteElementRelatedData<dim,
                                                                        spacedim>
-      & /*output_data*/) const override
+      &output_data) const override
   {
+    (void)update_flags;
+    (void)mapping;
+    (void)quadrature;
+    (void)output_data;
     return std::make_unique<InternalData>();
   }
 
   std::unique_ptr<typename FiniteElement<dim, spacedim>::InternalDataBase>
   get_face_data(
-    const UpdateFlags update_flags,
-    const Mapping<dim, spacedim> & /*mapping*/,
-    const Quadrature<dim - 1> &quadrature,
+    const UpdateFlags             update_flags,
+    const Mapping<dim, spacedim> &mapping,
+    const Quadrature<dim - 1> &   quadrature,
     dealii::internal::FEValuesImplementation::FiniteElementRelatedData<dim,
                                                                        spacedim>
-      & /*output_data*/) const override
+      &output_data) const override
   {
+    (void)mapping;
+    (void)output_data;
     // generate a new data object and
     // initialize some fields
     std::unique_ptr<typename FiniteElement<dim, spacedim>::InternalDataBase>
@@ -169,7 +173,7 @@ protected:
     return get_face_data(update_flags,
                          mapping,
                          QProjector<dim - 1>::project_to_all_children(
-                           quadrature),
+                           ReferenceCell::get_hypercube(dim - 1), quadrature),
                          output_data);
   }
 

@@ -813,11 +813,12 @@ void
 EstimateEnrichmentFunction::refine_grid()
 {
   Vector<float> estimated_error_per_cell(triangulation.n_active_cells());
-  KellyErrorEstimator<1>::estimate(dof_handler,
-                                   QGauss<1 - 1>(3),
-                                   typename FunctionMap<1>::type(),
-                                   solution,
-                                   estimated_error_per_cell);
+  KellyErrorEstimator<1>::estimate(
+    dof_handler,
+    QGauss<1 - 1>(3),
+    std::map<types::boundary_id, const Function<1> *>{},
+    solution,
+    estimated_error_per_cell);
   GridRefinement::refine_and_coarsen_fixed_number(triangulation,
                                                   estimated_error_per_cell,
                                                   0.2,
@@ -1158,7 +1159,6 @@ LaplaceProblem<dim>::initialize()
    * set up basic grid which is a hyper cube or hyper ball based on
    * parameter file. Refine as per the global refinement value in the
    * parameter file.
-   *
    */
   if (prm.shape == 1)
     GridGenerator::hyper_cube(triangulation, -prm.size / 2.0, prm.size / 2.0);
@@ -1305,9 +1305,9 @@ LaplaceProblem<dim>::make_enrichment_functions()
       else
         {
           pcout << "Dummy function added at " << i << std::endl;
-          ConstantFunction<dim> func(0);
+          Functions::ConstantFunction<dim> func(0);
           vec_enrichments.push_back(
-            std::make_shared<ConstantFunction<dim>>(func));
+            std::make_shared<Functions::ConstantFunction<dim>>(func));
         }
     }
 }
@@ -1600,15 +1600,16 @@ LaplaceProblem<dim>::refine_grid()
   for (unsigned int i = 0; i < q_collection.size(); ++i)
     q_collection_face.push_back(QGauss<dim - 1>(1));
 
-  KellyErrorEstimator<dim>::estimate(dof_handler,
-                                     q_collection_face,
-                                     typename FunctionMap<dim>::type(),
-                                     localized_solution,
-                                     local_error_per_cell,
-                                     ComponentMask(),
-                                     nullptr,
-                                     n_mpi_processes,
-                                     this_mpi_process);
+  KellyErrorEstimator<dim>::estimate(
+    dof_handler,
+    q_collection_face,
+    std::map<types::boundary_id, const Function<dim> *>{},
+    localized_solution,
+    local_error_per_cell,
+    ComponentMask(),
+    nullptr,
+    n_mpi_processes,
+    this_mpi_process);
   const unsigned int n_local_cells =
     GridTools::count_cells_with_subdomain_association(triangulation,
                                                       this_mpi_process);
@@ -1779,7 +1780,7 @@ LaplaceProblem<dim>::run()
           Vector<float> difference_per_cell(triangulation.n_active_cells());
           VectorTools::integrate_difference(dof_handler,
                                             localized_solution,
-                                            ZeroFunction<dim>(),
+                                            Functions::ZeroFunction<dim>(),
                                             difference_per_cell,
                                             q_collection,
                                             VectorTools::H1_norm);

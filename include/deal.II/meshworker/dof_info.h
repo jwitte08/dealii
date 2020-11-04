@@ -70,7 +70,6 @@ namespace MeshWorker
    * class will automatically use the new structures.
    *
    * @ingroup MeshWorker
-   * @author Guido Kanschat, 2009
    */
   template <int dim, int spacedim = dim, typename number = double>
   class DoFInfo : public LocalResults<number>
@@ -217,7 +216,6 @@ namespace MeshWorker
    * cleanliness.
    *
    * @ingroup MeshWorker
-   * @author Guido Kanschat, 2010
    */
   template <int dim, class DOFINFO>
   class DoFInfoBox
@@ -306,7 +304,7 @@ namespace MeshWorker
     , level_cell(false)
   {
     std::vector<types::global_dof_index> aux(1);
-    aux[0] = dof_handler.get_fe().dofs_per_cell;
+    aux[0] = dof_handler.get_fe().n_dofs_per_cell();
     aux_local_indices.reinit(aux);
   }
 
@@ -316,12 +314,12 @@ namespace MeshWorker
   inline void
   DoFInfo<dim, spacedim, number>::get_indices(const DHCellIterator &c)
   {
-    indices.resize(c->get_fe().dofs_per_cell);
+    indices.resize(c->get_fe().n_dofs_per_cell());
     if (block_info == nullptr || block_info->local().size() == 0)
       c->get_active_or_mg_dof_indices(indices);
     else
       {
-        indices_org.resize(c->get_fe().dofs_per_cell);
+        indices_org.resize(c->get_fe().n_dofs_per_cell());
         c->get_active_or_mg_dof_indices(indices_org);
         set_block_indices();
       }

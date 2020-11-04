@@ -28,8 +28,7 @@
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/mapping_q_generic.h>
 
-#include <deal.II/matrix_free/evaluation_kernels.h>
-#include <deal.II/matrix_free/evaluation_selector.h>
+#include <deal.II/matrix_free/evaluation_template_factory.h>
 #include <deal.II/matrix_free/mapping_info.h>
 
 DEAL_II_NAMESPACE_OPEN
@@ -72,7 +71,7 @@ namespace internal
       for (unsigned int i = 0; i < n_q_points; ++i)
         quadrature_weights[i] = quadrature.weight(i);
 
-      for (unsigned int d = 0; d < structdim; ++d)
+      for (int d = 0; d < structdim; ++d)
         {
           tensor_quadrature_weights[d].resize(quadrature_1d.size());
           for (unsigned int i = 0; i < quadrature_1d.size(); ++i)
@@ -121,7 +120,7 @@ namespace internal
       std::size_t memory = sizeof(this) + quadrature.memory_consumption() +
                            quadrature_weights.memory_consumption() +
                            face_orientations.memory_consumption();
-      for (unsigned int d = 0; d < structdim; ++d)
+      for (int d = 0; d < structdim; ++d)
         memory += tensor_quadrature_weights[d].memory_consumption();
       return memory;
     }
@@ -800,8 +799,15 @@ namespace internal
         // FEValues
         std::vector<std::vector<std::shared_ptr<dealii::FEValues<dim>>>>
           fe_values(mapping_info.cell_data.size());
+
+        const unsigned int n_active_fe_indices =
+          active_fe_index.size() > 0 ?
+            (*std::max_element(active_fe_index.begin(), active_fe_index.end()) +
+             1) :
+            1;
+
         for (unsigned int i = 0; i < fe_values.size(); ++i)
-          fe_values[i].resize(mapping_info.cell_data[i].descriptor.size());
+          fe_values[i].resize(n_active_fe_indices);
         const UpdateFlags update_flags = mapping_info.update_flags_cells;
         const UpdateFlags update_flags_feval =
           (update_flags & update_jacobians ? update_jacobians :
@@ -824,15 +830,19 @@ namespace internal
               // fill this data in
               const unsigned int fe_index =
                 active_fe_index.size() > 0 ? active_fe_index[cell] : 0;
-              const unsigned int n_q_points =
-                mapping_info.cell_data[my_q].descriptor[fe_index].n_q_points;
+              const unsigned int hp_quad_index =
+                mapping_info.cell_data[my_q].descriptor.size() == 1 ? 0 :
+                                                                      fe_index;
+              const unsigned int n_q_points = mapping_info.cell_data[my_q]
+                                                .descriptor[hp_quad_index]
+                                                .n_q_points;
               if (fe_values[my_q][fe_index].get() == nullptr)
                 fe_values[my_q][fe_index] =
                   std::make_shared<dealii::FEValues<dim>>(
                     mapping,
                     dummy_fe,
                     mapping_info.cell_data[my_q]
-                      .descriptor[fe_index]
+                      .descriptor[hp_quad_index]
                       .quadrature,
                     update_flags_feval);
               dealii::FEValues<dim> &fe_val = *fe_values[my_q][fe_index];
@@ -1302,16 +1312,18 @@ namespace internal
                                                 start_indices,
                                                 cell_points.data());
 
-                  SelectEvaluator<dim, -1, 0, dim, VectorizedDouble>::evaluate(
+                  FEEvaluationFactory<dim, double, VectorizedDouble>::evaluate(
+                    dim,
+                    EvaluationFlags::values | EvaluationFlags::gradients |
+                      (update_flags_cells & update_jacobian_grads ?
+                         EvaluationFlags::hessians :
+                         EvaluationFlags::nothing),
                     shape_info,
                     cell_points.data(),
                     cell_quads.data(),
                     cell_grads.data(),
                     cell_grad_grads.data(),
-                    scratch_data.data(),
-                    true,
-                    true,
-                    update_flags_cells & update_jacobian_grads);
+                    scratch_data.data());
                 }
               if (update_flags_cells & update_quadrature_points)
                 {
@@ -2124,25 +2136,21 @@ namespace internal
 
               // now let the matrix-free evaluators provide us with the
               // data on faces
-              FEFaceEvaluationSelector<dim,
-                                       -1,
-                                       0,
-                                       dim,
-                                       double,
-                                       VectorizedDouble>::
-                evaluate(shape_info,
-                         cell_points.data(),
-                         face_quads.data(),
-                         face_grads.data(),
-                         scratch_data.data(),
-                         true,
-                         true,
-                         face_no,
-                         GeometryInfo<dim>::max_children_per_cell,
-                         faces[face].face_orientation > 8 ?
-                           faces[face].face_orientation - 8 :
-                           0,
-                         my_data.descriptor[0].face_orientations);
+              FEFaceEvaluationFactory<dim, double, VectorizedDouble>::evaluate(
+                dim,
+                shape_info,
+                cell_points.data(),
+                face_quads.data(),
+                face_grads.data(),
+                scratch_data.data(),
+                true,
+                true,
+                face_no,
+                GeometryInfo<dim>::max_children_per_cell,
+                faces[face].face_orientation > 8 ?
+                  faces[face].face_orientation - 8 :
+                  0,
+                my_data.descriptor[0].face_orientations);
 
 
               if (update_flags_faces & update_quadrature_points)
@@ -2245,13 +2253,9 @@ namespace internal
                                                 start_indices,
                                                 cell_points.data());
 
-                  FEFaceEvaluationSelector<dim,
-                                           -1,
-                                           0,
-                                           dim,
-                                           Number,
-                                           VectorizedDouble>::
-                    evaluate(shape_info,
+                  FEFaceEvaluationFactory<dim, double, VectorizedDouble>::
+                    evaluate(dim,
+                             shape_info,
                              cell_points.data(),
                              face_quads.data(),
                              face_grads.data(),
@@ -3038,7 +3042,7 @@ namespace internal
                                     reorder_face_derivative_indices<dim>(face,
                                                                          e);
                                   face_data_by_cells[my_q]
-                                    .jacobians[1][offset + q][d][e][v] =
+                                    .jacobians[1][offset][d][e][v] =
                                     inv_jac[d][ee];
                                 }
                           }

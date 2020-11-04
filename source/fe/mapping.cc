@@ -24,15 +24,17 @@ DEAL_II_NAMESPACE_OPEN
 
 
 template <int dim, int spacedim>
-std::array<Point<spacedim>, GeometryInfo<dim>::vertices_per_cell>
+boost::container::small_vector<Point<spacedim>,
+                               GeometryInfo<dim>::vertices_per_cell>
 Mapping<dim, spacedim>::get_vertices(
   const typename Triangulation<dim, spacedim>::cell_iterator &cell) const
 {
-  std::array<Point<spacedim>, GeometryInfo<dim>::vertices_per_cell> vertices;
-  for (const unsigned int i : GeometryInfo<dim>::vertex_indices())
-    {
-      vertices[i] = cell->vertex(i);
-    }
+  boost::container::small_vector<Point<spacedim>,
+                                 GeometryInfo<dim>::vertices_per_cell>
+    vertices;
+  for (const unsigned int i : cell->vertex_indices())
+    vertices.push_back(cell->vertex(i));
+
   return vertices;
 }
 
@@ -72,6 +74,30 @@ Mapping<dim, spacedim>::get_bounding_box(
     return cell->bounding_box();
   else
     return BoundingBox<spacedim>(get_vertices(cell));
+}
+
+
+
+template <int dim, int spacedim>
+void
+Mapping<dim, spacedim>::transform_points_real_to_unit_cell(
+  const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+  const ArrayView<const Point<spacedim>> &                    real_points,
+  const ArrayView<Point<dim>> &                               unit_points) const
+{
+  AssertDimension(real_points.size(), unit_points.size());
+  for (unsigned int i = 0; i < real_points.size(); ++i)
+    {
+      try
+        {
+          unit_points[i] = transform_real_to_unit_cell(cell, real_points[i]);
+        }
+      catch (typename Mapping<dim>::ExcTransformationFailed &)
+        {
+          unit_points[i]    = Point<dim>();
+          unit_points[i][0] = std::numeric_limits<double>::infinity();
+        }
+    }
 }
 
 

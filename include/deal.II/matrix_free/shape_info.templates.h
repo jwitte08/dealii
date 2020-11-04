@@ -62,12 +62,16 @@ namespace internal
       return a;
     }
 
+
+
     template <typename Number, std::size_t width>
     Number
     get_first_array_element(const VectorizedArray<Number, width> a)
     {
       return a[0];
     }
+
+
 
     template <typename Number>
     ShapeInfo<Number>::ShapeInfo()
@@ -79,6 +83,48 @@ namespace internal
       , n_q_points_face(0)
       , dofs_per_component_on_face(0)
     {}
+
+
+
+    template <typename Number>
+    template <int dim, int spacedim>
+    bool
+    ShapeInfo<Number>::is_supported(const FiniteElement<dim, spacedim> &fe)
+    {
+      if (dim != spacedim)
+        return false;
+
+      for (unsigned int base = 0; base < fe.n_base_elements(); ++base)
+        {
+          const FiniteElement<dim, spacedim> *fe_ptr = &(fe.base_element(base));
+          if (fe_ptr->n_components() != 1)
+            return false;
+
+          // then check if the base element is supported or not
+          if (dynamic_cast<const FE_Poly<dim, spacedim> *>(fe_ptr) != nullptr)
+            {
+              const FE_Poly<dim, spacedim> *fe_poly_ptr =
+                dynamic_cast<const FE_Poly<dim, spacedim> *>(fe_ptr);
+              if (dynamic_cast<const TensorProductPolynomials<dim> *>(
+                    &fe_poly_ptr->get_poly_space()) == nullptr &&
+                  dynamic_cast<const TensorProductPolynomials<
+                      dim,
+                      Polynomials::PiecewisePolynomial<double>> *>(
+                    &fe_poly_ptr->get_poly_space()) == nullptr &&
+                  dynamic_cast<const FE_DGP<dim, spacedim> *>(fe_ptr) ==
+                    nullptr &&
+                  dynamic_cast<const FE_Q_DG0<dim, spacedim> *>(fe_ptr) ==
+                    nullptr)
+                return false;
+            }
+          else
+            return false;
+        }
+
+      // if we arrived here, all base elements were supported so we can
+      // support the present element
+      return true;
+    }
 
 
 
@@ -113,6 +159,9 @@ namespace internal
       univariate_shape_data.fe_degree     = fe->degree;
       univariate_shape_data.n_q_points_1d = quad.size();
 
+      if ((fe->n_dofs_per_cell() == 0) || (quad.size() == 0))
+        return;
+
       // grant write access to common univariate shape data
       auto &shape_values    = univariate_shape_data.shape_values;
       auto &shape_gradients = univariate_shape_data.shape_gradients;
@@ -121,8 +170,10 @@ namespace internal
         univariate_shape_data.shape_gradients_collocation;
       auto &shape_hessians_collocation =
         univariate_shape_data.shape_hessians_collocation;
-      auto &inverse_shape_values  = univariate_shape_data.inverse_shape_values;
-      auto &shape_data_on_face    = univariate_shape_data.shape_data_on_face;
+      auto &inverse_shape_values = univariate_shape_data.inverse_shape_values;
+      auto &shape_data_on_face   = univariate_shape_data.shape_data_on_face;
+      auto &quadrature_data_on_face =
+        univariate_shape_data.quadrature_data_on_face;
       auto &values_within_subface = univariate_shape_data.values_within_subface;
       auto &gradients_within_subface =
         univariate_shape_data.gradients_within_subface;
@@ -133,7 +184,8 @@ namespace internal
 
       const unsigned int fe_degree     = fe->degree;
       const unsigned int n_q_points_1d = quad.size();
-      const unsigned int n_dofs_1d = std::min(fe->dofs_per_cell, fe_degree + 1);
+      const unsigned int n_dofs_1d =
+        std::min(fe->n_dofs_per_cell(), fe_degree + 1);
 
       // renumber (this is necessary for FE_Q, for example, since there the
       // vertex DoFs come first, which is incompatible with the lexicographic
@@ -163,8 +215,8 @@ namespace internal
           scalar_lexicographic = fe_poly->get_poly_space_numbering_inverse();
         else if (fe_dgp != nullptr)
           {
-            scalar_lexicographic.resize(fe_dgp->dofs_per_cell);
-            for (unsigned int i = 0; i < fe_dgp->dofs_per_cell; ++i)
+            scalar_lexicographic.resize(fe_dgp->n_dofs_per_cell());
+            for (unsigned int i = 0; i < fe_dgp->n_dofs_per_cell(); ++i)
               scalar_lexicographic[i] = i;
             element_type = truncated_tensor;
           }
@@ -173,7 +225,7 @@ namespace internal
             scalar_lexicographic = fe_q_dg0->get_poly_space_numbering_inverse();
             element_type         = tensor_symmetric_plus_dg0;
           }
-        else if (fe->dofs_per_cell == 0)
+        else if (fe->n_dofs_per_cell() == 0)
           {
             // FE_Nothing case -> nothing to do here
           }
@@ -192,7 +244,7 @@ namespace internal
             std::vector<unsigned int> scalar_inv =
               Utilities::invert_permutation(scalar_lexicographic);
             std::vector<unsigned int> lexicographic(
-              fe_in.dofs_per_cell, numbers::invalid_unsigned_int);
+              fe_in.n_dofs_per_cell(), numbers::invalid_unsigned_int);
             unsigned int components_before = 0;
             for (unsigned int e = 0; e < base_element_number; ++e)
               components_before += fe_in.element_multiplicity(e);
@@ -208,7 +260,7 @@ namespace internal
             // have undefined blocks
             lexicographic_numbering.resize(fe_in.element_multiplicity(
                                              base_element_number) *
-                                             fe->dofs_per_cell,
+                                             fe->n_dofs_per_cell(),
                                            numbers::invalid_unsigned_int);
             for (unsigned int i = 0; i < lexicographic.size(); ++i)
               if (lexicographic[i] != numbers::invalid_unsigned_int)
@@ -225,7 +277,7 @@ namespace internal
         // by reading the name, as done before r29356)
         if (fe->has_support_points())
           unit_point = fe->get_unit_support_points()[scalar_lexicographic[0]];
-        Assert(fe->dofs_per_cell == 0 ||
+        Assert(fe->n_dofs_per_cell() == 0 ||
                  std::abs(fe->shape_value(scalar_lexicographic[0], unit_point) -
                           1) < 1e-13,
                ExcInternalError("Could not decode 1D shape functions for the "
@@ -236,7 +288,7 @@ namespace internal
       n_q_points = Utilities::fixed_power<dim>(n_q_points_1d);
       n_q_points_face =
         dim > 1 ? Utilities::fixed_power<dim - 1>(n_q_points_1d) : 1;
-      dofs_per_component_on_cell = fe->dofs_per_cell;
+      dofs_per_component_on_cell = fe->n_dofs_per_cell();
       dofs_per_component_on_face =
         dim > 1 ? Utilities::fixed_power<dim - 1>(fe_degree + 1) : 1;
 
@@ -304,6 +356,23 @@ namespace internal
             fe->shape_grad(my_i, q_point)[0];
           shape_data_on_face[1][i + 2 * n_dofs_1d] =
             fe->shape_grad_grad(my_i, q_point)[0][0];
+        }
+
+      if (n_q_points_1d < 200)
+        {
+          quadrature_data_on_face[0].resize(quad.size() * 3);
+          quadrature_data_on_face[1].resize(quad.size() * 3);
+
+          dealii::FE_DGQArbitraryNodes<1> fe_quad(quad);
+
+          for (unsigned int i = 0; i < quad.size(); ++i)
+            {
+              Point<1> q_point;
+              q_point[0]                    = 0;
+              quadrature_data_on_face[0][i] = fe_quad.shape_value(i, q_point);
+              q_point[0]                    = 1;
+              quadrature_data_on_face[1][i] = fe_quad.shape_value(i, q_point);
+            }
         }
 
       // get gradient and Hessian transformation matrix for the polynomial
@@ -488,6 +557,46 @@ namespace internal
                       const unsigned int l           = i * (fe_degree + 1) + j;
                       face_to_cell_index_nodal(f, l) = ind;
                     }
+            }
+
+          // face orientation for faces in 3D
+          // (similar to MappingInfoStorage::QuadratureDescriptor::initialize)
+          if (dim == 3)
+            {
+              const unsigned int n = fe_degree + 1;
+              face_orientations.reinit(8, n * n);
+              for (unsigned int j = 0, i = 0; j < n; ++j)
+                for (unsigned int k = 0; k < n; ++k, ++i)
+                  {
+                    // face_orientation=true,  face_flip=false,
+                    // face_rotation=false
+                    face_orientations[0][i] = i;
+                    // face_orientation=false, face_flip=false,
+                    // face_rotation=false
+                    face_orientations[1][i] = j + k * n;
+                    // face_orientation=true,  face_flip=true,
+                    // face_rotation=false
+                    face_orientations[2][i] = (n - 1 - k) + (n - 1 - j) * n;
+                    // face_orientation=false, face_flip=true,
+                    // face_rotation=false
+                    face_orientations[3][i] = (n - 1 - j) + (n - 1 - k) * n;
+                    // face_orientation=true,  face_flip=false,
+                    // face_rotation=true
+                    face_orientations[4][i] = j + (n - 1 - k) * n;
+                    // face_orientation=false, face_flip=false,
+                    // face_rotation=true
+                    face_orientations[5][i] = k + (n - 1 - j) * n;
+                    // face_orientation=true,  face_flip=true,
+                    // face_rotation=true
+                    face_orientations[6][i] = (n - 1 - j) + k * n;
+                    // face_orientation=false, face_flip=true,
+                    // face_rotation=true
+                    face_orientations[7][i] = (n - 1 - k) + j * n;
+                  }
+            }
+          else
+            {
+              face_orientations.reinit(1, 1);
             }
         }
 
@@ -740,6 +849,8 @@ namespace internal
         {
           memory +=
             MemoryConsumption::memory_consumption(shape_data_on_face[i]);
+          memory +=
+            MemoryConsumption::memory_consumption(quadrature_data_on_face[i]);
           memory +=
             MemoryConsumption::memory_consumption(values_within_subface[i]);
           memory +=

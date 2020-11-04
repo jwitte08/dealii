@@ -2329,41 +2329,6 @@ namespace internal
 {
   namespace AffineConstraints
   {
-    using size_type = types::global_dof_index;
-
-    // this struct contains all the information we need to store about each of
-    // the global entries (global_row): are they obtained directly by some local
-    // entry (local_row) or some constraints (constraint_position). This is not
-    // directly used in the user code, but accessed via the GlobalRowsFromLocal.
-    //
-    // The actions performed here correspond to reshaping the constraint
-    // information from global degrees of freedom to local ones (i.e.,
-    // cell-related DoFs), and also transforming the constraint information from
-    // compressed row storage (each local dof that is constrained has a list of
-    // constraint entries associated to it) into compressed column storage based
-    // on the cell-related DoFs (we have a list of global degrees of freedom,
-    // and to each we have a list of local rows where the entries come from). To
-    // increase the speed, we additionally store whether an entry is generated
-    // directly from the local degrees of freedom or whether it comes from a
-    // constraint.
-    struct Distributing
-    {
-      Distributing(const size_type global_row = numbers::invalid_size_type,
-                   const size_type local_row  = numbers::invalid_size_type);
-      Distributing(const Distributing &in);
-      Distributing &
-      operator=(const Distributing &in);
-      bool
-      operator<(const Distributing &in) const
-      {
-        return global_row < in.global_row;
-      }
-
-      size_type         global_row;
-      size_type         local_row;
-      mutable size_type constraint_position;
-    };
-
     inline Distributing::Distributing(const size_type global_row,
                                       const size_type local_row)
       : global_row(global_row)
@@ -2371,11 +2336,15 @@ namespace internal
       , constraint_position(numbers::invalid_size_type)
     {}
 
+
+
     inline Distributing::Distributing(const Distributing &in)
       : constraint_position(numbers::invalid_size_type)
     {
       *this = (in);
     }
+
+
 
     inline Distributing &
     Distributing::operator=(const Distributing &in)
@@ -2394,222 +2363,86 @@ namespace internal
       return *this;
     }
 
-    // this is a cache for constraints that are encountered on a local level.
-    // The functionality is similar to
-    // std::vector<std::vector<std::pair<uint,double> > >, but tuned so that
-    // frequent memory allocation for each entry is avoided. The data is put
-    // into a std::vector<std::pair<uint,double> > and the row length is kept
-    // fixed at row_length. Both the number of rows and the row length can
-    // change is this structure is filled. In that case, the data is
-    // rearranged. This is not directly used in the user code, but accessed
-    // via the GlobalRowsFromLocal.
+
+
     template <typename number>
-    struct DataCache
-    {
-      DataCache()
-        : row_length(8)
-      {}
+    DataCache<number>::DataCache()
+      : row_length(8)
+    {}
 
-      void
-      reinit()
-      {
-        individual_size.resize(0);
-        data.resize(0);
-      }
 
-      size_type
-      insert_new_index(const std::pair<size_type, number> &pair)
-      {
-        Assert(row_length > 0, ExcInternalError());
-        const unsigned int index = individual_size.size();
-        individual_size.push_back(1);
-        data.resize(individual_size.size() * row_length);
-        data[index * row_length] = pair;
-        individual_size[index]   = 1;
-        return index;
-      }
 
-      void
-      append_index(const size_type                     index,
-                   const std::pair<size_type, number> &pair)
-      {
-        AssertIndexRange(index, individual_size.size());
-        const size_type my_length = individual_size[index];
-        if (my_length == row_length)
-          {
-            AssertDimension(data.size(), individual_size.size() * row_length);
-            // no space left in this row, need to double row_length and
-            // rearrange the data items. Move all items to the right except the
-            // first one, starting at the back. Since individual_size contains
-            // at least one element when we get here, subtracting 1 works fine.
-            data.resize(2 * data.size());
-            for (size_type i = individual_size.size() - 1; i > 0; --i)
-              {
-                const auto ptr = data.data();
-                std::move_backward(ptr + i * row_length,
-                                   ptr + i * row_length + individual_size[i],
-                                   ptr + i * 2 * row_length +
-                                     individual_size[i]);
-              }
-            row_length *= 2;
-          }
-        data[index * row_length + my_length] = pair;
-        individual_size[index]               = my_length + 1;
-      }
-
-      size_type
-      get_size(const size_type index) const
-      {
-        return individual_size[index];
-      }
-
-      const std::pair<size_type, number> *
-      get_entry(const size_type index) const
-      {
-        return &data[index * row_length];
-      }
-
-      size_type row_length;
-
-      std::vector<std::pair<size_type, number>> data;
-
-      std::vector<size_type> individual_size;
-    };
-
-    // collects all the global rows from a local contribution (cell) and their
-    // origin (direct/constraint). this is basically a vector consisting of
-    // "Distributing" structs using access via the DataCache. Provides some
-    // specialized sort and insert functions.
-    //
-    // in case there are no constraints, this is basically a list of pairs
-    // <uint,unit> with the first index being the global index and the second
-    // index the local index. The list is sorted with respect to the global
-    // index.
-    //
-    // in case there are constraints, a global dof might get a contribution also
-    // because it gets data from a constrained dof. This means that a global dof
-    // might also have indirect contributions from a local dof via a constraint,
-    // besides the direct ones.
-    //
-    // The actions performed here correspond to reshaping the constraint
-    // information from global degrees of freedom to local ones (i.e.,
-    // cell-related DoFs), and also transforming the constraint information from
-    // compressed row storage (each local dof that is constrained has a list of
-    // constraint entries associated to it) into compressed column storage based
-    // on the cell-related DoFs (we have a list of global degrees of freedom,
-    // and to each we have a list of local rows where the entries come from). To
-    // increase the speed, we additionally store whether an entry is generated
-    // directly from the local degrees of freedom or whether it comes from a
-    // constraint.
     template <typename number>
-    class GlobalRowsFromLocal
+    void
+    DataCache<number>::reinit()
     {
-    public:
-      GlobalRowsFromLocal();
+      individual_size.resize(0);
+      data.resize(0);
+    }
 
-      void
-      reinit(const size_type n_local_rows);
 
-      void
-      insert_index(const size_type global_row,
-                   const size_type local_row,
-                   const number    constraint_value);
-      void
-      sort();
 
-      void
-      print(std::ostream &os);
+    template <typename number>
+    size_type
+    DataCache<number>::insert_new_index(
+      const std::pair<size_type, number> &pair)
+    {
+      Assert(row_length > 0, ExcInternalError());
+      const unsigned int index = individual_size.size();
+      individual_size.push_back(1);
+      data.resize(individual_size.size() * row_length);
+      data[index * row_length] = pair;
+      individual_size[index]   = 1;
+      return index;
+    }
 
-      // return all kind of information on the constraints
 
-      // returns the number of global indices in the struct
-      size_type
-      size() const;
 
-      // returns the number of constraints that are associated to the
-      // counter_index-th entry in the list
-      size_type
-      size(const size_type counter_index) const;
+    template <typename number>
+    void
+    DataCache<number>::append_index(const size_type                     index,
+                                    const std::pair<size_type, number> &pair)
+    {
+      AssertIndexRange(index, individual_size.size());
+      const size_type my_length = individual_size[index];
+      if (my_length == row_length)
+        {
+          AssertDimension(data.size(), individual_size.size() * row_length);
+          // no space left in this row, need to double row_length and
+          // rearrange the data items. Move all items to the right except the
+          // first one, starting at the back. Since individual_size contains
+          // at least one element when we get here, subtracting 1 works fine.
+          data.resize(2 * data.size());
+          for (size_type i = individual_size.size() - 1; i > 0; --i)
+            {
+              const auto ptr = data.data();
+              std::move_backward(ptr + i * row_length,
+                                 ptr + i * row_length + individual_size[i],
+                                 ptr + i * 2 * row_length + individual_size[i]);
+            }
+          row_length *= 2;
+        }
+      data[index * row_length + my_length] = pair;
+      individual_size[index]               = my_length + 1;
+    }
 
-      // returns the global row of the counter_index-th entry in the list
-      size_type
-      global_row(const size_type counter_index) const;
 
-      // returns the global row of the counter_index-th entry in the list
-      size_type &
-      global_row(const size_type counter_index);
 
-      // returns the local row in the cell matrix associated with the
-      // counter_index-th entry in the list. Returns invalid_size_type for
-      // constrained rows
-      size_type
-      local_row(const size_type counter_index) const;
+    template <typename number>
+    size_type
+    DataCache<number>::get_size(const size_type index) const
+    {
+      return individual_size[index];
+    }
 
-      // writable index
-      size_type &
-      local_row(const size_type counter_index);
 
-      // returns the local row in the cell matrix associated with the
-      // counter_index-th entry in the list in the index_in_constraint-th
-      // position of constraints
-      size_type
-      local_row(const size_type counter_index,
-                const size_type index_in_constraint) const;
 
-      // returns the value of the constraint in the counter_index-th entry in
-      // the list in the index_in_constraint-th position of constraints
-      number
-      constraint_value(const size_type counter_index,
-                       const size_type index_in_constraint) const;
-
-      // returns whether there is one row with indirect contributions (i.e.,
-      // there has been at least one constraint with non-trivial ConstraintLine)
-      bool
-      have_indirect_rows() const;
-
-      // append an entry that is constrained. This means that there is one less
-      // nontrivial row
-      void
-      insert_constraint(const size_type constrained_local_dof);
-
-      // returns the number of constrained dofs in the structure. Constrained
-      // dofs do not contribute directly to the matrix, but are needed in order
-      // to set matrix diagonals and resolve inhomogeneities
-      size_type
-      n_constraints() const;
-
-      // returns the number of constrained dofs in the structure that have an
-      // inhomogeneity
-      size_type
-      n_inhomogeneities() const;
-
-      // tells the structure that the ith constraint is
-      // inhomogeneous. inhomogeneous constraints contribute to right hand
-      // sides, so to have fast access to them, put them before homogeneous
-      // constraints
-      void
-      set_ith_constraint_inhomogeneous(const size_type i);
-
-      // the local row where constraint number i was detected, to find that row
-      // easily when the GlobalRowsToLocal has been set up
-      size_type
-      constraint_origin(size_type i) const;
-
-      // a vector that contains all the global ids and the corresponding local
-      // ids as well as a pointer to that data where we store how to resolve
-      // constraints.
-      std::vector<Distributing> total_row_indices;
-
-    private:
-      // holds the actual data from the constraints
-      DataCache<number> data_cache;
-
-      // how many rows there are, constraints disregarded
-      size_type n_active_rows;
-
-      // the number of rows with inhomogeneous constraints
-      size_type n_inhomogeneous_rows;
-    };
+    template <typename number>
+    const std::pair<size_type, number> *
+    DataCache<number>::get_entry(const size_type index) const
+    {
+      return &data[index * row_length];
+    }
 
 
 
@@ -2892,88 +2725,14 @@ namespace internal
     }
 
 
-    /**
-     * Scratch data that is used during calls to distribute_local_to_global and
-     * add_entries_local_to_global. In order to avoid frequent memory
-     * allocation, we keep the data alive from one call to the next in a static
-     * variable. Since we want to allow for different number types in matrices,
-     * this is a template.
-     *
-     * Since each thread gets its private version of scratch data out of a
-     * ThreadLocalStorage, no conflicting access can occur. For this to be
-     * valid, we need to make sure that no call within
-     * distribute_local_to_global is made that by itself can spawn tasks.
-     * Otherwise, we might end up in a situation where several threads fight for
-     * the data.
-     *
-     * Access to the scratch data is only through an accessor class which
-     * handles the access as well as marks the data as used.
-     */
-    template <typename number>
-    struct ScratchData
-    {
-      /**
-       * Constructor, does nothing.
-       */
-      ScratchData()
-        : in_use(false)
-      {}
-
-      /**
-       * Copy constructor, does nothing
-       */
-      ScratchData(const ScratchData &)
-        : in_use(false)
-      {}
-
-      /**
-       * Stores whether the data is currently in use.
-       */
-      bool in_use;
-
-      /**
-       * Temporary array for column indices
-       */
-      std::vector<size_type> columns;
-
-      /**
-       * Temporary array for column values
-       */
-      std::vector<number> values;
-
-      /**
-       * Temporary array for block start indices
-       */
-      std::vector<size_type> block_starts;
-
-      /**
-       * Temporary array for vector indices
-       */
-      std::vector<size_type> vector_indices;
-
-      /**
-       * Temporary array for vector values
-       */
-      std::vector<number> vector_values;
-
-      /**
-       * Data array for reorder row/column indices.
-       */
-      GlobalRowsFromLocal<number> global_rows;
-
-      /**
-       * Data array for reorder row/column indices.
-       */
-      GlobalRowsFromLocal<number> global_columns;
-    };
-
 
     /**
-     * Scratch data that is used during calls to distribute_local_to_global and
+     * This class is an accessor class to scratch data that is used
+     * during calls to distribute_local_to_global and
      * add_entries_local_to_global. In order to avoid frequent memory
-     * allocation, we keep the data alive from one call to the next in a static
-     * variable. Since we want to allow for different number types in matrices,
-     * this is a template.
+     * allocation, we keep the data alive from one call to the next in
+     * a static variable. Since we want to allow for different number
+     * types in matrices, this is a template.
      *
      * Since each thread gets its private version of scratch data out of the
      * ThreadLocalStorage, no conflicting access can occur. For this to be
@@ -2981,68 +2740,52 @@ namespace internal
      * distribute_local_to_global is made that by itself can spawn tasks.
      * Otherwise, we might end up in a situation where several threads fight for
      * the data.
-     *
-     * Access to the scratch data is only through the accessor class which
-     * handles the access as well as marking the data as used.
      */
     template <typename number>
-    class AffineConstraintsData
+    class ScratchDataAccessor
     {
     public:
       /**
-       * Accessor class to guard access to scratch_data
+       * Constructor. Takes the scratch data object for the current
+       * thread out of the provided object and marks it as used.
        */
-      class ScratchDataAccessor
+      ScratchDataAccessor(
+        Threads::ThreadLocalStorage<ScratchData<number>> &tls_scratch_data)
+        : my_scratch_data(&tls_scratch_data.get())
       {
-      public:
-        /**
-         * Constructor. Grabs the scratch data object on the current thread and
-         * marks it as used.
-         */
-        ScratchDataAccessor()
-          : my_scratch_data(&AffineConstraintsData::scratch_data.get())
-        {
-          Assert(
-            my_scratch_data->in_use == false,
-            ExcMessage(
-              "Access to thread-local scratch data tried, but it is already "
-              "in use"));
-          my_scratch_data->in_use = true;
-        }
+        Assert(my_scratch_data->in_use == false,
+               ExcMessage(
+                 "Access to thread-local scratch data tried, but it is already "
+                 "in use"));
+        my_scratch_data->in_use = true;
+      }
 
-        /**
-         * Destructor. Mark scratch data as available again.
-         */
-        ~ScratchDataAccessor()
-        {
-          my_scratch_data->in_use = false;
-        }
+      /**
+       * Destructor. Mark scratch data as available again.
+       */
+      ~ScratchDataAccessor()
+      {
+        my_scratch_data->in_use = false;
+      }
 
-        /**
-         * Dereferencing operator.
-         */
-        ScratchData<number> &operator*()
-        {
-          return *my_scratch_data;
-        }
+      /**
+       * Dereferencing operator.
+       */
+      ScratchData<number> &operator*()
+      {
+        return *my_scratch_data;
+      }
 
-        /**
-         * Dereferencing operator.
-         */
-        ScratchData<number> *operator->()
-        {
-          return my_scratch_data;
-        }
-
-      private:
-        ScratchData<number> *my_scratch_data;
-      };
+      /**
+       * Dereferencing operator.
+       */
+      ScratchData<number> *operator->()
+      {
+        return my_scratch_data;
+      }
 
     private:
-      /**
-       * The actual data object that contains a scratch data for each thread.
-       */
-      static Threads::ThreadLocalStorage<ScratchData<number>> scratch_data;
+      ScratchData<number> *my_scratch_data;
     };
 
 
@@ -3541,19 +3284,33 @@ namespace internal
             {
               const size_type local_row  = global_rows.constraint_origin(i);
               const size_type global_row = local_dof_indices[local_row];
-              const number    new_diagonal =
-                (std::abs(local_matrix(local_row, local_row)) != 0. ?
-                   std::abs(local_matrix(local_row, local_row)) :
-                   average_diagonal);
-              global_matrix.add(global_row, global_row, new_diagonal);
 
-              // if the use_inhomogeneities_for_rhs flag is set to true, the
-              // inhomogeneities are used to create the global vector. instead
-              // of fill in a zero in the ith components with an inhomogeneity,
-              // we set those to: inhomogeneity(i)*global_matrix (i,i).
-              if (use_inhomogeneities_for_rhs == true)
-                global_vector(global_row) +=
-                  new_diagonal * constraints.get_inhomogeneity(global_row);
+              const number current_diagonal =
+                local_matrix(local_row, local_row);
+              if (std::abs(current_diagonal) != 0.)
+                {
+                  global_matrix.add(global_row,
+                                    global_row,
+                                    std::abs(current_diagonal));
+                  // if the use_inhomogeneities_for_rhs flag is set to true, the
+                  // inhomogeneities are used to create the global vector.
+                  // instead of fill in a zero in the ith components with an
+                  // inhomogeneity, we set those to:
+                  // inhomogeneity(i)*global_matrix (i,i).
+                  if (use_inhomogeneities_for_rhs == true)
+                    global_vector(global_row) +=
+                      current_diagonal *
+                      constraints.get_inhomogeneity(global_row);
+                }
+              else
+                {
+                  global_matrix.add(global_row, global_row, average_diagonal);
+
+                  if (use_inhomogeneities_for_rhs == true)
+                    global_vector(global_row) +=
+                      average_diagonal *
+                      constraints.get_inhomogeneity(global_row);
+                }
             }
         }
     }
@@ -3802,8 +3559,8 @@ AffineConstraints<number>::distribute_local_to_global(
 
   const size_type n_local_dofs = local_dof_indices.size();
 
-  typename internal::AffineConstraints::AffineConstraintsData<
-    number>::ScratchDataAccessor scratch_data;
+  typename internal::AffineConstraints::ScratchDataAccessor<number>
+    scratch_data(this->scratch_data);
 
   internal::AffineConstraints::GlobalRowsFromLocal<number> &global_rows =
     scratch_data->global_rows;
@@ -3953,8 +3710,8 @@ AffineConstraints<number>::distribute_local_to_global(
     }
   Assert(sorted == true, ExcMatrixNotClosed());
 
-  typename internal::AffineConstraints::AffineConstraintsData<
-    number>::ScratchDataAccessor scratch_data;
+  typename internal::AffineConstraints::ScratchDataAccessor<number>
+    scratch_data(this->scratch_data);
 
   const size_type n_local_dofs = local_dof_indices.size();
   internal::AffineConstraints::GlobalRowsFromLocal<number> &global_rows =
@@ -4089,8 +3846,9 @@ AffineConstraints<number>::distribute_local_to_global(
   const size_type n_local_row_dofs = row_indices.size();
   const size_type n_local_col_dofs = col_indices.size();
 
-  typename internal::AffineConstraints::AffineConstraintsData<
-    typename MatrixType::value_type>::ScratchDataAccessor scratch_data;
+  typename internal::AffineConstraints::ScratchDataAccessor<
+    typename MatrixType::value_type>
+    scratch_data(this->scratch_data);
 
   internal::AffineConstraints::GlobalRowsFromLocal<number> &global_rows =
     scratch_data->global_rows;
@@ -4149,8 +3907,8 @@ AffineConstraints<number>::add_entries_local_to_global(
          ExcNotQuadratic());
 
   const size_type n_local_dofs = local_dof_indices.size();
-  typename internal::AffineConstraints::AffineConstraintsData<
-    number>::ScratchDataAccessor scratch_data;
+  typename internal::AffineConstraints::ScratchDataAccessor<number>
+    scratch_data(this->scratch_data);
 
   const bool dof_mask_is_active = (dof_mask.n_rows() == n_local_dofs);
   if (dof_mask_is_active == true)
@@ -4305,8 +4063,8 @@ AffineConstraints<number>::add_entries_local_to_global(
   const size_type n_local_dofs = local_dof_indices.size();
   const size_type num_blocks   = sparsity_pattern.n_block_rows();
 
-  typename internal::AffineConstraints::AffineConstraintsData<
-    number>::ScratchDataAccessor scratch_data;
+  typename internal::AffineConstraints::ScratchDataAccessor<number>
+    scratch_data(this->scratch_data);
 
   const bool dof_mask_is_active = (dof_mask.n_rows() == n_local_dofs);
   if (dof_mask_is_active == true)

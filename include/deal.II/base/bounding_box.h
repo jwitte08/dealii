@@ -121,8 +121,6 @@ enum class NeighborType
  *
  * This is according to the convention set by the function
  * <code>coordinate_to_one_dim_higher</code>.
- *
- * @author Giovanni Alzetta, 2017, Simon Sticko 2020.
  */
 template <int spacedim, typename Number = double>
 class BoundingBox
@@ -182,10 +180,15 @@ public:
   merge_with(const BoundingBox<spacedim, Number> &other_bbox);
 
   /**
-   * Return true if the point is inside the Bounding Box, false otherwise.
+   * Return true if the point is inside the Bounding Box, false otherwise. The
+   * parameter @p tolerance is a factor by which the bounding box is enlarged
+   * relative to the dimensions of the bounding box in order to determine in a
+   * numerically robust way whether the point is inside.
    */
   bool
-  point_inside(const Point<spacedim, Number> &p) const;
+  point_inside(
+    const Point<spacedim, Number> &p,
+    const double tolerance = std::numeric_limits<Number>::epsilon()) const;
 
   /**
    * Increase (or decrease) the size of the bounding box by the given amount.
@@ -259,6 +262,28 @@ public:
    */
   BoundingBox<spacedim - 1, Number>
   cross_section(const unsigned int direction) const;
+
+  /**
+   * Apply the affine transformation that transforms this BoundingBox to a unit
+   * BoundingBox object.
+   *
+   * If $B$ is this bounding box, and $\hat{B}$ is the unit bounding box,
+   * compute the affine mapping that satisfies $G(B) = \hat{B}$ and apply it to
+   * @p point.
+   */
+  Point<spacedim, Number>
+  real_to_unit(const Point<spacedim, Number> &point) const;
+
+  /**
+   * Apply the affine transformation that transforms the unit BoundingBox object
+   * to this object.
+   *
+   * If $B$ is this bounding box, and $\hat{B}$ is the unit bounding box,
+   * compute the affine mapping that satisfies $F(\hat{B}) = B$ and apply it to
+   * @p point.
+   */
+  Point<spacedim, Number>
+  unit_to_real(const Point<spacedim, Number> &point) const;
 
   /**
    * Boost serialization function
@@ -337,19 +362,19 @@ namespace internal
    * dimension to a coordinate index in dim + 1 dimensions.
    *
    * @param locked_coordinate should be in the range [0, dim+1).
-   * @param coordiante_in_dim should be in the range [0, dim).
+   * @param coordinate_in_dim should be in the range [0, dim).
    * @return A coordinate index in the range [0, dim+1)
    *
    * @relates BoundingBox
    */
   template <int dim>
-  inline unsigned int
-  coordinate_to_one_dim_higher(const unsigned int locked_coordinate,
-                               const unsigned int coordiante_in_dim)
+  inline int
+  coordinate_to_one_dim_higher(const int locked_coordinate,
+                               const int coordinate_in_dim)
   {
     AssertIndexRange(locked_coordinate, dim + 1);
-    AssertIndexRange(coordiante_in_dim, dim);
-    return (locked_coordinate + coordiante_in_dim + 1) % (dim + 1);
+    AssertIndexRange(coordinate_in_dim, dim);
+    return (locked_coordinate + coordinate_in_dim + 1) % (dim + 1);
   }
 
 } // namespace internal

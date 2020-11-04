@@ -87,8 +87,10 @@ namespace Exceptions
                    << " but the DoFHandler object says that there are " << arg2
                    << " degrees of freedom and there are " << arg3
                    << " active cells. The size of your vector needs to be"
-                   << " either equal to the number of degrees of freedom, or"
-                   << " equal to the number of active cells.");
+                   << " either equal to the number of degrees of freedom (when"
+                   << " the data is of type type_dof_data), or equal to the"
+                   << " number of active cells (when the data is of type "
+                   << " type_cell_data).");
     /**
      * Exception
      */
@@ -215,8 +217,6 @@ namespace internal
      * @note This class is an example of the
      * <a href="https://www.artima.com/cppsource/type_erasure.html">type
      * erasure</a> design pattern.
-     *
-     * @author Wolfgang Bangerth, 2004
      */
     template <typename DoFHandlerType>
     class DataEntryBase
@@ -415,6 +415,17 @@ namespace internal
         const UpdateFlags update_flags,
         const bool        use_face_values);
 
+      ParallelDataBase(
+        const unsigned int               n_datasets,
+        const unsigned int               n_subdivisions,
+        const std::vector<unsigned int> &n_postprocessor_outputs,
+        const dealii::hp::MappingCollection<dim, spacedim> &mapping,
+        const std::vector<
+          std::shared_ptr<dealii::hp::FECollection<dim, spacedim>>>
+          &               finite_elements,
+        const UpdateFlags update_flags,
+        const bool        use_face_values);
+
       ParallelDataBase(const ParallelDataBase &data);
 
       template <typename DoFHandlerType>
@@ -594,7 +605,6 @@ namespace internal
  * value as the second one.
  *
  * @ingroup output
- * @author Wolfgang Bangerth, 1999
  */
 template <typename DoFHandlerType,
           int patch_dim,

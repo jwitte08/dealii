@@ -76,6 +76,7 @@ SET(_unity_include_src
   polynomials_raviart_thomas.cc
   polynomials_rt_bubbles.cc
   process_grid.cc
+  qprojector.cc
   quadrature.cc
   quadrature_lib.cc
   quadrature_selector.cc
@@ -83,6 +84,7 @@ SET(_unity_include_src
   subscriptor.cc
   symbolic_function.cc
   table_handler.cc
+  tensor.cc
   tensor_function.cc
   tensor_function_parser.cc
   tensor_product_polynomials.cc
@@ -125,7 +127,6 @@ SET(_inst
   function_time.inst.in
   incremental_function.inst.in
   geometric_utilities.inst.in
-  hdf5.inst.in
   mpi.inst.in
   mpi_noncontiguous_partitioner.inst.in
   partitioner.inst.in

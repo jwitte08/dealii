@@ -119,7 +119,7 @@
  *    truncation of the Taylor scheme; dual numbers do not contain any higher-order terms in their first derivative,
  *    while for the complex-step method these existent higher-order terms are neglected. It can be shown that
  *    both of these methods are not subject to subtractive cancellation errors and that, within their
- *    finite-difference scheme, they are not numerically sensitive to the internal \step-size chosen for the
+ *    finite-difference scheme, they are not numerically sensitive to the internal step-size chosen for the
  *    numerical perturbation. The dual number approach thus produces exact first derivatives, while the
  *    complex-step approximation does not. The standard implementation of the dual numbers, however, cannot yield
  *    exact values for second derivatives. Hyper-dual numbers take a different view of this idea, with numbers
@@ -300,7 +300,7 @@
  *  - Forward-mode Sacado with dynamic memory allocation using expression templates (once differentiable)
  *  - Nested forward-mode Sacado using expression templates (twice differentiable)
  *  - Reverse-mode Sacado (once differentiable)
- *  - Nested reverse and dynamically-allocated forward-mode Sacado (twice differentiable)
+ *  - Nested reverse and dynamically-allocated forward-mode Sacado (twice differentiable, but results memory leak described in Differentiation::AD::NumberTypes)
  *
  * Note that in the above, "dynamic memory allocation" refers to the fact that the number of
  * independent variables need not be specified at compile time.

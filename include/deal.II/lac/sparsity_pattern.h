@@ -127,9 +127,6 @@ namespace SparsityPatternIterators
    * row and column number (or alternatively the index within the complete
    * sparsity pattern). It does not allow modifying the sparsity pattern
    * itself.
-   *
-   * @author Wolfgang Bangerth
-   * @date 2004
    */
   class Accessor
   {
@@ -323,8 +320,6 @@ namespace SparsityPatternIterators
  * SparseMatrix objects can store nonzero entries, are stored row-by-row.
  * The ordering of non-zero elements within each row (i.e. increasing
  * column index order) depends on the derived classes.
- *
- * @author Wolfgang Bangerth, Guido Kanschat and others
  */
 class SparsityPatternBase : public Subscriptor
 {
@@ -852,7 +847,7 @@ protected:
  * is square (the first item will be the diagonal, followed by the other
  * entries sorted by column index).
  *
- * @note While this class forms the basis upon which SparseMatrix objects base
+ * While this class forms the basis upon which SparseMatrix objects base
  * their storage format, and thus plays a central role in setting up linear
  * systems, it is rarely set up directly due to the way it stores its
  * information. Rather, one typically goes through an intermediate format
@@ -860,7 +855,12 @@ protected:
  * documentation module
  * @ref Sparsity.
  *
- * @author Wolfgang Bangerth, Guido Kanschat and others
+ * You can iterate over entries in the pattern using begin(), end(),
+ * begin(row), and end(row). These functions return an iterator of type
+ * SparsityPatternIterators::Iterator. When dereferencing an iterator @p it,
+ * you have access to the member functions in
+ * SparsityPatternIterators::Accessor, like <tt>it->column()</tt> and
+ * <tt>it->row()</tt>.
  */
 class SparsityPattern : public SparsityPatternBase
 {

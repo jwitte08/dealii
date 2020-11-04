@@ -233,22 +233,15 @@ namespace parallel
                 // parent cell after h-adaptation analogously to
                 // dealii::internal::hp::DoFHandlerImplementation::Implementation::
                 //   collect_fe_indices_on_cells_to_be_refined()
-                std::set<unsigned int> fe_indices_children;
-                for (unsigned int child_index = 0;
-                     child_index < cell->n_children();
-                     ++child_index)
-                  {
-                    const auto child = cell->child(child_index);
-                    Assert(child->is_active() && child->coarsen_flag_set(),
-                           typename dealii::Triangulation<
-                             dim>::ExcInconsistentCoarseningFlags());
-
-                    fe_indices_children.insert(child->future_fe_index());
-                  }
+#  ifdef DEBUG
+                for (const auto &child : cell->child_iterators())
+                  Assert(child->is_active() && child->coarsen_flag_set(),
+                         typename dealii::Triangulation<
+                           dim>::ExcInconsistentCoarseningFlags());
+#  endif
 
                 const unsigned int future_fe_index =
-                  dof_handler->get_fe_collection().find_dominated_fe_extended(
-                    fe_indices_children, /*codim=*/0);
+                  cell->dominated_future_fe_on_children();
 
                 const unsigned int future_fe_degree =
                   dof_handler->get_fe_collection()[future_fe_index].degree;
@@ -258,12 +251,8 @@ namespace parallel
                 float sqrsum_of_predicted_errors = 0.;
                 float predicted_error            = 0.;
                 int   degree_difference          = 0;
-                for (unsigned int child_index = 0;
-                     child_index < cell->n_children();
-                     ++child_index)
+                for (const auto &child : cell->child_iterators())
                   {
-                    const auto child = cell->child(child_index);
-
                     predicted_error =
                       (**estimated_error_it)[child->active_cell_index()] /
                       (gamma_h * std::pow(.5, future_fe_degree));
@@ -336,10 +325,8 @@ namespace parallel
 
             case parallel::distributed::Triangulation<dim,
                                                       spacedim>::CELL_REFINE:
-              for (unsigned int child_index = 0;
-                   child_index < cell->n_children();
-                   ++child_index)
-                (**it_output)[cell->child(child_index)->active_cell_index()] =
+              for (const auto &child : cell->child_iterators())
+                (**it_output)[child->active_cell_index()] =
                   (*it_input) / std::sqrt(cell->n_children());
               break;
 

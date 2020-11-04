@@ -29,11 +29,13 @@
 #include <memory>
 #include <tuple>
 
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
+DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 #  include <tbb/blocked_range.h>
 #  include <tbb/parallel_for.h>
 #  include <tbb/parallel_reduce.h>
 #  include <tbb/partitioner.h>
+DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 #endif
 
 
@@ -147,7 +149,7 @@ namespace parallel
 
 
 
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
     /**
      * Encapsulate tbb::parallel_for.
      */
@@ -214,7 +216,7 @@ namespace parallel
             const Predicate &    predicate,
             const unsigned int   grainsize)
   {
-#ifndef DEAL_II_WITH_THREADS
+#ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
@@ -270,7 +272,7 @@ namespace parallel
             const Predicate &     predicate,
             const unsigned int    grainsize)
   {
-#ifndef DEAL_II_WITH_THREADS
+#ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
@@ -329,7 +331,7 @@ namespace parallel
             const Predicate &     predicate,
             const unsigned int    grainsize)
   {
-#ifndef DEAL_II_WITH_THREADS
+#ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
@@ -355,7 +357,7 @@ namespace parallel
 
   namespace internal
   {
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
     /**
      * Take a range argument and call the given function with its begin and
      * end.
@@ -447,7 +449,7 @@ namespace parallel
                      const Function &                          f,
                      const unsigned int                        grainsize)
   {
-#ifndef DEAL_II_WITH_THREADS
+#ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
@@ -528,7 +530,7 @@ namespace parallel
 
   namespace internal
   {
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
     /**
      * A class that conforms to the Body requirements of the TBB
      * parallel_reduce function. The first template argument denotes the type
@@ -682,7 +684,7 @@ namespace parallel
                             const typename identity<RangeType>::type &end,
                             const unsigned int                        grainsize)
   {
-#ifndef DEAL_II_WITH_THREADS
+#ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
@@ -720,7 +722,7 @@ namespace parallel
        */
       TBBPartitioner();
 
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
       /**
        * Destructor. Check that the object is not in use any more, i.e., all
        * loops have been completed.
@@ -806,7 +808,7 @@ namespace internal
 
 namespace parallel
 {
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
 
   namespace internal
   {
@@ -839,7 +841,7 @@ namespace parallel
     const std::size_t end,
     const std::size_t minimum_parallel_grain_size) const
   {
-#ifndef DEAL_II_WITH_THREADS
+#ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)minimum_parallel_grain_size;

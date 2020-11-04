@@ -457,11 +457,11 @@ namespace Step45
       // After setting up all the information in periodicity_vector all we have
       // to do is to tell make_periodicity_constraints to create the desired
       // constraints.
-      DoFTools::make_periodicity_constraints<DoFHandler<dim>>(
-        periodicity_vector,
-        constraints,
-        fe.component_mask(velocities),
-        first_vector_components);
+      DoFTools::make_periodicity_constraints<dim, dim>(periodicity_vector,
+                                                       constraints,
+                                                       fe.component_mask(
+                                                         velocities),
+                                                       first_vector_components);
 
       VectorTools::interpolate_boundary_values(mapping,
                                                dof_handler,
@@ -560,7 +560,7 @@ namespace Step45
                             update_values | update_quadrature_points |
                               update_JxW_values | update_gradients);
 
-    const unsigned int dofs_per_cell = fe.dofs_per_cell;
+    const unsigned int dofs_per_cell = fe.n_dofs_per_cell();
 
     const unsigned int n_q_points = quadrature_formula.size();
 

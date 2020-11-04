@@ -24,13 +24,11 @@
 #include <deal.II/matrix_free/task_info.h>
 
 
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
 #  include <tbb/blocked_range.h>
 #  include <tbb/parallel_for.h>
-#  define TBB_SUPPRESS_DEPRECATED_MESSAGES 1
 #  include <tbb/task.h>
 #  include <tbb/task_scheduler_init.h>
-#  undef TBB_SUPPRESS_DEPRECATED_MESSAGES
 #endif
 
 #include <iostream>
@@ -45,7 +43,7 @@ namespace internal
 {
   namespace MatrixFreeFunctions
   {
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
 
     // This defines the TBB data structures that are needed to schedule the
     // partition-partition variant
@@ -331,7 +329,7 @@ namespace internal
       const bool         do_compress;
     };
 
-#endif // DEAL_II_WITH_THREADS
+#endif // DEAL_II_WITH_TBB
 
 
 
@@ -350,12 +348,12 @@ namespace internal
 
       funct.vector_update_ghosts_start();
 
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
 
       if (scheme != none)
         {
           funct.zero_dst_vector_range(numbers::invalid_unsigned_int);
-          if (scheme == partition_partition)
+          if (scheme == partition_partition && evens > 0)
             {
               tbb::empty_task *root =
                 new (tbb::task::allocate_root()) tbb::empty_task;
@@ -414,6 +412,14 @@ namespace internal
 
               root->wait_for_all();
               root->destroy(*root);
+            }
+          else if (scheme == partition_partition)
+            {
+              // catch the case of empty partition list: we still need to call
+              // the vector communication routines to clean up and initiate
+              // things
+              funct.vector_update_ghosts_finish();
+              funct.vector_compress_start();
             }
           else // end of partition-partition, start of partition-color
             {
@@ -786,6 +792,7 @@ namespace internal
       std::vector<unsigned int> &      renumbering,
       std::vector<unsigned char> &     incompletely_filled_vectorization)
     {
+      Assert(dofs_per_cell > 0, ExcInternalError());
       // This function is decomposed into several steps to determine a good
       // ordering that satisfies the following constraints:
       // a. Only cells belonging to the same category (or next higher if the

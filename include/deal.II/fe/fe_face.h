@@ -50,8 +50,6 @@ DEAL_II_NAMESPACE_OPEN
  * that correspond to FE_FaceQ will have the invalid values mentioned above.
  *
  * @ingroup fe
- * @author Guido Kanschat, Martin Kronbichler
- * @date 2009, 2011, 2013
  */
 template <int dim, int spacedim = dim>
 class FE_FaceQ
@@ -98,7 +96,8 @@ public:
    */
   virtual void
   get_face_interpolation_matrix(const FiniteElement<dim, spacedim> &source,
-                                FullMatrix<double> &matrix) const override;
+                                FullMatrix<double> &                matrix,
+                                const unsigned int face_no = 0) const override;
 
   /**
    * Return the matrix interpolating from a face of one element to the face
@@ -109,9 +108,11 @@ public:
    * FiniteElement<dim,spacedim>::ExcInterpolationNotImplemented is thrown.
    */
   virtual void
-  get_subface_interpolation_matrix(const FiniteElement<dim, spacedim> &source,
-                                   const unsigned int                  subface,
-                                   FullMatrix<double> &matrix) const override;
+  get_subface_interpolation_matrix(
+    const FiniteElement<dim, spacedim> &source,
+    const unsigned int                  subface,
+    FullMatrix<double> &                matrix,
+    const unsigned int                  face_no = 0) const override;
 
   /**
    * This function returns @p true, if the shape function @p shape_index has
@@ -136,10 +137,10 @@ public:
    * reference to a finite element object representing one of the other finite
    * elements active on this particular vertex. The function computes which of
    * the degrees of freedom of the two finite element objects are equivalent,
-   * both numbered between zero and the corresponding value of dofs_per_vertex
-   * of the two finite elements. The first index of each pair denotes one of
-   * the vertex dofs of the present element, whereas the second is the
-   * corresponding index of the other finite element.
+   * both numbered between zero and the corresponding value of
+   * n_dofs_per_vertex() of the two finite elements. The first index of each
+   * pair denotes one of the vertex dofs of the present element, whereas the
+   * second is the corresponding index of the other finite element.
    *
    * The set of such constraints is non-empty only for dim==1.
    */
@@ -164,8 +165,8 @@ public:
    * The set of such constraints is non-empty only for dim==3.
    */
   virtual std::vector<std::pair<unsigned int, unsigned int>>
-  hp_quad_dof_identities(
-    const FiniteElement<dim, spacedim> &fe_other) const override;
+  hp_quad_dof_identities(const FiniteElement<dim, spacedim> &fe_other,
+                         const unsigned int face_no = 0) const override;
 
   /**
    * Return whether this element implements its hanging node constraints in
@@ -211,8 +212,6 @@ private:
  * 1D (even though there is no computational benefit at all from it in 1D).
  *
  * @ingroup fe
- * @author Guido Kanschat, Martin Kronbichler
- * @date 2014
  */
 template <int spacedim>
 class FE_FaceQ<1, spacedim> : public FiniteElement<1, spacedim>
@@ -248,7 +247,8 @@ public:
    */
   virtual void
   get_face_interpolation_matrix(const FiniteElement<1, spacedim> &source,
-                                FullMatrix<double> &matrix) const override;
+                                FullMatrix<double> &              matrix,
+                                const unsigned int face_no = 0) const override;
 
   /**
    * Return the matrix interpolating from a face of one element to the face
@@ -259,9 +259,11 @@ public:
    * FiniteElement<dim,spacedim>::ExcInterpolationNotImplemented is thrown.
    */
   virtual void
-  get_subface_interpolation_matrix(const FiniteElement<1, spacedim> &source,
-                                   const unsigned int                subface,
-                                   FullMatrix<double> &matrix) const override;
+  get_subface_interpolation_matrix(
+    const FiniteElement<1, spacedim> &source,
+    const unsigned int                subface,
+    FullMatrix<double> &              matrix,
+    const unsigned int                face_no = 0) const override;
 
   /**
    * This function returns @p true, if the shape function @p shape_index has
@@ -288,10 +290,10 @@ public:
    * reference to a finite element object representing one of the other finite
    * elements active on this particular vertex. The function computes which of
    * the degrees of freedom of the two finite element objects are equivalent,
-   * both numbered between zero and the corresponding value of dofs_per_vertex
-   * of the two finite elements. The first index of each pair denotes one of
-   * the vertex dofs of the present element, whereas the second is the
-   * corresponding index of the other finite element.
+   * both numbered between zero and the corresponding value of
+   * n_dofs_per_vertex() of the two finite elements. The first index of each
+   * pair denotes one of the vertex dofs of the present element, whereas the
+   * second is the corresponding index of the other finite element.
    *
    * The set of such constraints is non-empty only for dim==1.
    */
@@ -316,8 +318,8 @@ public:
    * The set of such constraints is non-empty only for dim==3.
    */
   virtual std::vector<std::pair<unsigned int, unsigned int>>
-  hp_quad_dof_identities(
-    const FiniteElement<1, spacedim> &fe_other) const override;
+  hp_quad_dof_identities(const FiniteElement<1, spacedim> &fe_other,
+                         const unsigned int face_no = 0) const override;
 
   /**
    * Return a list of constant modes of the element. For this element, it
@@ -464,8 +466,6 @@ private:
  * that correspond to FE_FaceP will have the invalid values mentioned above.
  *
  * @ingroup fe
- * @author Martin Kronbichler
- * @date 2013
  */
 template <int dim, int spacedim = dim>
 class FE_FaceP : public FE_PolyFace<PolynomialSpace<dim - 1>, dim, spacedim>
@@ -499,7 +499,8 @@ public:
    */
   virtual void
   get_face_interpolation_matrix(const FiniteElement<dim, spacedim> &source,
-                                FullMatrix<double> &matrix) const override;
+                                FullMatrix<double> &                matrix,
+                                const unsigned int face_no = 0) const override;
 
   /**
    * Return the matrix interpolating from a face of one element to the face
@@ -510,9 +511,11 @@ public:
    * FiniteElement<dim,spacedim>::ExcInterpolationNotImplemented is thrown.
    */
   virtual void
-  get_subface_interpolation_matrix(const FiniteElement<dim, spacedim> &source,
-                                   const unsigned int                  subface,
-                                   FullMatrix<double> &matrix) const override;
+  get_subface_interpolation_matrix(
+    const FiniteElement<dim, spacedim> &source,
+    const unsigned int                  subface,
+    FullMatrix<double> &                matrix,
+    const unsigned int                  face_no = 0) const override;
 
   /**
    * This function returns @p true, if the shape function @p shape_index has

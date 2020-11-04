@@ -211,7 +211,7 @@ FE_Enriched<dim, spacedim>::FE_Enriched(
                               this->n_base_elements()));
 
   // build the map: (base_no, base_m) -> vector of local element DoFs
-  for (unsigned int system_index = 0; system_index < this->dofs_per_cell;
+  for (unsigned int system_index = 0; system_index < this->n_dofs_per_cell();
        ++system_index)
     {
       const unsigned int base_no =
@@ -248,10 +248,10 @@ FE_Enriched<dim, spacedim>::FE_Enriched(
            m < base_no_mult_local_enriched_dofs[base_no].size();
            m++)
         Assert(base_no_mult_local_enriched_dofs[base_no][m].size() ==
-                 fes[base_no]->dofs_per_cell,
+                 fes[base_no]->n_dofs_per_cell(),
                ExcDimensionMismatch(
                  base_no_mult_local_enriched_dofs[base_no][m].size(),
-                 fes[base_no]->dofs_per_cell));
+                 fes[base_no]->n_dofs_per_cell()));
     }
 }
 
@@ -439,8 +439,7 @@ FE_Enriched<dim, spacedim>::initialize(
   {
     // If the system is not primitive, these have not been initialized by
     // FiniteElement
-    this->system_to_component_table.resize(this->dofs_per_cell);
-    this->face_system_to_component_table.resize(this->dofs_per_face);
+    this->system_to_component_table.resize(this->n_dofs_per_cell());
 
     FETools::Compositing::build_cell_tables(this->system_to_base_table,
                                             this->system_to_component_table,
@@ -448,11 +447,21 @@ FE_Enriched<dim, spacedim>::initialize(
                                             *this,
                                             false);
 
-    FETools::Compositing::build_face_tables(
-      this->face_system_to_base_table,
-      this->face_system_to_component_table,
-      *this,
-      false);
+    this->face_system_to_component_table.resize(this->n_unique_faces());
+
+    for (unsigned int face_no = 0; face_no < this->n_unique_faces(); ++face_no)
+      {
+        this->face_system_to_component_table[0].resize(
+          this->n_dofs_per_face(face_no));
+
+
+        FETools::Compositing::build_face_tables(
+          this->face_system_to_base_table[face_no],
+          this->face_system_to_component_table[face_no],
+          *this,
+          false,
+          face_no);
+      }
   }
 
   // restriction and prolongation matrices are built on demand
@@ -659,13 +668,15 @@ FE_Enriched<dim, spacedim>::multiply_by_enrichment(
 
         const UpdateFlags base_flags = base_fe_data.update_each;
 
-        for (unsigned int system_index = 0; system_index < this->dofs_per_cell;
+        for (unsigned int system_index = 0;
+             system_index < this->n_dofs_per_cell();
              ++system_index)
           if (this->system_to_base_table[system_index].first.first == base_no)
             {
               const unsigned int base_index =
                 this->system_to_base_table[system_index].second;
-              Assert(base_index < base_fe.dofs_per_cell, ExcInternalError());
+              Assert(base_index < base_fe.n_dofs_per_cell(),
+                     ExcInternalError());
 
               // now copy. if the shape function is primitive, then there
               // is only one value to be copied, but for non-primitive
@@ -879,13 +890,15 @@ template <int dim, int spacedim>
 void
 FE_Enriched<dim, spacedim>::get_face_interpolation_matrix(
   const FiniteElement<dim, spacedim> &source,
-  FullMatrix<double> &                matrix) const
+  FullMatrix<double> &                matrix,
+  const unsigned int                  face_no) const
 {
   if (const FE_Enriched<dim, spacedim> *fe_enr_other =
         dynamic_cast<const FE_Enriched<dim, spacedim> *>(&source))
     {
       fe_system->get_face_interpolation_matrix(fe_enr_other->get_fe_system(),
-                                               matrix);
+                                               matrix,
+                                               face_no);
     }
   else
     {
@@ -902,14 +915,16 @@ void
 FE_Enriched<dim, spacedim>::get_subface_interpolation_matrix(
   const FiniteElement<dim, spacedim> &source,
   const unsigned int                  subface,
-  FullMatrix<double> &                matrix) const
+  FullMatrix<double> &                matrix,
+  const unsigned int                  face_no) const
 {
   if (const FE_Enriched<dim, spacedim> *fe_enr_other =
         dynamic_cast<const FE_Enriched<dim, spacedim> *>(&source))
     {
       fe_system->get_subface_interpolation_matrix(fe_enr_other->get_fe_system(),
                                                   subface,
-                                                  matrix);
+                                                  matrix,
+                                                  face_no);
     }
   else
     {
@@ -960,12 +975,14 @@ FE_Enriched<dim, spacedim>::hp_line_dof_identities(
 template <int dim, int spacedim>
 std::vector<std::pair<unsigned int, unsigned int>>
 FE_Enriched<dim, spacedim>::hp_quad_dof_identities(
-  const FiniteElement<dim, spacedim> &fe_other) const
+  const FiniteElement<dim, spacedim> &fe_other,
+  const unsigned int                  face_no) const
 {
   if (const FE_Enriched<dim, spacedim> *fe_enr_other =
         dynamic_cast<const FE_Enriched<dim, spacedim> *>(&fe_other))
     {
-      return fe_system->hp_quad_dof_identities(fe_enr_other->get_fe_system());
+      return fe_system->hp_quad_dof_identities(fe_enr_other->get_fe_system(),
+                                               face_no);
     }
   else
     {
@@ -1064,7 +1081,7 @@ namespace ColorEnriched
     template <int dim, int spacedim>
     bool
     find_connection_between_subdomains(
-      const hp::DoFHandler<dim, spacedim> &    dof_handler,
+      const DoFHandler<dim, spacedim> &        dof_handler,
       const predicate_function<dim, spacedim> &predicate_1,
       const predicate_function<dim, spacedim> &predicate_2)
     {
@@ -1094,7 +1111,7 @@ namespace ColorEnriched
     template <int dim, int spacedim>
     unsigned int
     color_predicates(
-      const hp::DoFHandler<dim, spacedim> &                 mesh,
+      const DoFHandler<dim, spacedim> &                     mesh,
       const std::vector<predicate_function<dim, spacedim>> &predicates,
       std::vector<unsigned int> &                           predicate_colors)
     {
@@ -1134,7 +1151,7 @@ namespace ColorEnriched
     template <int dim, int spacedim>
     void
     set_cellwise_color_set_and_fe_index(
-      hp::DoFHandler<dim, spacedim> &                       dof_handler,
+      DoFHandler<dim, spacedim> &                           dof_handler,
       const std::vector<predicate_function<dim, spacedim>> &predicates,
       const std::vector<unsigned int> &                     predicate_colors,
       std::map<unsigned int, std::map<unsigned int, unsigned int>>
@@ -1475,7 +1492,7 @@ namespace ColorEnriched
   template <int dim, int spacedim>
   const hp::FECollection<dim, spacedim> &
   Helper<dim, spacedim>::build_fe_collection(
-    hp::DoFHandler<dim, spacedim> &dof_handler)
+    DoFHandler<dim, spacedim> &dof_handler)
   {
     // color the predicates based on connections between corresponding
     // subdomains

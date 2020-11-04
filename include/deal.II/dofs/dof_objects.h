@@ -64,7 +64,6 @@ namespace internal
      * classes are included in the DoFLevel and DoFFaces classes.
      *
      * @ingroup dofs
-     * @author Tobias Leicht, 2006
      */
     template <int dim>
     class DoFObjects
@@ -185,7 +184,8 @@ namespace internal
       const unsigned int fe_index) const
     {
       (void)fe_index;
-      Assert(fe_index == 0,
+      Assert((fe_index ==
+              dealii::DoFHandler<dh_dim, spacedim>::default_fe_index),
              ExcMessage("Only zero fe_index values are allowed for "
                         "non-hp DoFHandlers."));
       return true;

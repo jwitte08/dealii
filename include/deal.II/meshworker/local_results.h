@@ -66,7 +66,7 @@ class BlockIndices;
  * <h4>ITERATOR</h4>
  *
  * Any object that has an <tt>operator++()</tt> and points to a
- * TriaObjectAccessor.
+ * TriaAccessor or derived class.
  *
  * <h4>DOFINFO</h4>
  *
@@ -175,8 +175,6 @@ class BlockIndices;
  *
  * @ingroup MeshWorker
  * @ingroup Integrators
- * @author Guido Kanschat
- * @date 2009
  */
 namespace MeshWorker
 {
@@ -220,7 +218,6 @@ namespace MeshWorker
    * assembled into the global system by Assembler classes.
    *
    * @ingroup MeshWorker
-   * @author Guido Kanschat, 2009
    */
   template <typename number>
   class LocalResults

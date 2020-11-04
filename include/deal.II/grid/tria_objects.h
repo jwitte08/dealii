@@ -22,8 +22,6 @@
 #include <deal.II/base/exceptions.h>
 #include <deal.II/base/geometry_info.h>
 
-#include <deal.II/grid/tria_object.h>
-
 #include <vector>
 
 DEAL_II_NAMESPACE_OPEN
@@ -50,9 +48,6 @@ namespace internal
      *
      * Objects of these classes are included in the TriaLevel and TriaFaces
      * classes.
-     *
-     * @author Tobias Leicht, Guido Kanschat, 2006, 2007, 2012
-     * @author Peter Munch, 2020
      */
     class TriaObjects
     {
@@ -65,9 +60,8 @@ namespace internal
       /**
        * Constructor for a specific dimension.
        */
-      TriaObjects(unsigned int structdim);
+      TriaObjects(const unsigned int structdim);
 
-    private:
       unsigned int structdim;
 
       /**
@@ -76,7 +70,6 @@ namespace internal
        */
       std::vector<int> cells;
 
-    public:
       /**
        * Return number of geometric objects stored by this class.
        */
@@ -84,10 +77,14 @@ namespace internal
       n_objects() const;
 
       /**
-       * Return a view on the @p index-th geometric object.
+       * Return a view on the indices of the objects that bound the @p
+       * index-th object stored by the current object. For example, if
+       * the current object stores cells, then this function returns
+       * the equivalent of an array containing the indices of the
+       * faces that bound the @p index-th cell.
        */
-      TriaObjectView
-      get_object(const unsigned int index);
+      ArrayView<int>
+      get_bounding_object_indices(const unsigned int index);
 
       /**
        * Index of the even children of an object. Since when objects are
@@ -187,20 +184,6 @@ namespace internal
       std::vector<types::manifold_id> manifold_id;
 
       /**
-       * Assert that enough space is allocated to accommodate
-       * <code>new_objs_in_pairs</code> new objects, stored in pairs, plus
-       * <code>new_obj_single</code> stored individually. This function does
-       * not only call <code>vector::reserve()</code>, but does really append
-       * the needed elements.
-       *
-       * In 2D e.g. refined lines have to be stored in pairs, whereas new
-       * lines in the interior of refined cells can be stored as single lines.
-       */
-      void
-      reserve_space(const unsigned int new_objs_in_pairs,
-                    const unsigned int new_objs_single = 0);
-
-      /**
        * Return an iterator to the next free slot for a single object. This
        * function is only used by Triangulation::execute_refinement()
        * in 3D.
@@ -283,14 +266,6 @@ namespace internal
       clear_user_flags();
 
       /**
-       * Check the memory consistency of the different containers. Should only
-       * be called with the preprocessor flag @p DEBUG set. The function
-       * should be called from the functions of the higher TriaLevel classes.
-       */
-      void
-      monitor_memory(const unsigned int true_dimension) const;
-
-      /**
        * Determine an estimate for the memory consumption (in bytes) of this
        * object.
        */
@@ -306,16 +281,6 @@ namespace internal
       serialize(Archive &ar, const unsigned int version);
 
       /**
-       * Exception
-       * @ingroup Exceptions
-       */
-      DeclException2(ExcMemoryInexact,
-                     int,
-                     int,
-                     << "The containers have sizes " << arg1 << " and " << arg2
-                     << ", which is not as expected.");
-
-      /**
        * Triangulation objects can either access a user pointer or a
        * user index. What you tried to do is trying to access one of those
        * after using the other.
@@ -324,7 +289,6 @@ namespace internal
        */
       DeclException0(ExcPointerIndexClash);
 
-    protected:
       /**
        * Counter for next_free_single_* functions
        */
@@ -424,8 +388,8 @@ namespace internal
 
 
 
-    inline TriaObjectView
-    TriaObjects::get_object(const unsigned int index)
+    inline ArrayView<int>
+    TriaObjects::get_bounding_object_indices(const unsigned int index)
     {
       // assume that each cell has the same number of faces
 
@@ -440,8 +404,8 @@ namespace internal
       else
         AssertThrow(false, ExcNotImplemented());
 
-      return {
-        ArrayView<int>(cells.data() + index * faces_per_cell, faces_per_cell)};
+      return ArrayView<int>(cells.data() + index * faces_per_cell,
+                            faces_per_cell);
     }
 
 
@@ -526,7 +490,7 @@ namespace internal
 
 
     inline TriaObjects::TriaObjects()
-      : structdim(-1)
+      : structdim(numbers::invalid_unsigned_int)
       , next_free_single(numbers::invalid_unsigned_int)
       , next_free_pair(numbers::invalid_unsigned_int)
       , reverse_order_next_free_single(false)

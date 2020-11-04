@@ -306,8 +306,6 @@ namespace SUNDIALS
    *
    * ode.solve_ode(y);
    * @endcode
-   *
-   * @author Luca Heltai, 2017.
    */
   template <typename VectorType = Vector<double>>
   class ARKode
@@ -327,7 +325,7 @@ namespace SUNDIALS
        * @param initial_time Initial time
        * @param final_time Final time
        * @param initial_step_size Initial step size
-       * @param output_period Time interval between each output
+       * @param output_period Desired time interval between each output
        *
        * Running parameters:
        *
@@ -412,7 +410,7 @@ namespace SUNDIALS
        * a parameter file using `prm`. The values of the parameter will be
        * updated whenever the content of `prm` is updated.
        *
-       * Make sure that this class lives longer than `prm`. Undefined behaviour
+       * Make sure that this class lives longer than `prm`. Undefined behavior
        * will occur if you destroy this class, and then parse a parameter file
        * using `prm`.
        */
@@ -477,7 +475,8 @@ namespace SUNDIALS
       unsigned int maximum_order;
 
       /**
-       * Time period between each output.
+       * Desired time period between each output. The actual output time period
+       * may be adjusted by Arkode.
        */
       double output_period;
 

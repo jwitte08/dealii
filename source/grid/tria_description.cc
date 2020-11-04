@@ -29,14 +29,11 @@ DEAL_II_NAMESPACE_OPEN
 
 
 template <int structdim>
-CellData<structdim>::CellData()
-  : material_id(0)
+CellData<structdim>::CellData(const unsigned int n_vertices)
+  : vertices(n_vertices, numbers::invalid_unsigned_int)
+  , material_id(0)
   , manifold_id(numbers::flat_manifold_id)
-{
-  std::fill(std::begin(vertices),
-            std::end(vertices),
-            numbers::invalid_unsigned_int);
-}
+{}
 
 
 
@@ -44,7 +41,10 @@ template <int structdim>
 bool
 CellData<structdim>::operator==(const CellData<structdim> &other) const
 {
-  for (const unsigned int i : GeometryInfo<structdim>::vertex_indices())
+  if (vertices.size() != other.vertices.size())
+    return false;
+
+  for (unsigned int i = 0; i < vertices.size(); ++i)
     if (vertices[i] != other.vertices[i])
       return false;
 
@@ -92,57 +92,6 @@ namespace TriangulationDescription
         cell->set_user_flag();
         if (cell->level() != 0)
           set_user_flag_and_of_its_parents(cell->parent());
-      }
-
-
-      /**
-       * Convert the binary representation of a CellId to coarse-cell id as
-       * if the finest level were the coarsest level ("level coarse-grid id").
-       */
-      template <int dim>
-      types::coarse_cell_id
-      convert_cell_id_binary_type_to_level_coarse_cell_id(
-        const typename CellId::binary_type &binary_representation)
-      {
-        // exploiting the structure of CellId::binary_type
-        // see also the documentation of CellId
-
-        // actual coarse-grid id
-        const unsigned int coarse_cell_id  = binary_representation[0];
-        const unsigned int n_child_indices = binary_representation[1] >> 2;
-
-        const unsigned int children_per_value =
-          sizeof(CellId::binary_type::value_type) * 8 / dim;
-        unsigned int child_level  = 0;
-        unsigned int binary_entry = 2;
-
-        // path to the get to the cell
-        std::vector<unsigned int> cell_indices;
-        while (child_level < n_child_indices)
-          {
-            Assert(binary_entry < binary_representation.size(),
-                   ExcInternalError());
-
-            for (unsigned int j = 0; j < children_per_value; ++j)
-              {
-                unsigned int cell_index =
-                  (((binary_representation[binary_entry] >> (j * dim))) &
-                   (GeometryInfo<dim>::max_children_per_cell - 1));
-                cell_indices.push_back(cell_index);
-                ++child_level;
-                if (child_level == n_child_indices)
-                  break;
-              }
-            ++binary_entry;
-          }
-
-        // compute new coarse-grid id: c_{i+1} = c_{i}*2^dim + q;
-        types::coarse_cell_id level_coarse_cell_id = coarse_cell_id;
-        for (auto i : cell_indices)
-          level_coarse_cell_id =
-            level_coarse_cell_id * GeometryInfo<dim>::max_children_per_cell + i;
-
-        return level_coarse_cell_id;
       }
     } // namespace
 
@@ -212,7 +161,7 @@ namespace TriangulationDescription
           TriaIterator<CellAccessor<dim, spacedim>> &cell,
           std::vector<bool> &vertices_owned_by_locally_owned_cells) {
           // add local vertices
-          for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+          for (const auto v : cell->vertex_indices())
             {
               vertices_owned_by_locally_owned_cells[cell->vertex_index(v)] =
                 true;
@@ -228,6 +177,10 @@ namespace TriangulationDescription
 
       construction_data.smoothing = tria.get_mesh_smoothing();
       construction_data.settings  = settings;
+
+      const bool construct_multigrid =
+        settings &
+        TriangulationDescription::Settings::construct_multigrid_hierarchy;
 
       Assert(
         !(settings &
@@ -256,7 +209,8 @@ namespace TriangulationDescription
           std::vector<bool> vertices_owned_by_locally_owned_cells_on_level(
             tria.n_vertices());
           for (auto cell : tria.cell_iterators_on_level(level))
-            if (cell->level_subdomain_id() == my_rank ||
+            if ((construct_multigrid &&
+                 (cell->level_subdomain_id() == my_rank)) ||
                 (cell->active() && cell->subdomain_id() == my_rank))
               add_vertices_of_cell_to_vertices_owned_by_locally_owned_cells(
                 cell, vertices_owned_by_locally_owned_cells_on_level);
@@ -269,9 +223,9 @@ namespace TriangulationDescription
           // helper function to determine if cell is locally relevant
           // (i.e. a cell which is connected to a vertex via a locally
           // owned cell)
-          auto is_locally_relevant_on_level =
+          const auto is_locally_relevant_on_level =
             [&](TriaIterator<CellAccessor<dim, spacedim>> &cell) {
-              for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+              for (const auto v : cell->vertex_indices())
                 if (vertices_owned_by_locally_owned_cells_on_level
                       [cell->vertex_index(v)])
                   return true;
@@ -295,15 +249,15 @@ namespace TriangulationDescription
               continue;
 
             // extract cell definition (with old numbering of vertices)
-            dealii::CellData<dim> cell_data;
+            dealii::CellData<dim> cell_data(cell->n_vertices());
             cell_data.material_id = cell->material_id();
             cell_data.manifold_id = cell->manifold_id();
-            for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+            for (const auto v : cell->vertex_indices())
               cell_data.vertices[v] = cell->vertex_index(v);
             construction_data.coarse_cells.push_back(cell_data);
 
             // save indices of each vertex of this cell
-            for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+            for (const auto v : cell->vertex_indices())
               vertices_locally_relevant[cell->vertex_index(v)] =
                 numbers::invalid_unsigned_int;
 
@@ -323,7 +277,7 @@ namespace TriangulationDescription
 
         // c) correct vertices of cells (make them local)
         for (auto &cell : construction_data.coarse_cells)
-          for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+          for (unsigned int v = 0; v < cell.vertices.size(); ++v)
             cell.vertices[v] = vertices_locally_relevant[cell.vertices[v]];
       }
 
@@ -342,10 +296,10 @@ namespace TriangulationDescription
 
       // helper function to determine if cell is locally relevant
       // on active level
-      auto is_locally_relevant_on_active_level =
+      const auto is_locally_relevant_on_active_level =
         [&](TriaIterator<CellAccessor<dim, spacedim>> &cell) {
           if (cell->active())
-            for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+            for (const auto v : cell->vertex_indices())
               if (vertices_owned_by_locally_owned_active_cells
                     [cell->vertex_index(v)])
                 return true;
@@ -360,16 +314,17 @@ namespace TriangulationDescription
           std::vector<bool> vertices_owned_by_locally_owned_cells_on_level(
             tria.n_vertices());
           for (auto cell : tria.cell_iterators_on_level(level))
-            if (cell->level_subdomain_id() == my_rank ||
+            if ((construct_multigrid &&
+                 (cell->level_subdomain_id() == my_rank)) ||
                 (cell->active() && cell->subdomain_id() == my_rank))
               add_vertices_of_cell_to_vertices_owned_by_locally_owned_cells(
                 cell, vertices_owned_by_locally_owned_cells_on_level);
 
           // helper function to determine if cell is locally relevant
           // on level
-          auto is_locally_relevant_on_level =
+          const auto is_locally_relevant_on_level =
             [&](TriaIterator<CellAccessor<dim, spacedim>> &cell) {
-              for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+              for (const auto v : cell->vertex_indices())
                 if (vertices_owned_by_locally_owned_cells_on_level
                       [cell->vertex_index(v)])
                   return true;
@@ -389,7 +344,7 @@ namespace TriangulationDescription
               cell_info.id = cell->id().template to_binary<dim>();
 
               // save boundary_ids of each face of this cell
-              for (const unsigned int f : GeometryInfo<dim>::face_indices())
+              for (const auto f : cell->face_indices())
                 {
                   types::boundary_id boundary_ind =
                     cell->face(f)->boundary_id();
@@ -404,19 +359,15 @@ namespace TriangulationDescription
 
                 // ... of lines
                 if (dim >= 2)
-                  for (unsigned int line = 0;
-                       line < GeometryInfo<dim>::lines_per_cell;
-                       ++line)
+                  for (const auto line : cell->line_indices())
                     cell_info.manifold_line_ids[line] =
                       cell->line(line)->manifold_id();
 
                 // ... of quads
                 if (dim == 3)
-                  for (unsigned int quad = 0;
-                       quad < GeometryInfo<dim>::quads_per_cell;
-                       ++quad)
-                    cell_info.manifold_quad_ids[quad] =
-                      cell->quad(quad)->manifold_id();
+                  for (const auto f : cell->face_indices())
+                    cell_info.manifold_quad_ids[f] =
+                      cell->quad(f)->manifold_id();
               }
 
               // subdomain and level subdomain id

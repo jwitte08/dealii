@@ -18,7 +18,7 @@
 
 #include <deal.II/base/config.h>
 
-#include <deal.II/grid/tria_object.h>
+#include <deal.II/grid/reference_cell.h>
 #include <deal.II/grid/tria_objects.h>
 
 
@@ -39,9 +39,6 @@ namespace internal
      * want to enable anisotropic refinement. Therefore the TriaFaces classes
      * store the information belonging to the faces of a triangulation
      * separately from the TriaLevel classes.
-     *
-     * @author Tobias Leicht, 2006
-     * @author Peter Munch, 2020
      */
     class TriaFaces
     {
@@ -76,20 +73,18 @@ namespace internal
       std::vector<unsigned char> quads_line_orientations;
 
       /**
+       * Reference cell type of each quad.
+       *
+       * @note Used only for dim=3.
+       */
+      std::vector<ReferenceCell::Type> quad_reference_cell_type;
+
+      /**
        * The TriaObject containing the data of lines.
        *
        * @note Used only for dim>1.
        */
       TriaObjects lines;
-
-      /**
-       * Reserve space for line_orientations.
-       *
-       * @note Used only for dim=3.
-       */
-      void
-      reserve_space(const unsigned int new_quads_in_pairs,
-                    const unsigned int new_quads_single = 0);
 
       /**
        * Determine an estimate for the memory consumption (in bytes) of this
@@ -119,7 +114,7 @@ namespace internal
         ar &lines;
 
       if (dim == 3)
-        ar &quads &lines &quads_line_orientations;
+        ar &quads &lines &quads_line_orientations &quad_reference_cell_type;
     }
   } // namespace TriangulationImplementation
 } // namespace internal

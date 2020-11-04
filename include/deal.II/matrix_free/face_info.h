@@ -49,8 +49,6 @@ namespace internal
      * computation. In order to avoid gaps in the memory representation, the
      * four 'char' variables are put next to each other which occupies the
      * same size as the unsigned integers on most architectures.
-     *
-     * @author Katharina Kormann, Martin Kronbichler, 2018
      */
     template <int vectorization_width>
     struct FaceToCellTopology
@@ -60,7 +58,7 @@ namespace internal
        * numbers of the cells on the logical "interior" side of the face which
        * is aligned to the direction of FEEvaluation::get_normal_vector().
        */
-      unsigned int cells_interior[vectorization_width];
+      std::array<unsigned int, vectorization_width> cells_interior;
 
       /**
        * Indices of the faces in the current face batch as compared to the
@@ -75,7 +73,7 @@ namespace internal
        * For boundary faces, the numbers are set to
        * `numbers::invalid_unsigned_int`.
        */
-      unsigned int cells_exterior[vectorization_width];
+      std::array<unsigned int, vectorization_width> cells_exterior;
 
       /**
        * Index of the face between 0 and GeometryInfo::faces_per_cell within
@@ -102,8 +100,13 @@ namespace internal
        * In 3D, one of the two cells adjacent to a face might use a different
        * orientation (also called as face orientation, face flip and face
        * rotation) than the standard orientation. This variable stores the
-       * value (for one of the interior or exterior side) for the present batch
-       * of faces.
+       * values of face orientation, face flip and face
+       * rotation (for one of the interior or exterior side) for the present
+       * batch of faces in the first free bits. The forth bit is one if the
+       * internal cell has non-standard orientation.
+       *
+       * @note In contrast to other place in the library, the face-orientation
+       *   bit (first bit) is flipped.
        */
       unsigned char face_orientation;
 

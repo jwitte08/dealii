@@ -225,7 +225,7 @@ DEAL_II_NAMESPACE_OPEN
  * @endcode
  * Note that there is only one section "Forcing term", this is because
  * both objects have defined the same name for the section of their
- * SomeParsedClass. There are two strategies to change this behaviour. The
+ * SomeParsedClass. There are two strategies to change this behavior. The
  * first one (not recommended) would be to change the name of the section
  * of SomeParsedClass such that it contains also the string passed to
  * the constructor of MyClass:
@@ -344,8 +344,6 @@ DEAL_II_NAMESPACE_OPEN
  * itself.
  *
  * See the tutorial program step-60 for an example on how to use this class.
- *
- * @author Luca Heltai, 2017.
  */
 class ParameterAcceptor : public Subscriptor
 {
@@ -601,8 +599,6 @@ protected:
  * files.
  *
  * See the tutorial program step-60 for an example on how to use this class.
- *
- * @author Luca Heltai, 2018
  */
 template <class SourceClass>
 class ParameterAcceptorProxy : public SourceClass, public ParameterAcceptor

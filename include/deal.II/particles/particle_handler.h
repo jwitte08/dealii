@@ -103,6 +103,29 @@ namespace Particles
                const unsigned int                  n_properties = 0);
 
     /**
+     * Copy the state of particle handler @p particle_handler into the
+     * current object. This will copy
+     * all particles and properties and leave this object
+     * as an identical copy of @p particle_handler. Existing
+     * particles in this object are deleted. Be aware that this
+     * does not copy functions that are connected to the signals of
+     * @p particle_handler, nor does it connect the current object's member
+     * functions to triangulation signals, which must be done by the caller
+     * if necessary, that is if the @p particle_handler had
+     * connected functions.
+     *
+     * This function is expensive as it has to duplicate all data
+     * in @p particle_handler, and insert it into this object,
+     * which may be a significant amount of data. However, it can
+     * be useful to save the state of a particle
+     * collection at a certain point in time and reset this
+     * state later under certain conditions, for example if
+     * a timestep has to be undone and repeated.
+     */
+    void
+    copy_from(const ParticleHandler<dim, spacedim> &particle_handler);
+
+    /**
      * Clear all particle related data.
      */
     void
@@ -177,6 +200,26 @@ namespace Particles
 
     /**
      * Return the number of particles that live on the given cell.
+     *
+     * @note While this function is used in step-19, it is not an efficient
+     *   function to use if the number of particles is large. That is because
+     *   to find the particles that are located in one cell costs
+     *   ${\cal O)(\log N)$ where $N$ is the number of overall particles. Since
+     *   you will likely do this for every cell, and assuming that the number
+     *   of particles and the number of cells are roughly proportional,
+     *   you end up with an ${\cal O)(N \log N)$ algorithm. A better approach
+     *   is to use the fact that internally, particles are arranged in the
+     *   order of the active cells they are in. In other words, if you iterate
+     *   over all particles, you will encounter them in the same order as
+     *   you walk over the active cells. You can exploit this by keeping an
+     *   iterator to the first particle of the first cell, and when you move
+     *   to the next cell, you increment the particle iterator as well until
+     *   you find a particle located on that next cell. Counting how many
+     *   steps this took will then give you the number you are looking for,
+     *   at a cost of ${\cal O)(\log N)$ when accumulated over all cells.
+     *   This is the approach used in step-70, for example. The approach is
+     *   also detailed in the "Possibilities for extensions section"
+     *   of step-19.
      */
     types::particle_index
     n_particles_in_cell(
@@ -190,6 +233,25 @@ namespace Particles
      *
      * The number of elements in the returned range equals what the
      * n_particles_in_cell() function returns.
+     *
+     * @note While this function is used in step-19, it is not an efficient
+     *   function to use if the number of particles is large. That is because
+     *   to find the particles that are located in one cell costs
+     *   ${\cal O)(\log N)$ where $N$ is the number of overall particles. Since
+     *   you will likely do this for every cell, and assuming that the number
+     *   of particles and the number of cells are roughly proportional,
+     *   you end up with an ${\cal O)(N \log N)$ algorithm. A better approach
+     *   is to use the fact that internally, particles are arranged in the
+     *   order of the active cells they are in. In other words, if you iterate
+     *   over all particles, you will encounter them in the same order as
+     *   you walk over the active cells. You can exploit this by keeping an
+     *   iterator to the first particle of the first cell, and when you move
+     *   to the next cell, you increment the particle iterator as well until
+     *   you find a particle located on that next cell. This is the approach
+     *   used in step-70, for example, and has an overall cost of
+     *   ${\cal O)(\log N)$ when accumulated over all cells. The approach is
+     *   also detailed in the "Possibilities for extensions section"
+     *   of step-19.
      */
     particle_iterator_range
     particles_in_cell(
@@ -202,6 +264,25 @@ namespace Particles
      *
      * The number of elements in the returned range equals what the
      * n_particles_in_cell() function returns.
+     *
+     * @note While this function is used in step-19, it is not an efficient
+     *   function to use if the number of particles is large. That is because
+     *   to find the particles that are located in one cell costs
+     *   ${\cal O)(\log N)$ where $N$ is the number of overall particles. Since
+     *   you will likely do this for every cell, and assuming that the number
+     *   of particles and the number of cells are roughly proportional,
+     *   you end up with an ${\cal O)(N \log N)$ algorithm. A better approach
+     *   is to use the fact that internally, particles are arranged in the
+     *   order of the active cells they are in. In other words, if you iterate
+     *   over all particles, you will encounter them in the same order as
+     *   you walk over the active cells. You can exploit this by keeping an
+     *   iterator to the first particle of the first cell, and when you move
+     *   to the next cell, you increment the particle iterator as well until
+     *   you find a particle located on that next cell. This is the approach
+     *   used in step-70, for example, and has an overall cost of
+     *   ${\cal O)(\log N)$ when accumulated over all cells. The approach is
+     *   also detailed in the "Possibilities for extensions section"
+     *   of step-19.
      */
     particle_iterator_range
     particles_in_cell(
@@ -270,6 +351,15 @@ namespace Particles
      * function on the calling mpi process, and that falls within the part of
      * triangulation owned by this mpi process.
      *
+     * The ids of the resulting particles are assigned from the optional
+     * argument @p ids. If the vector of @p ids is empty, then the ids are
+     * computed automatically from the get_next_free_particle_index() onward.
+     * For example, if the method get_next_free_particle_index() returns n0,
+     * calling this function with two MPI processes each adding n1 and n2
+     * particles will result in the n1 particles added by process zero having
+     * ids equal to `[n0,n0+n1)`, and the n2 particles added by process one
+     * having ids `[n0+n1, n0+n1+n2)`.
+     *
      * @param[in] positions A vector of points that do not need to be on the
      * local processor, but have to be in the triangulation that is associated
      * with this ParticleHandler object.
@@ -290,19 +380,59 @@ namespace Particles
      * process that will own each of the particles, and it may therefore be
      * communication intensive.
      *
+     * @param[in] ids (Optional) A vector of ids to associate to each particle.
+     * If the vector is empty, the ids are assigned as a continuous range
+     * from the first available index, as documented above. If the vector is not
+     * empty, then its size must match the size of the @p positions vector.
+     *
      * @return A map from owner to IndexSet, that contains the local indices
      * of the points that were passed to this function on the calling mpi
      * process, and that falls within the part of triangulation owned by this
      * mpi process.
-     *
-     * @author Bruno Blais, Luca Heltai 2019
      */
     std::map<unsigned int, IndexSet>
     insert_global_particles(
       const std::vector<Point<spacedim>> &positions,
       const std::vector<std::vector<BoundingBox<spacedim>>>
-        &                                     global_bounding_boxes,
-      const std::vector<std::vector<double>> &properties = {});
+        &                                       global_bounding_boxes,
+      const std::vector<std::vector<double>> &  properties = {},
+      const std::vector<types::particle_index> &ids        = {});
+
+    /**
+     * Insert a number of particles into the collection of particles. This
+     * function takes a list of particles for which we don't know the associated
+     * cell iterator, and distributes them to the correct local particle
+     * collection of a procesor, by unpacking the locations, figuring out where
+     * to send the particles by calling
+     * GridTools::distributed_compute_point_locations(), and sending the
+     * particles to the corresponding process.
+     *
+     * In order to keep track of what mpi process received what particles, a map
+     * from mpi process to IndexSet is returned by the function. This IndexSet
+     * contains the local indices of the particles that were passed to this
+     * function on the calling mpi process, and that falls within the part of
+     * the triangulation owned by this mpi process.
+     *
+     * @param[in] particles A vector of particles that do not need to be on the
+     * local processor.
+     *
+     * @param[in] global_bounding_boxes A vector of vectors of bounding boxes.
+     * The bounding boxes `global_bboxes[rk]` describe which part of the mesh is
+     * locally owned by the mpi process with rank `rk`. The local description
+     * can be obtained from GridTools::compute_mesh_predicate_bounding_box(),
+     * and the global one can be obtained by passing the local ones to
+     * Utilities::MPI::all_gather().
+     *
+     * @return A map from owner to IndexSet, that contains the local indices
+     * of the points that were passed to this function on the calling mpi
+     * process, and that falls within the part of triangulation owned by this
+     * mpi process.
+     */
+    std::map<unsigned int, IndexSet>
+    insert_global_particles(
+      const std::vector<Particle<dim, spacedim>> &particles,
+      const std::vector<std::vector<BoundingBox<spacedim>>>
+        &global_bounding_boxes);
 
     /**
      * Set the position of the particles by using the values contained in the
@@ -346,8 +476,6 @@ namespace Particles
      * @param[in] displace_particles Control if the @p input_vector should
      * be interpreted as a displacement vector, or a vector of absolute
      * positions.
-     *
-     * @authors Luca Heltai, Bruno Blais, 2019.
      */
     template <class VectorType>
     typename std::enable_if<
@@ -375,8 +503,6 @@ namespace Particles
      * current position of the particle, thus displacing them by the
      * amount given by the function. When false, the position of the
      * particle is replaced by the value in the vector.
-     *
-     * @authors Bruno Blais, Luca Heltai (2019)
      */
     void
     set_particle_positions(const std::vector<Point<spacedim>> &new_positions,
@@ -400,8 +526,6 @@ namespace Particles
      * of the function to the current position of the particle, thus displacing
      * them by the amount given by the function. When false, the position of the
      * particle is replaced by the value of the function.
-     *
-     * @authors Bruno Blais, Luca Heltai (2019)
      */
     void
     set_particle_positions(const Function<spacedim> &function,
@@ -433,8 +557,6 @@ namespace Particles
      *
      * @param[in] add_to_output_vector Control if the function should set the
      * entries of the @p output_vector or if should add to them.
-     *
-     * @author Luca Heltai, Bruno Blais, 2019.
      */
     template <class VectorType>
     void
@@ -454,9 +576,6 @@ namespace Particles
      * the particles is added to the positions vector. When false,
      * the value of the points in the positions vector are replaced by the
      * position of the particles.
-     *
-     * @authors Bruno Blais, Luca Heltai (2019)
-     *
      */
     void
     get_particle_positions(std::vector<Point<spacedim>> &positions,
@@ -546,8 +665,6 @@ namespace Particles
      *
      * @return An IndexSet of size get_next_free_particle_index(), containing
      * n_locally_owned_particle() indices.
-     *
-     * @author Luca Heltai, Bruno Blais, 2019.
      */
     IndexSet
     locally_relevant_ids() const;
@@ -572,6 +689,12 @@ namespace Particles
      * After this function call every particle is either on its current
      * process and in its current cell, or deleted (if it could not find
      * its new process or cell).
+     *
+     * The user may attach a function to the signal
+     * Particles::ParticleHandler::Signals::particle_lost(). The signal is
+     * triggered whenever a particle is deleted, and the connected functions
+     * are called passing an iterator to the particle in question, and its last
+     * known cell association.
      */
     void
     sort_particles_into_subdomains_and_cells();
@@ -583,6 +706,16 @@ namespace Particles
      */
     void
     exchange_ghost_particles();
+
+    /**
+     * Update all particles that live in cells that are ghost cells to
+     * other processes. In this context, update means to update the
+     * location and the properties of the ghost particles assuming that
+     * the ghost particles have not changed cells. Consquently, this will
+     * not update the reference location of the particles.
+     */
+    void
+    update_ghost_particles();
 
     /**
      * Callback function that should be called before every refinement
@@ -633,6 +766,8 @@ namespace Particles
        *
        * The connected function receives an iterator to the particle in
        * question, and its last known cell association.
+       *
+       * This signal is used in step-19.
        */
       boost::signals2::signal<void(
         const typename Particles::ParticleIterator<dim, spacedim> &particle,
@@ -662,6 +797,16 @@ namespace Particles
       mapping;
 
     /**
+     * This object owns and organizes the memory for all particle
+     * properties. Since particles reference the property pool, the
+     * latter has to be destroyed *after* the particles are destroyed.
+     * This is achieved by making sure the `property_pool` member variable
+     * precedes the declaration of the `particles` and `ghost_particles`
+     * members.
+     */
+    std::unique_ptr<PropertyPool> property_pool;
+
+    /**
      * Set of particles currently living in the local domain, organized by
      * the level/index of the cell they are in.
      */
@@ -673,6 +818,14 @@ namespace Particles
      * particles are equivalent to the ghost entries in distributed vectors.
      */
     std::multimap<internal::LevelInd, Particle<dim, spacedim>> ghost_particles;
+
+    /**
+     * Set of particles that currently live in the ghost cells of the local
+     * domain, organized by the subdomain_id. These
+     * particles are equivalent to the ghost entries in distributed vectors.
+     */
+    std::map<types::subdomain_id, std::vector<particle_iterator>>
+      ghost_particles_by_domain;
 
     /**
      * This variable stores how many particles are stored globally. It is
@@ -695,12 +848,6 @@ namespace Particles
      * globally in case new particles need to be generated.
      */
     types::particle_index next_free_particle_index;
-
-    /**
-     * This object owns and organizes the memory for all particle
-     * properties.
-     */
-    std::unique_ptr<PropertyPool> property_pool;
 
     /**
      * A function that can be registered by calling
@@ -824,11 +971,81 @@ namespace Particles
   /* ---------------------- inline and template functions ------------------
    */
 
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::begin() const
+  {
+    return (const_cast<ParticleHandler<dim, spacedim> *>(this))->begin();
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::begin()
+  {
+    return particle_iterator(particles, particles.begin());
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::end() const
+  {
+    return (const_cast<ParticleHandler<dim, spacedim> *>(this))->end();
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::end()
+  {
+    return particle_iterator(particles, particles.end());
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::begin_ghost() const
+  {
+    return (const_cast<ParticleHandler<dim, spacedim> *>(this))->begin_ghost();
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::begin_ghost()
+  {
+    return particle_iterator(ghost_particles, ghost_particles.begin());
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::end_ghost() const
+  {
+    return (const_cast<ParticleHandler<dim, spacedim> *>(this))->end_ghost();
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename ParticleHandler<dim, spacedim>::particle_iterator
+  ParticleHandler<dim, spacedim>::end_ghost()
+  {
+    return particle_iterator(ghost_particles, ghost_particles.end());
+  }
+
 
 
   template <int dim, int spacedim>
   template <class Archive>
-  void
+  inline void
   ParticleHandler<dim, spacedim>::serialize(Archive &ar, const unsigned int)
   {
     // Note that we do not serialize the particle data itself. Instead we
@@ -844,7 +1061,7 @@ namespace Particles
 
   template <int dim, int spacedim>
   template <class VectorType>
-  typename std::enable_if<
+  inline typename std::enable_if<
     std::is_convertible<VectorType *, Function<spacedim> *>::value ==
     false>::type
   ParticleHandler<dim, spacedim>::set_particle_positions(
@@ -869,7 +1086,7 @@ namespace Particles
 
   template <int dim, int spacedim>
   template <class VectorType>
-  void
+  inline void
   ParticleHandler<dim, spacedim>::get_particle_positions(
     VectorType &output_vector,
     const bool  add_to_output_vector)

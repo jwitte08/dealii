@@ -114,7 +114,6 @@ struct CPUClock
  * exceed the wall times.
  *
  * @ingroup utilities
- * @author G. Kanschat, W. Bangerth, M. Kronbichler, D. Wells
  */
 class Timer
 {
@@ -541,7 +540,6 @@ private:
  * additional insight into the statistical distribution.
  *
  * @ingroup utilities
- * @author M. Kronbichler, 2009.
  */
 class TimerOutput
 {
@@ -975,7 +973,7 @@ inline TimerOutput::Scope::Scope(dealii::TimerOutput &timer_,
   , section_name(section_name_)
   , in(true)
 {
-  timer.enter_section(section_name);
+  timer.enter_subsection(section_name);
 }
 
 
@@ -987,7 +985,7 @@ TimerOutput::Scope::stop()
     return;
   in = false;
 
-  timer.exit_section(section_name);
+  timer.leave_subsection(section_name);
 }
 
 

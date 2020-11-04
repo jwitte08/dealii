@@ -78,7 +78,6 @@ DEAL_II_NAMESPACE_OPEN
  * whose support points are at the vertices, then on the line, on the quads,
  * and finally (for 3d) on the hexes. Finally, there are support points for
  * the bubble enrichments in the middle of the cell.
- *
  */
 template <int dim, int spacedim = dim>
 class FE_Q_Bubbles
@@ -88,7 +87,6 @@ public:
   /**
    * Constructor for tensor product polynomials of degree @p p plus bubble
    * enrichments
-   *
    */
   FE_Q_Bubbles(const unsigned int p);
 
@@ -117,7 +115,7 @@ public:
   /**
    * Return the matrix interpolating from the given finite element to the
    * present one.  The size of the matrix is then @p dofs_per_cell times
-   * <tt>source.dofs_per_cell</tt>.
+   * <tt>source.n_dofs_per_cell()</tt>.
    *
    * These matrices are only available if the source element is also a @p
    * FE_Q_Bubbles element. Otherwise, an exception of type

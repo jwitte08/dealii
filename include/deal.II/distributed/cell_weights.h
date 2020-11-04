@@ -81,7 +81,6 @@ namespace parallel
    * weighting function on the old Triangulation and connect it to the new one.
    *
    * @ingroup distributed
-   * @author Marc Fehling, 2018, 2019
    */
   template <int dim, int spacedim = dim>
   class CellWeights
@@ -97,9 +96,9 @@ namespace parallel
      * weight or, in other words, the additional computational load associated
      * with it.
      */
-    using WeightingFunction = std::function<unsigned int(
-      const typename hp::DoFHandler<dim, spacedim>::cell_iterator &,
-      const FiniteElement<dim, spacedim> &)>;
+    using WeightingFunction = std::function<
+      unsigned int(const typename DoFHandler<dim, spacedim>::cell_iterator &,
+                   const FiniteElement<dim, spacedim> &)>;
 
     /**
      * Constructor.
@@ -109,8 +108,8 @@ namespace parallel
      * @param[in] weighting_function The function that determines each
      *    cell's weight during load balancing.
      */
-    CellWeights(const hp::DoFHandler<dim, spacedim> &dof_handler,
-                const WeightingFunction &            weighting_function);
+    CellWeights(const dealii::DoFHandler<dim, spacedim> &dof_handler,
+                const WeightingFunction &                weighting_function);
 
     /**
      * Destructor.
@@ -126,8 +125,8 @@ namespace parallel
      * Disconnects the function previously connected to the weighting signal.
      */
     void
-    reinit(const hp::DoFHandler<dim, spacedim> &dof_handler,
-           const WeightingFunction &            weighting_function);
+    reinit(const DoFHandler<dim, spacedim> &dof_handler,
+           const WeightingFunction &        weighting_function);
 
     /**
      * Converts a @p weighting_function to a different type that qualifies as
@@ -138,9 +137,9 @@ namespace parallel
      * Triangulation associated with the @p dof_handler.
      */
     static std::function<unsigned int(
-      const typename Triangulation<dim, spacedim>::cell_iterator &cell,
-      const typename Triangulation<dim, spacedim>::CellStatus     status)>
-    make_weighting_callback(const hp::DoFHandler<dim, spacedim> &dof_handler,
+      const typename dealii::Triangulation<dim, spacedim>::cell_iterator &cell,
+      const typename dealii::Triangulation<dim, spacedim>::CellStatus status)>
+    make_weighting_callback(const DoFHandler<dim, spacedim> &dof_handler,
                             const WeightingFunction &weighting_function);
 
     /**
@@ -194,7 +193,7 @@ namespace parallel
      *    determine each cell's finite element.
      */
     DEAL_II_DEPRECATED
-    CellWeights(const hp::DoFHandler<dim, spacedim> &dof_handler);
+    CellWeights(const dealii::DoFHandler<dim, spacedim> &dof_handler);
 
     /**
      * Choose a constant weight @p factor on each cell.
@@ -236,9 +235,9 @@ namespace parallel
      */
     DEAL_II_DEPRECATED void
     register_custom_weighting(
-      const std::function<unsigned int(
-        const FiniteElement<dim, spacedim> &,
-        const typename hp::DoFHandler<dim, spacedim>::cell_iterator &)>
+      const std::function<
+        unsigned int(const FiniteElement<dim, spacedim> &,
+                     const typename DoFHandler<dim, spacedim>::cell_iterator &)>
         custom_function);
 
     /**
@@ -255,7 +254,7 @@ namespace parallel
      * Pointer to the degree of freedom handler.
      */
     DEAL_II_DEPRECATED
-    SmartPointer<const dealii::hp::DoFHandler<dim, spacedim>, CellWeights>
+    SmartPointer<const dealii::DoFHandler<dim, spacedim>, CellWeights>
       dof_handler;
 
     /**
@@ -287,11 +286,11 @@ namespace parallel
      */
     static unsigned int
     weighting_callback(
-      const typename Triangulation<dim, spacedim>::cell_iterator &cell,
-      const typename Triangulation<dim, spacedim>::CellStatus     status,
-      const hp::DoFHandler<dim, spacedim> &                       dof_handler,
-      const parallel::TriangulationBase<dim, spacedim> &          triangulation,
-      const WeightingFunction &weighting_function);
+      const typename dealii::Triangulation<dim, spacedim>::cell_iterator &cell,
+      const typename dealii::Triangulation<dim, spacedim>::CellStatus status,
+      const DoFHandler<dim, spacedim> &                 dof_handler,
+      const parallel::TriangulationBase<dim, spacedim> &triangulation,
+      const WeightingFunction &                         weighting_function);
   };
 } // namespace parallel
 

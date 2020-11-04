@@ -53,8 +53,6 @@ class MappingQ;
  * @warning It is not possible, for mathematical reasons, for one to use this
  * class with a geometry described by a SphericalManifold: see the note in
  * that class for more information.
- *
- * @author Luca Heltai, Wolfgang Bangerth, Alberto Sartori 2016
  */
 template <int dim, int spacedim = dim>
 class MappingManifold : public Mapping<dim, spacedim>
@@ -279,7 +277,7 @@ public:
      * Unit tangential vectors. Used for the computation of boundary forms and
      * normal vectors.
      *
-     * This array has (dim-1)*GeometryInfo%<dim%>::%faces_per_cell entries. The
+     * This array has `(dim-1) * GeometryInfo::faces_per_cell` entries. The
      * first GeometryInfo::faces_per_cell contain the vectors in the first
      * tangential direction for each face; the second set of
      * GeometryInfo<dim>::faces_per_cell entries contain the vectors in the

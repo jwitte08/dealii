@@ -153,6 +153,14 @@ namespace Utilities
     this_mpi_process(const MPI_Comm &mpi_communicator);
 
     /**
+     * Return a vector of the ranks (within @p comm_large) of a subset of
+     * processes specified by @p comm_small.
+     */
+    const std::vector<unsigned int>
+    mpi_processes_within_communicator(const MPI_Comm &comm_large,
+                                      const MPI_Comm &comm_small);
+
+    /**
      * Consider an unstructured communication pattern where every process in
      * an MPI universe wants to send some data to a subset of the other
      * processors. To do that, the other processors need to know who to expect
@@ -956,8 +964,6 @@ namespace Utilities
      *
      * @return A map from the rank (unsigned int) of the process
      *  which sent the data and object received.
-     *
-     * @author Giovanni Alzetta, Luca Heltai, 2017
      */
     template <typename T>
     std::map<unsigned int, T>
@@ -976,8 +982,6 @@ namespace Utilities
      *  processes in the MPI communicator. Each entry contains the object
      *  received from the processor with the corresponding rank within the
      *  communicator.
-     *
-     * @author Giovanni Alzetta, Luca Heltai, 2017
      */
     template <typename T>
     std::vector<T>
@@ -997,8 +1001,6 @@ namespace Utilities
      *  processes in the MPI communicator. Each entry contains the object
      *  received from the processor with the corresponding rank within the
      *  communicator. All other processes receive an empty vector.
-     *
-     * @author Benjamin Brands, 2017
      */
     template <typename T>
     std::vector<T>
@@ -1047,8 +1049,6 @@ namespace Utilities
      * @return List containing the MPI process rank for each entry in the index
      *         set @p indices_to_look_up. The order coincides with the order
      *         within the ElementIterator.
-     *
-     * @author Peter Munch, 2019
      */
     std::vector<unsigned int>
     compute_index_owner(const IndexSet &owned_indices,
@@ -1168,7 +1168,8 @@ namespace Utilities
           if (rank_obj.first != my_proc)
             {
               const auto &rank   = rank_obj.first;
-              buffers_to_send[i] = Utilities::pack(rank_obj.second);
+              buffers_to_send[i] = Utilities::pack(rank_obj.second,
+                                                   /*allow_compression=*/false);
               const int ierr     = MPI_Isend(buffers_to_send[i].data(),
                                          buffers_to_send[i].size(),
                                          MPI_CHAR,
@@ -1213,7 +1214,9 @@ namespace Utilities
             Assert(received_objects.find(rank) == received_objects.end(),
                    ExcInternalError(
                      "I should not receive again from this rank"));
-            received_objects[rank] = Utilities::unpack<T>(buffer);
+            received_objects[rank] =
+              Utilities::unpack<T>(buffer,
+                                   /*allow_compression=*/false);
           }
       }
 

@@ -235,7 +235,6 @@ namespace parallel
      * triangulation is actually refined.
      *
      *
-     * @author Wolfgang Bangerth, Timo Heister 2008, 2009, 2010, 2011
      * @ingroup distributed
      */
     template <int dim, int spacedim = dim>
@@ -302,7 +301,7 @@ namespace parallel
          * every time a repartitioning in p4est happens. This can be a bit more
          * expensive, but guarantees the same memory layout and therefore cell
          * ordering in the deal.II mesh. As assembly is done in the deal.II
-         * cell ordering, this flag is required to get reproducible behaviour
+         * cell ordering, this flag is required to get reproducible behavior
          * after snapshot/resume.
          */
         mesh_reconstruction_after_repartitioning = 0x1,
@@ -406,10 +405,10 @@ namespace parallel
                            const std::vector<CellData<dim>> &  cells,
                            const SubCellData &subcelldata) override;
 
-      /*
+      /**
        * @copydoc Triangulation::create_triangulation()
        *
-       * @note Not inmplemented yet.
+       * @note Not implemented yet.
        */
       virtual void
       create_triangulation(

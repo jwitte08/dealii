@@ -227,7 +227,6 @@ namespace parallel
      * dealii::SolutionTransfer. See there for an extended discussion.
      *
      * @ingroup distributed
-     * @author Timo Heister, 2009-2011
      */
     template <int dim,
               typename VectorType,
@@ -310,27 +309,6 @@ namespace parallel
        */
       void
       prepare_for_serialization(const std::vector<const VectorType *> &all_in);
-
-      /**
-       * Prepare the serialization of the given vector. The serialization is
-       * done by Triangulation::save(). The given vector needs all information
-       * on the locally active DoFs (it must be ghosted). See documentation of
-       * this class for more information.
-       *
-       * @deprecated Use parallel::distributed::SolutionTransfer::prepare_for_serialization() instead.
-       */
-      DEAL_II_DEPRECATED
-      void
-      prepare_serialization(const VectorType &in);
-
-      /**
-       * Same as the function above, only for a list of vectors.
-       *
-       * @deprecated Use parallel::distributed::SolutionTransfer::prepare_for_serialization() instead.
-       */
-      DEAL_II_DEPRECATED
-      void
-      prepare_serialization(const std::vector<const VectorType *> &all_in);
 
       /**
        * Execute the deserialization of the given vector. This needs to be

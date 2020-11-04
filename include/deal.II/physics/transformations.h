@@ -32,8 +32,6 @@ namespace Physics
     /**
      * Transformation functions and tensors that are defined in terms of
      * rotation angles and axes of rotation.
-     *
-     * @author Jean-Paul Pelteret, 2017
      */
     namespace Rotations
     {
@@ -113,8 +111,6 @@ namespace Physics
      * reference and spatial configurations, and their surfaces $\partial
      * V_{0}$ and $\partial V_{t}$ have the outwards facing normals
      * $\mathbf{N}$ and $\mathbf{n}$.
-     *
-     * @author Jean-Paul Pelteret, Andrew McBride, 2016
      */
     namespace Contravariant
     {
@@ -340,8 +336,6 @@ namespace Physics
      * the curves $\partial A_{0}$ and $\partial A_{t}$ that are,
      * respectively, associated with the line directors $\mathbf{L}$ and
      * $\mathbf{l}$.
-     *
-     * @author Jean-Paul Pelteret, Andrew McBride, 2016
      */
     namespace Covariant
     {
@@ -554,8 +548,6 @@ namespace Physics
      * Transformation of tensors that are defined in terms of a set of
      * contravariant basis vectors and scale with the inverse of the volume
      * change associated with the mapping.
-     *
-     * @author Jean-Paul Pelteret, Andrew McBride, 2016
      */
     namespace Piola
     {
@@ -952,7 +944,7 @@ template <typename Number>
 Tensor<2, 2, Number>
 Physics::Transformations::Rotations::rotation_matrix_2d(const Number &angle)
 {
-  const double rotation[2][2] = {{std::cos(angle), -std::sin(angle)},
+  const Number rotation[2][2] = {{std::cos(angle), -std::sin(angle)},
                                  {std::sin(angle), std::cos(angle)}};
   return Tensor<2, 2>(rotation);
 }
@@ -970,7 +962,7 @@ Physics::Transformations::Rotations::rotation_matrix_3d(
   const Number c              = std::cos(angle);
   const Number s              = std::sin(angle);
   const Number t              = 1. - c;
-  const double rotation[3][3] = {{t * axis[0] * axis[0] + c,
+  const Number rotation[3][3] = {{t * axis[0] * axis[0] + c,
                                   t * axis[0] * axis[1] - s * axis[2],
                                   t * axis[0] * axis[2] + s * axis[1]},
                                  {t * axis[0] * axis[1] + s * axis[2],

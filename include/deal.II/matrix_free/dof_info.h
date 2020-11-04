@@ -31,7 +31,9 @@
 
 #include <deal.II/matrix_free/face_info.h>
 #include <deal.II/matrix_free/mapping_info.h>
+#include <deal.II/matrix_free/shape_info.h>
 #include <deal.II/matrix_free/task_info.h>
+#include <deal.II/matrix_free/vector_data_exchange.h>
 
 #include <array>
 #include <memory>
@@ -93,8 +95,6 @@ namespace internal
      * combination will be handled in the MatrixFree class.
      *
      * @ingroup matrixfree
-     *
-     * @author Katharina Kormann and Martin Kronbichler, 2010, 2011, 2018
      */
     struct DoFInfo
     {
@@ -187,7 +187,9 @@ namespace internal
        * access to all vector entries.
        */
       void
-      assign_ghosts(const std::vector<unsigned int> &boundary_cells);
+      assign_ghosts(const std::vector<unsigned int> &boundary_cells,
+                    const MPI_Comm &                 communicator_sm,
+                    const bool use_vector_data_exchanger_full);
 
       /**
        * This method reorders the way cells are gone through based on a given
@@ -227,6 +229,32 @@ namespace internal
       make_connectivity_graph(const TaskInfo &                 task_info,
                               const std::vector<unsigned int> &renumbering,
                               DynamicSparsityPattern &connectivity) const;
+
+      /**
+       * In case face integrals are enabled, find out whether certain loops
+       * over the unknowns only access a subset of all the ghost dofs we keep
+       * in the main partitioner.
+       */
+      void
+      compute_tight_partitioners(
+        const Table<2, ShapeInfo<double>> &       shape_info,
+        const unsigned int                        n_owned_cells,
+        const unsigned int                        n_lanes,
+        const std::vector<FaceToCellTopology<1>> &inner_faces,
+        const std::vector<FaceToCellTopology<1>> &ghosted_faces,
+        const bool                                fill_cell_centric,
+        const MPI_Comm &                          communicator_sm,
+        const bool use_vector_data_exchanger_full);
+
+      /**
+       * Given @p cell_indices_contiguous_sm containing the local index of
+       * cells of macro faces (inner/outer) and macro faces compute
+       * dof_indices_contiguous_sm.
+       */
+      void
+      compute_shared_memory_contiguous_indices(
+        std::array<std::vector<std::pair<unsigned int, unsigned int>>, 3>
+          &cell_indices_contiguous_sm);
 
       /**
        * Compute a renumbering of the degrees of freedom to improve the data
@@ -420,7 +448,7 @@ namespace internal
        * as interior (0), the faces decorated with as exterior (1), and the
        * cells (2) according to CellOrFaceAccess.
        */
-      std::vector<IndexStorageVariants> index_storage_variants[3];
+      std::array<std::vector<IndexStorageVariants>, 3> index_storage_variants;
 
       /**
        * Stores the rowstart indices of the compressed row storage in the @p
@@ -472,7 +500,18 @@ namespace internal
        * as interior (0), the faces decorated with as exterior (1), and the
        * cells (2) according to CellOrFaceAccess.
        */
-      std::vector<unsigned int> dof_indices_contiguous[3];
+      std::array<std::vector<unsigned int>, 3> dof_indices_contiguous;
+
+      /**
+       * The same as above but for shared-memory usage. The first value of the
+       * pair is identifying the owning process and the second the index
+       * within that locally-owned data of that process.
+       *
+       * @note This data structure is only set up if all entries in
+       *   index_storage_variants[2] are IndexStorageVariants::contiguous.
+       */
+      std::array<std::vector<std::pair<unsigned int, unsigned int>>, 3>
+        dof_indices_contiguous_sm;
 
       /**
        * Compressed index storage for faster access than through @p
@@ -482,7 +521,7 @@ namespace internal
        * as minus (0), the faces decorated with as plus (1), and the cells
        * (2).
        */
-      std::vector<unsigned int> dof_indices_interleave_strides[3];
+      std::array<std::vector<unsigned int>, 3> dof_indices_interleave_strides;
 
       /**
        * Caches the number of indices filled when vectorizing. This
@@ -493,7 +532,7 @@ namespace internal
        * as interior (0), the faces decorated with as exterior (1), and the
        * cells (2) according to CellOrFaceAccess.
        */
-      std::vector<unsigned char> n_vectorization_lanes_filled[3];
+      std::array<std::vector<unsigned char>, 3> n_vectorization_lanes_filled;
 
       /**
        * This stores the parallel partitioning that can be used to set up
@@ -504,7 +543,15 @@ namespace internal
       std::shared_ptr<const Utilities::MPI::Partitioner> vector_partitioner;
 
       /**
-       * This partitioning selects a subset of ghost indices to the full
+       * Vector exchanger compatible with vector_partitioner.
+       */
+      std::shared_ptr<
+        const internal::MatrixFreeFunctions::VectorDataExchange::Base>
+        vector_exchanger;
+
+      /**
+       * Vector exchanger compatible with partitioners that select a subset of
+       * ghost indices to the full
        * vector partitioner stored in @p vector_partitioner. These
        * partitioners are used in specialized loops that only import parts of
        * the ghosted region for reducing the amount of communication. There
@@ -521,8 +568,11 @@ namespace internal
        *   values and the gradients on all faces adjacent to the locally owned
        *   cells.
        */
-      std::array<std::shared_ptr<const Utilities::MPI::Partitioner>, 5>
-        vector_partitioner_face_variants;
+      std::array<
+        std::shared_ptr<
+          const internal::MatrixFreeFunctions::VectorDataExchange::Base>,
+        5>
+        vector_exchanger_face_variants;
 
       /**
        * This stores a (sorted) list of all locally owned degrees of freedom

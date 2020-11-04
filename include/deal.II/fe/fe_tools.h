@@ -71,9 +71,6 @@ class AffineConstraints;
  *
  * For more information about the <tt>spacedim</tt> template parameter check
  * the documentation of FiniteElement or the one of Triangulation.
- *
- * @author Wolfgang Bangerth, Ralf Hartmann, Guido Kanschat; 2000, 2003, 2004,
- * 2005, 2006
  */
 namespace FETools
 {
@@ -84,8 +81,6 @@ namespace FETools
    *
    * This class is used in the FETools::get_fe_by_name() and
    * FETools::add_fe_name() functions.
-   *
-   * @author Guido Kanschat, 2006
    */
   template <int dim, int spacedim = dim>
   class FEFactoryBase : public Subscriptor
@@ -119,8 +114,6 @@ namespace FETools
    * given as template argument, and with the degree (however the finite
    * element class wishes to interpret this number) given as argument to
    * get().
-   *
-   * @author Guido Kanschat, 2006
    */
   template <class FE>
   class FEFactory : public FEFactoryBase<FE::dimension, FE::space_dimension>
@@ -190,7 +183,7 @@ namespace FETools
   /**
    * Compute the interpolation matrix that interpolates a @p fe1-function to a
    * @p fe2-function on each cell. The interpolation_matrix needs to be of
-   * size <tt>(fe2.dofs_per_cell, fe1.dofs_per_cell)</tt>.
+   * size <tt>(fe2.n_dofs_per_cell(), fe1.n_dofs_per_cell())</tt>.
    *
    * Note, that if the finite element space @p fe1 is a subset of the finite
    * element space @p fe2 then the @p interpolation_matrix is an embedding
@@ -206,7 +199,7 @@ namespace FETools
    * Compute the interpolation matrix that interpolates a @p fe1-function to a
    * @p fe2-function, and interpolates this to a second @p fe1-function on
    * each cell. The interpolation_matrix needs to be of size
-   * <tt>(fe1.dofs_per_cell, fe1.dofs_per_cell)</tt>.
+   * <tt>(fe1.n_dofs_per_cell(), fe1.n_dofs_per_cell())</tt>.
    *
    * Note, that this function only makes sense if the finite element space due
    * to @p fe1 is not a subset of the finite element space due to @p fe2, as
@@ -221,8 +214,8 @@ namespace FETools
 
   /**
    * Compute the identity matrix minus the back interpolation matrix.
-   * The @p difference_matrix will be of size <tt>(fe1.dofs_per_cell,
-   * fe1.dofs_per_cell)</tt> after this function. Previous content
+   * The @p difference_matrix will be of size <tt>(fe1.n_dofs_per_cell(),
+   * fe1.n_dofs_per_cell())</tt> after this function. Previous content
    * of the argument will be overwritten.
    *
    * This function computes the matrix that transforms a @p fe1 function $z$ to
@@ -576,7 +569,7 @@ namespace FETools
    * This method implements the
    * FETools::compute_projection_from_quadrature_points_matrix method for
    * faces of a mesh.  The matrix that it returns, X, is face specific and its
-   * size is fe.dofs_per_cell by rhs_quadrature.size().  The dimension, dim
+   * size is fe.n_dofs_per_cell() by rhs_quadrature.size().  The dimension, dim
    * must be larger than 1 for this class, since Quadrature<dim-1> objects are
    * required. See the documentation on the Quadrature class for more
    * information.
@@ -651,17 +644,12 @@ namespace FETools
    * by calling the @p distribute function of your hanging node constraints
    * object.
    */
-  template <int dim,
-            int spacedim,
-            template <int, int> class DoFHandlerType1,
-            template <int, int> class DoFHandlerType2,
-            class InVector,
-            class OutVector>
+  template <int dim, int spacedim, class InVector, class OutVector>
   void
-  interpolate(const DoFHandlerType1<dim, spacedim> &dof1,
-              const InVector &                      u1,
-              const DoFHandlerType2<dim, spacedim> &dof2,
-              OutVector &                           u2);
+  interpolate(const DoFHandler<dim, spacedim> &dof1,
+              const InVector &                 u1,
+              const DoFHandler<dim, spacedim> &dof2,
+              OutVector &                      u2);
 
   /**
    * Compute the interpolation of a the @p dof1-function @p u1 to a @p
@@ -679,17 +667,12 @@ namespace FETools
    * the discontinuities.  Therefore the mean value is taken at the DoF values
    * at the discontinuities.
    */
-  template <int dim,
-            int spacedim,
-            template <int, int> class DoFHandlerType1,
-            template <int, int> class DoFHandlerType2,
-            class InVector,
-            class OutVector>
+  template <int dim, int spacedim, class InVector, class OutVector>
   void
   interpolate(
-    const DoFHandlerType1<dim, spacedim> &                   dof1,
+    const DoFHandler<dim, spacedim> &                        dof1,
     const InVector &                                         u1,
-    const DoFHandlerType2<dim, spacedim> &                   dof2,
+    const DoFHandler<dim, spacedim> &                        dof2,
     const AffineConstraints<typename OutVector::value_type> &constraints,
     OutVector &                                              u2);
 
@@ -708,16 +691,12 @@ namespace FETools
    * space corresponding to @p fe1 is a subset of the finite element space
    * corresponding to @p fe2, this function is simply an identity mapping.
    */
-  template <int dim,
-            template <int, int> class DoFHandlerType,
-            class InVector,
-            class OutVector,
-            int spacedim>
+  template <int dim, class InVector, class OutVector, int spacedim>
   void
-  back_interpolate(const DoFHandlerType<dim, spacedim> &dof1,
-                   const InVector &                     u1,
-                   const FiniteElement<dim, spacedim> & fe2,
-                   OutVector &                          u1_interpolated);
+  back_interpolate(const DoFHandler<dim, spacedim> &   dof1,
+                   const InVector &                    u1,
+                   const FiniteElement<dim, spacedim> &fe2,
+                   OutVector &                         u1_interpolated);
 
   /**
    * Compute the interpolation of the @p dof1-function @p u1 to a @p
@@ -1267,7 +1246,8 @@ namespace FETools
       std::vector<std::pair<unsigned int, unsigned int>>
         &                                 face_system_to_component_table,
       const FiniteElement<dim, spacedim> &finite_element,
-      const bool                          do_tensor_product = true);
+      const bool                          do_tensor_product = true,
+      const unsigned int                  face_no           = 0 /*TODO*/);
 
   } // namespace Compositing
 
@@ -1308,15 +1288,6 @@ namespace FETools
   template <int dim, int spacedim = dim>
   std::unique_ptr<FiniteElement<dim, spacedim>>
   get_fe_by_name(const std::string &name);
-
-
-  /**
-   * @deprecated Use get_fe_by_name() with two template parameters instead
-   */
-  template <int dim>
-  DEAL_II_DEPRECATED FiniteElement<dim, dim> *
-                     get_fe_from_name(const std::string &name);
-
 
   /**
    * Extend the list of finite elements that can be generated by

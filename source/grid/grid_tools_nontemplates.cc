@@ -29,10 +29,11 @@ namespace GridTools
 {
   template <>
   double
-  cell_measure<1>(
-    const std::vector<Point<1>> &all_vertices,
-    const unsigned int (&vertex_indices)[GeometryInfo<1>::vertices_per_cell])
+  cell_measure<1>(const std::vector<Point<1>> &        all_vertices,
+                  const ArrayView<const unsigned int> &vertex_indices)
   {
+    AssertDimension(vertex_indices.size(), GeometryInfo<1>::vertices_per_cell);
+
     return all_vertices[vertex_indices[1]][0] -
            all_vertices[vertex_indices[0]][0];
   }
@@ -41,10 +42,25 @@ namespace GridTools
 
   template <>
   double
-  cell_measure<2>(
-    const std::vector<Point<2>> &all_vertices,
-    const unsigned int (&vertex_indices)[GeometryInfo<2>::vertices_per_cell])
+  cell_measure<2>(const std::vector<Point<2>> &        all_vertices,
+                  const ArrayView<const unsigned int> &vertex_indices)
   {
+    if (vertex_indices.size() == 3) // triangle
+      {
+        const double x[3] = {all_vertices[vertex_indices[0]](0),
+                             all_vertices[vertex_indices[1]](0),
+                             all_vertices[vertex_indices[2]](0)};
+
+        const double y[3] = {all_vertices[vertex_indices[0]](1),
+                             all_vertices[vertex_indices[1]](1),
+                             all_vertices[vertex_indices[2]](1)};
+
+        return 0.5 * std::abs((x[0] - x[2]) * (y[1] - y[0]) -
+                              (x[0] - x[1]) * (y[2] - y[0]));
+      }
+
+    AssertDimension(vertex_indices.size(), GeometryInfo<2>::vertices_per_cell);
+
     /*
       Get the computation of the measure by this little Maple script. We
       use the blinear mapping of the unit quad to the real quad. However,
@@ -100,10 +116,20 @@ namespace GridTools
 
   template <>
   double
-  cell_measure<3>(
-    const std::vector<Point<3>> &all_vertices,
-    const unsigned int (&vertex_indices)[GeometryInfo<3>::vertices_per_cell])
+  cell_measure<3>(const std::vector<Point<3>> &        all_vertices,
+                  const ArrayView<const unsigned int> &vertex_indices)
   {
+    if (vertex_indices.size() == 4) // tetrahedron
+      {
+        const auto &a = all_vertices[vertex_indices[0]];
+        const auto &b = all_vertices[vertex_indices[1]];
+        const auto &c = all_vertices[vertex_indices[2]];
+        const auto &d = all_vertices[vertex_indices[3]];
+
+        return (1.0 / 6.0) * std::abs((a - d) * cross_product_3d(b - d, c - d));
+      }
+
+    AssertDimension(vertex_indices.size(), GeometryInfo<3>::vertices_per_cell);
     // note that this is the
     // cell_measure based on the new
     // deal.II numbering. When called

@@ -24,8 +24,10 @@
 #  include <deal.II/base/std_cxx17/tuple.h>
 #  include <deal.II/base/template_constraints.h>
 
+#  include <atomic>
 #  include <condition_variable>
 #  include <functional>
+#  include <future>
 #  include <iterator>
 #  include <list>
 #  include <memory>
@@ -34,15 +36,6 @@
 #  include <tuple>
 #  include <utility>
 #  include <vector>
-DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
-#  ifdef DEAL_II_WITH_THREADS
-#    include <thread>
-#    define TBB_SUPPRESS_DEPRECATED_MESSAGES 1
-#    include <tbb/task.h>
-#    undef TBB_SUPPRESS_DEPRECATED_MESSAGES
-#    include <tbb/tbb_stddef.h>
-#  endif
-DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
 
 
@@ -151,8 +144,6 @@ namespace Threads
    * A namespace in which helper functions and the like for the threading
    * subsystem are implemented. The members of this namespace are not meant
    * for public use.
-   *
-   * @author Wolfgang Bangerth, 2003
    */
   namespace internal
   {
@@ -256,6 +247,16 @@ namespace Threads
      * access to it through functions get() and set(). There are
      * specializations for reference types (which need to be stored as
      * pointers to the object being referenced), and for type void.
+     *
+     * This function is not dissimilar to the `std::promise`/`std::future`
+     * combination of classes. The difference is that a `std::promise`
+     * can only be read once via `std::future::get()` (presumably this
+     * design is due to the fact that `std::future::get()` can throw
+     * an exception previously stored in the `std::promise`). On
+     * the other hand, this class makes the result available for
+     * as many times as desired. It also doesn't store any exceptions
+     * (though they will be forwarded by the classes using the current
+     * class).
      */
     template <typename RT>
     struct return_value
@@ -281,6 +282,12 @@ namespace Threads
       {
         value = std::move(v);
       }
+
+      inline void
+      set_from(std::future<RT> &v)
+      {
+        value = std::move(v.get());
+      }
     };
 
 
@@ -292,6 +299,16 @@ namespace Threads
      * reference types: since references cannot be set after construction time,
      * we store a pointer instead, which holds the address of the object being
      * referenced.
+     *
+     * This function is not dissimilar to the `std::promise`/`std::future`
+     * combination of classes. The difference is that a `std::promise`
+     * can only be read once via `std::future::get()` (presumably this
+     * design is due to the fact that `std::future::get()` can throw
+     * an exception previously stored in the `std::promise`). On
+     * the other hand, this class makes the result available for
+     * as many times as desired. It also doesn't store any exceptions
+     * (though they will be forwarded by the classes using the current
+     * class).
      */
     template <typename RT>
     struct return_value<RT &>
@@ -317,6 +334,12 @@ namespace Threads
       {
         value = &v;
       }
+
+      inline void
+      set_from(std::future<RT &> &v)
+      {
+        value = &v.get();
+      }
     };
 
 
@@ -327,6 +350,16 @@ namespace Threads
      * it through functions get() and set(). This is the specialization for
      * type void: there is obviously nothing to store, so no function set(),
      * and a function get() that returns void.
+     *
+     * This function is not dissimilar to the `std::promise`/`std::future`
+     * combination of classes. The difference is that a `std::promise`
+     * can only be read once via `std::future::get()` (presumably this
+     * design is due to the fact that `std::future::get()` can throw
+     * an exception previously stored in the `std::promise`). On
+     * the other hand, this class makes the result available for
+     * as many times as desired. It also doesn't store any exceptions
+     * (though they will be forwarded by the classes using the current
+     * class).
      */
     template <>
     struct return_value<void>
@@ -335,6 +368,11 @@ namespace Threads
 
       static inline void
       get()
+      {}
+
+
+      inline void
+      set_from(std::future<void> &)
       {}
     };
   } // namespace internal
@@ -363,8 +401,6 @@ namespace Threads
 
   namespace internal
   {
-#  ifdef DEAL_II_WITH_THREADS
-
     /**
      * A class that represents threads. For each thread, we create exactly one
      * of these objects -- exactly one because it carries the returned value
@@ -394,9 +430,9 @@ namespace Threads
       std::shared_ptr<return_value<RT>> ret_val;
 
       /**
-       * A bool variable that is initially false, is set to true when a new
-       * thread is started, and is set back to false once join() has been
-       * called.
+       * An atomic  bool variable that is initially false, is set to true
+       * when a new thread is started, and is set back to false once join()
+       * has been called.
        *
        * We use this variable to make sure we can call join() twice on the
        * same thread. For some reason, the C++ standard library throws a
@@ -423,8 +459,12 @@ namespace Threads
        * thread. Neither does `pthread_join` appear to have this requirement any
        * more.  Consequently, we can in fact join from different threads and
        * we test this in base/thread_validity_07.
+       *
+       * @note The reason why we need to use a std::atomic<bool> is
+       * discussed in detail in the documentation of
+       * Task::task_has_finished.
        */
-      bool thread_is_active;
+      std::atomic<bool> thread_is_active;
 
       /**
        * Mutex guarding access to the previous variable.
@@ -507,45 +547,6 @@ namespace Threads
           }
       }
     };
-
-#  else
-    /**
-     * A class that represents threads. For each thread, we create exactly one
-     * of these objects -- exactly one because it carries the returned value
-     * of the function called on the thread.
-     *
-     * While we have only one of these objects per thread, several
-     * Threads::Thread objects may refer to this descriptor.
-     */
-    template <typename RT>
-    struct ThreadDescriptor
-    {
-      /**
-       * An object that will hold the value returned by the function called on
-       * the thread.
-       */
-      std::shared_ptr<return_value<RT>> ret_val;
-
-      /**
-       * Start the thread and let it put its return value into the ret_val
-       * object.
-       */
-      void
-      start(const std::function<RT()> &function)
-      {
-        ret_val = std::make_shared<return_value<RT>>();
-        call(function, *ret_val);
-      }
-
-      /**
-       * Wait for the thread to end.
-       */
-      void
-      join()
-      {}
-    };
-
-#  endif
   } // namespace internal
 
 
@@ -567,7 +568,6 @@ namespace Threads
    * the function you are calling on a new thread has no return value, you can
    * omit the template argument.
    *
-   * @author Wolfgang Bangerth, 2003, 2009
    * @ingroup threads
    * @ingroup threads
    */
@@ -884,7 +884,6 @@ namespace Threads
    * for them all together. The thread objects need to have the same return
    * value for the called function.
    *
-   * @author Wolfgang Bangerth, 2003
    * @ingroup threads
    */
   template <typename RT = void>
@@ -924,281 +923,33 @@ namespace Threads
   };
 
 
-  template <typename>
-  class Task;
-
-
   namespace internal
   {
-#  ifdef DEAL_II_WITH_THREADS
+    /**
+     * Set the value of a std::promise object by evaluating the action.
+     */
+    template <typename RT, typename Function>
+    void
+    evaluate_and_set_promise(Function &function, std::promise<RT> &promise)
+    {
+      promise.set_value(function());
+    }
 
-    template <typename>
-    struct TaskDescriptor;
 
     /**
-     * The task class for TBB that is used by the TaskDescriptor class.
+     * Set the value of a std::promise object by evaluating the
+     * action. This function is a specialization of the previous one
+     * for the case where the return type is `void`. Consequently, we
+     * can't set a value. But we do evaluate the function object and
+     * call `std::promise::set_value()` without argument.
      */
-    template <typename RT>
-    struct TaskEntryPoint : public tbb::task
+    template <typename Function>
+    void
+    evaluate_and_set_promise(Function &function, std::promise<void> &promise)
     {
-      TaskEntryPoint(TaskDescriptor<RT> &task_descriptor)
-        : task_descriptor(task_descriptor)
-      {}
-
-      virtual tbb::task *
-      execute() override
-      {
-        // call the function object and put the return value into the
-        // proper place
-        try
-          {
-            call(task_descriptor.function, task_descriptor.ret_val);
-          }
-        catch (const std::exception &exc)
-          {
-            internal::handle_std_exception(exc);
-          }
-        catch (...)
-          {
-            internal::handle_unknown_exception();
-          }
-        return nullptr;
-      }
-
-      /**
-       * A reference to the descriptor object of this task.
-       */
-      TaskDescriptor<RT> &task_descriptor;
-    };
-
-    /**
-     * @internal
-     *
-     * Base class describing a task. This is the basic class abstracting the
-     * Threading Building Blocks implementation of tasks.  It provides a
-     * mechanism to start a new task, as well as for joining it.
-     *
-     * Internally, the way things are implemented is that all Task<> objects
-     * keep a shared pointer to the task descriptor. When the last Task<>
-     * object goes out of scope, the destructor of the descriptor is called.
-     * Since tasks can not be abandoned, the destructor makes sure that the
-     * task is finished before it can continue to destroy the object.
-     *
-     * Note that unlike threads, tasks are not always started right away, and
-     * so the starting thread can't rely on the fact that the started task can
-     * copy things off the spawning thread's stack frame. As a consequence,
-     * the task description needs to include a way to store the function and
-     * its arguments that shall be run on the task.
-     *
-     * @author Wolfgang Bangerth, 2009
-     */
-    template <typename RT>
-    struct TaskDescriptor
-    {
-    private:
-      /**
-       * The function and its arguments that are to be run on the task.
-       */
-      std::function<RT()> function;
-
-      /**
-       * Variable holding the data the TBB needs to work with a task. Set by
-       * the queue_up_task() function. Note that the object behind this
-       * pointer will be deleted upon termination of the task, so we do not
-       * have to do so ourselves. In particular, if all objects with pointers
-       * to this task_description object go out of scope then no action is
-       * needed on our behalf.
-       */
-      tbb::task *task;
-
-      /**
-       * A place where the task will deposit its return value.
-       */
-      return_value<RT> ret_val;
-
-      /**
-       * A flag indicating whether the task has terminated.
-       */
-      bool task_is_done;
-
-    public:
-      /**
-       * Constructor. Take the function to be run on this task as argument.
-       */
-      TaskDescriptor(const std::function<RT()> &function);
-
-      /**
-       * Default constructor. Throws an exception since we want to queue a
-       * task immediately upon construction of these objects to make sure that
-       * each TaskDescriptor object corresponds to exactly one task.
-       */
-      TaskDescriptor();
-
-      /**
-       * Copy constructor. Objects of this type can not be copied, and so this
-       * constructor is `delete`d and can't be called.
-       */
-      TaskDescriptor(const TaskDescriptor &) = delete;
-
-      /**
-       * Destructor.
-       */
-      ~TaskDescriptor();
-
-      /**
-       * Copy operator. Objects of this type can not be copied, and so this
-       * operator is `delete`d and can't be called.
-       */
-      TaskDescriptor &
-      operator=(const TaskDescriptor &) = delete;
-
-      /**
-       * Queue up the task to the scheduler. We need to do this in a separate
-       * function since the new tasks needs to access objects from the current
-       * object and that can only reliably happen if the current object is
-       * completely constructed already.
-       */
-      void
-      queue_task();
-
-      /**
-       * Join a task, i.e. wait for it to finish. This function can safely be
-       * called from different threads at the same time, and can also be
-       * called more than once.
-       */
-      void
-      join();
-
-
-      template <typename>
-      friend struct TaskEntryPoint;
-      friend class dealii::Threads::Task<RT>;
-    };
-
-
-
-    template <typename RT>
-    inline TaskDescriptor<RT>::TaskDescriptor(
-      const std::function<RT()> &function)
-      : function(function)
-      , task(nullptr)
-      , task_is_done(false)
-    {}
-
-
-    template <typename RT>
-    inline void
-    TaskDescriptor<RT>::queue_task()
-    {
-      // use the pattern described in the TBB book on pages 230/231
-      // ("Start a large task in parallel with the main program")
-      task = new (tbb::task::allocate_root()) tbb::empty_task;
-      task->set_ref_count(2);
-
-      tbb::task *worker =
-        new (task->allocate_child()) TaskEntryPoint<RT>(*this);
-
-      tbb::task::spawn(*worker);
+      function();
+      promise.set_value();
     }
-
-
-
-    template <typename RT>
-    TaskDescriptor<RT>::TaskDescriptor()
-      : task_is_done(false)
-    {
-      Assert(false, ExcInternalError());
-    }
-
-
-
-    template <typename RT>
-    inline TaskDescriptor<RT>::~TaskDescriptor()
-    {
-      // wait for the task to complete for sure
-      join();
-
-      // now destroy the empty task structure. the book recommends to
-      // spawn it as well and let the scheduler destroy the object
-      // when done, but this has the disadvantage that the scheduler
-      // may not get to actually finishing the task before it goes out
-      // of scope (at the end of the program, or if a thread is done
-      // on which it was run) and then we would get a hard-to-decipher
-      // warning about unfinished tasks when the scheduler "goes out
-      // of the arena". rather, let's explicitly destroy the empty
-      // task object. before that, make sure that the task has been
-      // shut down, expressed by a zero reference count
-      AssertNothrow(task != nullptr, ExcInternalError());
-      AssertNothrow(task->ref_count() == 0, ExcInternalError());
-      task->destroy(*task);
-    }
-
-
-    template <typename RT>
-    inline void
-    TaskDescriptor<RT>::join()
-    {
-      // if the task is already done, just return. this makes sure we
-      // call tbb::Task::wait_for_all() exactly once, as required by
-      // TBB. we could also get the reference count of task for doing
-      // this, but that is usually slower. note that this does not
-      // work when the thread calling this function is not the same as
-      // the one that initialized the task.
-      //
-      // TODO: can we assert that no other thread tries to end the
-      // task?
-      if (task_is_done == true)
-        return;
-
-      // let TBB wait for the task to complete.
-      task_is_done = true;
-      task->wait_for_all();
-    }
-
-
-
-#  else // no threading enabled
-
-    /**
-     * A way to describe tasks. Since we are in non-MT mode at this place,
-     * things are a lot simpler than in MT mode.
-     */
-    template <typename RT>
-    struct TaskDescriptor
-    {
-      /**
-       * A place where the task will deposit its return value.
-       */
-      return_value<RT> ret_val;
-
-      /**
-       * Constructor. Call the given function and emplace the return value
-       * into the slot reserved for this purpose.
-       */
-      TaskDescriptor(const std::function<RT()> &function)
-      {
-        call(function, ret_val);
-      }
-
-      /**
-       * Wait for the task to return. Since we are in non-MT mode here, there
-       * is nothing to do.
-       */
-      static void
-      join()
-      {}
-
-      /**
-       * Run the task. Since we are here in non-MT mode, there is nothing to
-       * do that the constructor hasn't already done.
-       */
-      static void
-      queue_task()
-      {}
-    };
-
-#  endif
-
   } // namespace internal
 
 
@@ -1221,9 +972,12 @@ namespace Threads
    * [`std::async`](https://en.cppreference.com/w/cpp/thread/async) (which is
    * itself similar to what Threads::new_task() does). The principal conceptual
    * difference is that one can only call `std::future::get()` once, whereas one
-   * can call Threads::Task::return_value() as many times as desired.
+   * can call Threads::Task::return_value() as many times as desired. It is,
+   * thus, comparable to the
+   * [`std::shared_future`](https://en.cppreference.com/w/cpp/thread/shared_future)
+   * class. However, `std::shared_future` can not be used for types that can not
+   * be copied -- a particular restriction for `std::unique_ptr`, for example.
    *
-   * @author Wolfgang Bangerth, 2009, 2020
    * @ingroup threads
    */
   template <typename RT = void>
@@ -1231,22 +985,52 @@ namespace Threads
   {
   public:
     /**
-     * Construct a task object given a function object to execute on the task,
-     * and then schedule this function for execution.
+     * Construct a task object, given a function object to execute on
+     * the task, and then schedule this function for
+     * execution. However, when MultithreadInfo::n_threads() returns
+     * 1, i.e., if the deal.II runtime system has been configured to
+     * only use one thread, then just execute the given function
+     * object.
      *
      * @post Using this constructor automatically makes the task object
      * joinable().
      */
     Task(const std::function<RT()> &function_object)
     {
-      // create a task descriptor and tell it to queue itself up with
-      // the scheduling system
-      task_descriptor =
-        std::make_shared<internal::TaskDescriptor<RT>>(function_object);
-      task_descriptor->queue_task();
+      if (MultithreadInfo::n_threads() > 1)
+        task_data = std::make_shared<TaskData>(
+          std::async(std::launch::async, function_object));
+      else
+        {
+          // Only one thread allowed. So let the task run to completion
+          // and just emplace a 'ready' future.
+          //
+          // The design of std::promise/std::future is unclear, but it
+          // seems that the intent is to obtain the std::future before
+          // we set the std::promise. So create the TaskData object at
+          // the top and then run the task and set the returned
+          // value. Since everything here happens sequentially, it
+          // really doesn't matter in which order all of this is
+          // happening.
+          std::promise<RT> promise;
+          task_data = std::make_shared<TaskData>(promise.get_future());
+          try
+            {
+              internal::evaluate_and_set_promise(function_object, promise);
+            }
+          catch (...)
+            {
+              try
+                {
+                  // store anything thrown in the promise
+                  promise.set_exception(std::current_exception());
+                }
+              catch (...)
+                {}
+              // set_exception() may throw too
+            }
+        }
     }
-
-
 
     /**
      * Default constructor. You can't do much with a task object constructed
@@ -1258,14 +1042,32 @@ namespace Threads
      */
     Task() = default;
 
-
-
     /**
      * Join the task represented by this object, i.e. wait for it to finish.
      *
      * A task can be joined multiple times (while the first join() operation
      * may block until the task has completed running, all successive attempts
      * to join will return immediately).
+     *
+     * If the operation that was executed on the task with which this
+     * object was initialized throws an exception instead of returning
+     * regularly, then calling the current join() function will first
+     * wait for that task to finish, and then in turn throw the
+     * exception that the task operation had thrown originally. This
+     * allows for the propagation of exceptions from tasks executed on
+     * a separate thread to the calling thread.
+     *
+     * (This behavior differs from that of
+     * [`std::future`](https://en.cppreference.com/w/cpp/thread/future),
+     * where the `std::future::wait()` function only waits for
+     * completion of the operation, whereas the exception is
+     * propagated only once one calls `std::future::get()`. However,
+     * this is awkward when putting `void` functions onto separate
+     * tasks because these do not actually return anything;
+     * consequently, it is more natural to call `std::task::wait()`
+     * for such tasks than the `std::task::get()` function since the
+     * latter does not, actually, return anything that could be
+     * gotten.)
      *
      * @pre You can't call this function if you have used the default
      * constructor of this class and have not assigned a task object to it. In
@@ -1274,8 +1076,10 @@ namespace Threads
     void
     join() const
     {
+      // Make sure we actually have a task that we can wait for.
       AssertThrow(joinable(), ExcNoTask());
-      task_descriptor->join();
+
+      task_data->wait();
     }
 
     /**
@@ -1293,8 +1097,7 @@ namespace Threads
     bool
     joinable() const
     {
-      return (task_descriptor !=
-              std::shared_ptr<internal::TaskDescriptor<RT>>());
+      return (task_data != nullptr);
     }
 
 
@@ -1337,6 +1140,12 @@ namespace Threads
      * to be moved, and in order to be moved, the current function needs to
      * return a writable (non-@p const) reference.
      *
+     * This function internally calls the join() member function. As a
+     * consequence, and as explained there, if the packaged task
+     * throws an exception that is then re-thrown by the join()
+     * function and consequently also the current function if you have
+     * not previously called join().
+     *
      * @pre You can't call this function if you have used the default
      * constructor of this class and have not assigned a task object to it. In
      * other words, the function joinable() must return true.
@@ -1344,8 +1153,12 @@ namespace Threads
     typename internal::return_value<RT>::reference_type
     return_value()
     {
-      join();
-      return task_descriptor->ret_val.get();
+      // Make sure we actually have a task that we can wait for.
+      AssertThrow(joinable(), ExcNoTask());
+
+      // Then return the promised object. If necessary, wait for the promise to
+      // be set.
+      return task_data->get();
     }
 
 
@@ -1364,10 +1177,119 @@ namespace Threads
     //@}
   private:
     /**
-     * Shared pointer to the object representing the task. This makes sure that
-     * the object lives as long as there is at least one subscriber to it.
+     * A data structure that holds a std::future into which the task deposits
+     * its return value. Since one can only call std::future::get() once,
+     * we do so in the get() member function and then move the returned object
+     * into the `returned_object` member variable from where we can read it
+     * multiple times and from where it can also be moved away if it is not
+     * copyable.
      */
-    std::shared_ptr<internal::TaskDescriptor<RT>> task_descriptor;
+    class TaskData
+    {
+    public:
+      /**
+       * Constructor. Initializes an std::future object and assumes
+       * that the task so set has not finished yet.
+       */
+      TaskData(std::future<RT> &&future)
+        : future(std::move(future))
+        , task_has_finished(false)
+      {}
+
+      /**
+       * Wait for the std::future object to be ready, i.e., for the
+       * time when the std::promise receives its value. If this has
+       * already happened, this function can follow a fast path.
+       */
+      void
+      wait()
+      {
+        // If we have previously already moved the result, then we don't
+        // need a lock and can just return.
+        if (task_has_finished)
+          return;
+
+        // Else, we need to go under a lock and try again. A different thread
+        // may have waited and finished the task since then, so we have to try
+        // a second time. (This is Schmidt's double-checking pattern.)
+        std::lock_guard<std::mutex> lock(mutex);
+        if (task_has_finished)
+          return;
+        else
+          {
+            // Wait for the task to finish and then move its
+            // result. (We could have made the set_from() function
+            // that we call here wait for the future to be ready --
+            // which happens implicitly when it calls future.get() --
+            // but that would have required putting an explicit
+            // future.wait() into the implementation of
+            // internal::return_value<void>::set_from(), which is a
+            // bit awkward: that class doesn't actually need to set
+            // anything, and so it looks odd to have the explicit call
+            // to future.wait() in the set_from() function. Avoid the
+            // issue by just explicitly calling future.wait() here.)
+            future.wait();
+            returned_object.set_from(future);
+
+            // Now we can safely set the flag and return.
+            task_has_finished = true;
+          }
+      }
+
+
+
+      typename internal::return_value<RT>::reference_type
+      get()
+      {
+        wait();
+        return returned_object.get();
+      }
+
+    private:
+      /**
+       * A mutex used to synchronize access to the data structures of this
+       * class.
+       */
+      std::mutex mutex;
+
+      /**
+       * The promise associated with the task that is represented by the current
+       * class.
+       */
+      std::future<RT> future;
+
+      /**
+       * A boolean indicating whether the task in question has finished.
+       *
+       * @note We are using a `std::atomic_bool` here because we have
+       * to make sure that concurrent reads and stores between threads are
+       * properly synchronized, and that sequential reads on a given thread
+       * are not reordered or optimized away. A std::atomic [1] achieves
+       * this because (if not otherwise annotated) reads and stores to the
+       * boolean are subject to the std::memory_order_seq_cst memory
+       * ordering [2]. This ensures that Schmidt's double checking does
+       * indeed work. For additional information (and a potentially more
+       * efficient implementation) see [3].
+       *
+       * [1] https://en.cppreference.com/w/cpp/atomic/atomic
+       * [2] https://en.cppreference.com/w/cpp/atomic/memory_order
+       * [3]
+       * https://preshing.com/20130930/double-checked-locking-is-fixed-in-cpp11/
+       */
+      std::atomic<bool> task_has_finished;
+
+      /**
+       * The place where the returned value is moved to once the std::future
+       * has delivered.
+       */
+      internal::return_value<RT> returned_object;
+    };
+
+    /**
+     * A pointer to a descriptor of the object that described the task
+     * and its return value.
+     */
+    std::shared_ptr<TaskData> task_data;
   };
 
 
@@ -1377,6 +1299,12 @@ namespace Threads
    * std::function<RT ()>, i.e. anything that can be called like a
    * function object without arguments and returning an object of type RT (or
    * void).
+   *
+   * @note When MultithreadInfo::n_threads() returns 1, i.e., if the
+   *   deal.II runtime system has been configured to only use one
+   *   thread, then this function just executes the given function
+   *   object immediately and stores the return value in the Task
+   *   object returned by this function.
    *
    * @note Threads::new_task() is, in essence, equivalent to calling
    *   `std::async(std::launch::async, ...)` in that it runs the given task
@@ -1422,6 +1350,12 @@ namespace Threads
    * computed number), and this is going to be the returned value you
    * can later retrieve via <code>task.return_value()</code> once the
    * task (i.e., the body of the lambda function) has completed.
+   *
+   * @note When MultithreadInfo::n_threads() returns 1, i.e., if the
+   *   deal.II runtime system has been configured to only use one
+   *   thread, then this function just executes the given function
+   *   object immediately and stores the return value in the Task
+   *   object returned by this function.
    *
    * @note Every lambda function (or whatever else it is you pass to
    *   the new_task() function here, for example the result of a
@@ -1551,7 +1485,6 @@ namespace Threads
    * other words, a Task object should never passed on to another task for
    * calling the join() method.
    *
-   * @author Wolfgang Bangerth, 2003
    * @ingroup tasks
    */
   template <typename RT = void>

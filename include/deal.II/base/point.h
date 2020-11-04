@@ -105,7 +105,6 @@ DEAL_II_NAMESPACE_OPEN
  *
  *
  * @ingroup geomprimitives
- * @author Wolfgang Bangerth, 1997
  */
 template <int dim, typename Number = double>
 class Point : public Tensor<1, dim, Number>
@@ -472,7 +471,7 @@ inline DEAL_II_CUDA_HOST_DEV Number
 Point<dim, Number>::operator()(const unsigned int index) const
 {
 #  ifndef __CUDA_ARCH__
-  AssertIndexRange(index, dim);
+  AssertIndexRange(static_cast<int>(index), dim);
 #  endif
   return this->values[index];
 }
@@ -484,7 +483,7 @@ inline DEAL_II_CUDA_HOST_DEV Number &
 Point<dim, Number>::operator()(const unsigned int index)
 {
 #  ifndef __CUDA_ARCH__
-  AssertIndexRange(index, dim);
+  AssertIndexRange(static_cast<int>(index), dim);
 #  endif
   return this->values[index];
 }

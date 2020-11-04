@@ -221,7 +221,8 @@ namespace Step50
 
 
     mg_constrained_dofs.clear();
-    mg_constrained_dofs.initialize(mg_dof_handler, dirichlet_boundary);
+    mg_constrained_dofs.initialize(mg_dof_handler);
+    mg_constrained_dofs.make_zero_boundary_constraints(mg_dof_handler, {0});
 
 
     const unsigned int n_levels = triangulation.n_global_levels();
@@ -442,8 +443,11 @@ namespace Step50
     SolverControl        coarse_solver_control(1000, 1e-10, false, false);
     SolverCG<vector_t>   coarse_solver(coarse_solver_control);
     PreconditionIdentity id;
-    MGCoarseGridLACIteration<SolverCG<vector_t>, vector_t> coarse_grid_solver(
-      coarse_solver, coarse_matrix, id);
+    MGCoarseGridIterativeSolver<vector_t,
+                                SolverCG<vector_t>,
+                                matrix_t,
+                                PreconditionIdentity>
+      coarse_grid_solver(coarse_solver, coarse_matrix, id);
 
     typedef LA::MPI::PreconditionJacobi                  Smoother;
     MGSmootherPrecondition<matrix_t, Smoother, vector_t> mg_smoother;

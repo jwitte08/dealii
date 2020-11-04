@@ -43,8 +43,6 @@ namespace internal
     /**
      * A struct that is used to represent a collection of faces of a process
      * with one of its neighbor within the setup done in struct FaceInfo.
-     *
-     * @author Katharina Kormann, Martin Kronbichler, 2018
      */
     struct FaceIdentifier
     {
@@ -67,8 +65,6 @@ namespace internal
      * sides). This data structure is used for the setup of the connectivity
      * between faces and cells and for identification of the dof indices to be
      * used for face integrals.
-     *
-     * @author Katharina Kormann, Martin Kronbichler, 2018
      */
     template <int dim>
     struct FaceSetup
@@ -81,11 +77,11 @@ namespace internal
        * whether some of the faces should be considered for processing
        * locally.
        */
-      template <typename MFAddData>
       void
       initialize(
-        const dealii::Triangulation<dim> &                  triangulation,
-        const MFAddData &                                   additional_data,
+        const dealii::Triangulation<dim> &triangulation,
+        const unsigned int                mg_level,
+        const bool                        hold_all_faces_to_owned_cells,
         std::vector<std::pair<unsigned int, unsigned int>> &cell_levels);
 
       /**
@@ -164,15 +160,14 @@ namespace internal
 
 
     template <int dim>
-    template <typename MFAddData>
     void
     FaceSetup<dim>::initialize(
-      const dealii::Triangulation<dim> &                  triangulation,
-      const MFAddData &                                   additional_data,
+      const dealii::Triangulation<dim> &triangulation,
+      const unsigned int                mg_level,
+      const bool                        hold_all_faces_to_owned_cells,
       std::vector<std::pair<unsigned int, unsigned int>> &cell_levels)
     {
-      use_active_cells =
-        additional_data.mg_level == numbers::invalid_unsigned_int;
+      use_active_cells = mg_level == numbers::invalid_unsigned_int;
 
 #  ifdef DEBUG
       // safety check
@@ -208,7 +203,7 @@ namespace internal
                 continue;
               typename dealii::Triangulation<dim>::cell_iterator dcell(
                 &triangulation, cell_levels[i].first, cell_levels[i].second);
-              for (const unsigned int f : GeometryInfo<dim>::face_indices())
+              for (const unsigned int f : dcell->face_indices())
                 {
                   if (dcell->at_boundary(f) && !dcell->has_periodic_neighbor(f))
                     continue;
@@ -576,7 +571,7 @@ namespace internal
             &triangulation, cell_levels[i].first, cell_levels[i].second);
           if (use_active_cells)
             Assert(dcell->is_active(), ExcNotImplemented());
-          for (auto f : GeometryInfo<dim>::face_indices())
+          for (const auto f : dcell->face_indices())
             {
               if (dcell->at_boundary(f) && !dcell->has_periodic_neighbor(f))
                 face_is_owned[dcell->face(f)->index()] =
@@ -586,8 +581,7 @@ namespace internal
               // inside the domain in case of multigrid separately
               else if ((dcell->at_boundary(f) == false ||
                         dcell->has_periodic_neighbor(f)) &&
-                       additional_data.mg_level !=
-                         numbers::invalid_unsigned_int &&
+                       mg_level != numbers::invalid_unsigned_int &&
                        dcell->neighbor_or_periodic_neighbor(f)->level() <
                          dcell->level())
                 {
@@ -601,7 +595,7 @@ namespace internal
 
                   // neighbor is refined -> face will be treated by neighbor
                   if (use_active_cells && neighbor->has_children() &&
-                      additional_data.hold_all_faces_to_owned_cells == false)
+                      hold_all_faces_to_owned_cells == false)
                     continue;
 
                   bool add_to_ghost = false;
@@ -652,8 +646,7 @@ namespace internal
                         add_to_ghost = (dcell->level_subdomain_id() !=
                                         neighbor->level_subdomain_id());
                     }
-                  else if (additional_data.hold_all_faces_to_owned_cells ==
-                           true)
+                  else if (hold_all_faces_to_owned_cells == true)
                     {
                       // add all cells to ghost layer...
                       face_is_owned[dcell->face(f)->index()] =
@@ -774,7 +767,7 @@ namespace internal
                   &triangulation,
                   cell_levels[cell].first,
                   cell_levels[cell].second);
-                for (const unsigned int f : GeometryInfo<dim>::face_indices())
+                for (const auto f : dcell->face_indices())
                   {
                     // boundary face
                     if (face_is_owned[dcell->face(f)->index()] ==
@@ -979,23 +972,45 @@ namespace internal
               cell->neighbor_of_coarser_neighbor(face_no).second;
         }
 
+      // special treatment of periodic boundaries
+      if (dim == 3 && cell->has_periodic_neighbor(face_no))
+        {
+          const unsigned int exterior_face_orientation =
+            !cell->get_triangulation()
+               .get_periodic_face_map()
+               .at({cell, face_no})
+               .second[0] +
+            2 * cell->get_triangulation()
+                  .get_periodic_face_map()
+                  .at({cell, face_no})
+                  .second[1] +
+            4 * cell->get_triangulation()
+                  .get_periodic_face_map()
+                  .at({cell, face_no})
+                  .second[2];
+
+          info.face_orientation = exterior_face_orientation;
+
+          return info;
+        }
+
       info.face_orientation = 0;
-      const unsigned int left_face_orientation =
+      const unsigned int interior_face_orientation =
         !cell->face_orientation(face_no) + 2 * cell->face_flip(face_no) +
         4 * cell->face_rotation(face_no);
-      const unsigned int right_face_orientation =
+      const unsigned int exterior_face_orientation =
         !neighbor->face_orientation(info.exterior_face_no) +
         2 * neighbor->face_flip(info.exterior_face_no) +
         4 * neighbor->face_rotation(info.exterior_face_no);
-      if (left_face_orientation != 0)
+      if (interior_face_orientation != 0)
         {
-          info.face_orientation = 8 + left_face_orientation;
-          Assert(right_face_orientation == 0,
+          info.face_orientation = 8 + interior_face_orientation;
+          Assert(exterior_face_orientation == 0,
                  ExcMessage(
                    "Face seems to be wrongly oriented from both sides"));
         }
       else
-        info.face_orientation = right_face_orientation;
+        info.face_orientation = exterior_face_orientation;
       return info;
     }
 

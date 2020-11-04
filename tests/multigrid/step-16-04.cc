@@ -191,7 +191,8 @@ LaplaceProblem<dim>::setup_system()
   system_matrix.reinit(sparsity_pattern);
 
   mg_constrained_dofs.clear();
-  mg_constrained_dofs.initialize(mg_dof_handler, dirichlet_boundary);
+  mg_constrained_dofs.initialize(mg_dof_handler);
+  mg_constrained_dofs.make_zero_boundary_constraints(mg_dof_handler, {0});
   const unsigned int n_levels = triangulation.n_levels();
 
   mg_interface_matrices.resize(min_level, n_levels - 1);
@@ -380,8 +381,11 @@ LaplaceProblem<dim>::solve()
   SolverCG<LinearAlgebra::distributed::Vector<double>> coarse_solver(
     coarse_solver_control);
   PreconditionIdentity id;
-  MGCoarseGridLACIteration<SolverCG<LinearAlgebra::distributed::Vector<double>>,
-                           LinearAlgebra::distributed::Vector<double>>
+  MGCoarseGridIterativeSolver<
+    LinearAlgebra::distributed::Vector<double>,
+    SolverCG<LinearAlgebra::distributed::Vector<double>>,
+    SparseMatrix<double>,
+    PreconditionIdentity>
     coarse_grid_solver(coarse_solver, mg_matrices[min_level], id);
   deallog << "   Size of coarse grid matrix: " << mg_matrices[min_level].m()
           << std::endl;

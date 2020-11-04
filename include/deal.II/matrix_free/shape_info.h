@@ -109,8 +109,6 @@ namespace internal
      * coordinates. This data structure also includes the evaluation of
      * quantities at the cell boundary and on the sub-interval $(0, 0.5)$ and
      * $(0.5, 1)$ for face integrals.
-     *
-     * @author Katharina Kormann, Martin Kronbichler, Julius Witte, 2010-2020
      */
     template <typename Number>
     struct UnivariateShapeData
@@ -235,25 +233,37 @@ namespace internal
        * (the vertices) in one data structure. Sorting is first the values,
        * then gradients, then second derivatives.
        */
-      AlignedVector<Number> shape_data_on_face[2];
+      std::array<AlignedVector<Number>, 2> shape_data_on_face;
+
+      /**
+       * Collects all data of 1D nodal shape values (defined by the Lagrange
+       * polynomials in the points of the quadrature rule) evaluated at the
+       * point 0 and 1 (the vertices) in one data structure.
+       *
+       * This data structure can be used to interpolate from the cell to the
+       * face quadrature points.
+       *
+       * @note In contrast to shape_data_on_face, only the vales are evaluated.
+       */
+      std::array<AlignedVector<Number>, 2> quadrature_data_on_face;
 
       /**
        * Stores one-dimensional values of shape functions on subface. Since
        * there are two subfaces, store two variants.
        */
-      AlignedVector<Number> values_within_subface[2];
+      std::array<AlignedVector<Number>, 2> values_within_subface;
 
       /**
        * Stores one-dimensional gradients of shape functions on subface. Since
        * there are two subfaces, store two variants.
        */
-      AlignedVector<Number> gradients_within_subface[2];
+      std::array<AlignedVector<Number>, 2> gradients_within_subface;
 
       /**
        * Stores one-dimensional gradients of shape functions on subface. Since
        * there are two subfaces, store two variants.
        */
-      AlignedVector<Number> hessians_within_subface[2];
+      std::array<AlignedVector<Number>, 2> hessians_within_subface;
 
       /**
        * We store a copy of the one-dimensional quadrature formula
@@ -289,8 +299,6 @@ namespace internal
      * case such as the hierarchical -> lexicographic ordering of FE_Q.
      *
      * @ingroup matrixfree
-     *
-     * @author Katharina Kormann, Martin Kronbichler, Julius Witte, 2010-2020
      */
     template <typename Number>
     struct ShapeInfo
@@ -328,6 +336,13 @@ namespace internal
       reinit(const Quadrature<1> &     quad,
              const FiniteElement<dim> &fe_dim,
              const unsigned int        base_element = 0);
+
+      /**
+       * Return which kinds of elements are supported by MatrixFree.
+       */
+      template <int dim, int spacedim>
+      static bool
+      is_supported(const FiniteElement<dim, spacedim> &fe);
 
       /**
        * Return data of univariate shape functions which defines the
@@ -476,6 +491,14 @@ namespace internal
        * @p tensor_symmetric_hermite.
        */
       dealii::Table<2, unsigned int> face_to_cell_index_hermite;
+
+      /**
+       * For degrees on faces, the basis functions are not
+       * in the correct order if a face is not in the standard orientation
+       * to a given element. This data structure is used to re-order the
+       * basis functions to represent the correct order.
+       */
+      dealii::Table<2, unsigned int> face_orientations;
 
     private:
       /**

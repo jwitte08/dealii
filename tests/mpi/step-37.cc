@@ -356,14 +356,14 @@ namespace Step37
       {
         phi.reinit(cell);
         phi.read_dof_values_plain(solution);
-        phi.evaluate(false, true);
+        phi.evaluate(EvaluationFlags::gradients);
         for (unsigned int q = 0; q < phi.n_q_points; ++q)
           {
             phi.submit_gradient(-phi.get_gradient(q), q);
             // phi.submit_value(make_vectorized_array<double>(1.0), q);
           }
-        // phi.integrate(true, true);
-        phi.integrate(false, true);
+        // phi.integrate(EvaluationFlags::values|EvaluationFlags::gradients);
+        phi.integrate(EvaluationFlags::gradients);
         phi.distribute_local_to_global(system_rhs);
       }
     system_rhs.compress(VectorOperation::add);
@@ -480,10 +480,10 @@ namespace Step37
           filenames.emplace_back("solution-" + std::to_string(cycle) + "." +
                                  std::to_string(i) + ".vtu");
 
-        std::string master_name =
+        std::string pvtu_filename =
           "solution-" + Utilities::to_string(cycle) + ".pvtu";
-        std::ofstream master_output(master_name.c_str());
-        data_out.write_pvtu_record(master_output, filenames);
+        std::ofstream pvtu_output(pvtu_filename.c_str());
+        data_out.write_pvtu_record(pvtu_output, filenames);
       }
 
     if (dim == 2 && Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) == 1)

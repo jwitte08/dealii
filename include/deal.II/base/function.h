@@ -145,7 +145,6 @@ class TensorFunction;
  *   argument.
  *
  * @ingroup functions
- * @author Wolfgang Bangerth, 1998, 1999, Luca Heltai 2014
  */
 template <int dim, typename RangeNumberType = double>
 class Function : public FunctionTime<
@@ -406,7 +405,6 @@ namespace Functions
    * constructor.
    *
    * @ingroup functions
-   * @author Wolfgang Bangerth, 1998, 1999, Lei Qiao, 2015
    */
   template <int dim, typename RangeNumberType = double>
   class ConstantFunction : public Function<dim, RangeNumberType>
@@ -507,7 +505,6 @@ namespace Functions
    * conditions, or zero initial conditions.
    *
    * @ingroup functions
-   * @author Wolfgang Bangerth, 1998, 1999
    */
   template <int dim, typename RangeNumberType = double>
   class ZeroFunction : public ConstantFunction<dim, RangeNumberType>
@@ -520,25 +517,6 @@ namespace Functions
   };
 
 } // namespace Functions
-
-/**
- * Provide a function which always returns the constant values handed to the
- * constructor.
- *
- * @deprecated use Functions::ConstantFunction instead.
- */
-template <int dim, typename RangeNumberType = double>
-using ConstantFunction DEAL_II_DEPRECATED =
-  Functions::ConstantFunction<dim, RangeNumberType>;
-
-/**
- * Provide a function which always returns zero.
- *
- * @deprecated use Functions::ZeroFunction instead.
- */
-template <int dim, typename RangeNumberType = double>
-using ZeroFunction DEAL_II_DEPRECATED =
-  Functions::ZeroFunction<dim, RangeNumberType>;
 
 
 
@@ -554,10 +532,10 @@ using ZeroFunction DEAL_II_DEPRECATED =
  * See the step-20 tutorial program for a detailed explanation and a use case.
  *
  * @ingroup functions
- * @author Guido Kanschat, 2000, Wolfgang Bangerth 2006
  */
 template <int dim, typename RangeNumberType = double>
-class ComponentSelectFunction : public ConstantFunction<dim, RangeNumberType>
+class ComponentSelectFunction
+  : public Functions::ConstantFunction<dim, RangeNumberType>
 {
 public:
   /**
@@ -721,7 +699,6 @@ protected:
  * The savings in work to write this are apparent.
  *
  * @ingroup functions
- * @author Wolfgang Bangerth, 2011
  */
 template <int dim, typename RangeNumberType = double>
 class ScalarFunctionFromFunctionObject : public Function<dim, RangeNumberType>
@@ -789,7 +766,6 @@ private:
  * component.
  *
  * @ingroup functions
- * @author Wolfgang Bangerth, 2011
  */
 template <int dim, typename RangeNumberType = double>
 class VectorFunctionFromScalarFunctionObject
@@ -878,8 +854,6 @@ private:
  *     custom_function({&first_component, &second_component},
  *                     {&zero_gradient, &zero_gradient});
  * @endcode
- *
- * @author Luca Heltai, 2019
  */
 template <int dim, typename RangeNumberType = double>
 class FunctionFromFunctionObjects : public Function<dim, RangeNumberType>
@@ -1016,7 +990,6 @@ private:
  * into the first <code>dim</code> components of the function object.
  *
  * @ingroup functions
- * @author Spencer Patty, 2013
  */
 template <int dim, typename RangeNumberType = double>
 class VectorFunctionFromTensorFunction : public Function<dim, RangeNumberType>

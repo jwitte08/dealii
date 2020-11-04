@@ -97,13 +97,13 @@ namespace SmoothnessEstimator
 
     template <int dim, int spacedim, typename VectorType>
     void
-    coefficient_decay(FESeries::Legendre<dim, spacedim> &  fe_legendre,
-                      const hp::DoFHandler<dim, spacedim> &dof_handler,
-                      const VectorType &                   solution,
-                      Vector<float> &             smoothness_indicators,
-                      const VectorTools::NormType regression_strategy,
-                      const double                smallest_abs_coefficient,
-                      const bool                  only_flagged_cells)
+    coefficient_decay(FESeries::Legendre<dim, spacedim> &fe_legendre,
+                      const DoFHandler<dim, spacedim> &  dof_handler,
+                      const VectorType &                 solution,
+                      Vector<float> &                    smoothness_indicators,
+                      const VectorTools::NormType        regression_strategy,
+                      const double smallest_abs_coefficient,
+                      const bool   only_flagged_cells)
     {
       using number = typename VectorType::value_type;
       using number_coeff =
@@ -128,7 +128,7 @@ namespace SmoothnessEstimator
                   cell->active_fe_index());
                 resize(expansion_coefficients, n_modes);
 
-                local_dof_values.reinit(cell->get_fe().dofs_per_cell);
+                local_dof_values.reinit(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_values(solution, local_dof_values);
 
                 fe_legendre.calculate(local_dof_values,
@@ -181,13 +181,13 @@ namespace SmoothnessEstimator
     template <int dim, int spacedim, typename VectorType>
     void
     coefficient_decay_per_direction(
-      FESeries::Legendre<dim, spacedim> &  fe_legendre,
-      const hp::DoFHandler<dim, spacedim> &dof_handler,
-      const VectorType &                   solution,
-      Vector<float> &                      smoothness_indicators,
-      const ComponentMask &                coefficients_predicate,
-      const double                         smallest_abs_coefficient,
-      const bool                           only_flagged_cells)
+      FESeries::Legendre<dim, spacedim> &fe_legendre,
+      const DoFHandler<dim, spacedim> &  dof_handler,
+      const VectorType &                 solution,
+      Vector<float> &                    smoothness_indicators,
+      const ComponentMask &              coefficients_predicate,
+      const double                       smallest_abs_coefficient,
+      const bool                         only_flagged_cells)
     {
       Assert(smallest_abs_coefficient >= 0.,
              ExcMessage("smallest_abs_coefficient should be non-negative."));
@@ -229,7 +229,7 @@ namespace SmoothnessEstimator
                 // at least N=pe+1
                 AssertIndexRange(pe, n_modes);
 
-                local_dof_values.reinit(cell->get_fe().dofs_per_cell);
+                local_dof_values.reinit(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_values(solution, local_dof_values);
 
                 fe_legendre.calculate(local_dof_values,
@@ -361,13 +361,13 @@ namespace SmoothnessEstimator
 
     template <int dim, int spacedim, typename VectorType>
     void
-    coefficient_decay(FESeries::Fourier<dim, spacedim> &   fe_fourier,
-                      const hp::DoFHandler<dim, spacedim> &dof_handler,
-                      const VectorType &                   solution,
-                      Vector<float> &             smoothness_indicators,
-                      const VectorTools::NormType regression_strategy,
-                      const double                smallest_abs_coefficient,
-                      const bool                  only_flagged_cells)
+    coefficient_decay(FESeries::Fourier<dim, spacedim> &fe_fourier,
+                      const DoFHandler<dim, spacedim> & dof_handler,
+                      const VectorType &                solution,
+                      Vector<float> &                   smoothness_indicators,
+                      const VectorTools::NormType       regression_strategy,
+                      const double smallest_abs_coefficient,
+                      const bool   only_flagged_cells)
     {
       using number = typename VectorType::value_type;
       using number_coeff =
@@ -396,7 +396,7 @@ namespace SmoothnessEstimator
                 // degrees of freedom and then need to compute the series
                 // expansion by multiplying this vector with the matrix ${\cal
                 // F}$ corresponding to this finite element.
-                local_dof_values.reinit(cell->get_fe().dofs_per_cell);
+                local_dof_values.reinit(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_values(solution, local_dof_values);
 
                 fe_fourier.calculate(local_dof_values,
@@ -462,13 +462,13 @@ namespace SmoothnessEstimator
     template <int dim, int spacedim, typename VectorType>
     void
     coefficient_decay_per_direction(
-      FESeries::Fourier<dim, spacedim> &   fe_fourier,
-      const hp::DoFHandler<dim, spacedim> &dof_handler,
-      const VectorType &                   solution,
-      Vector<float> &                      smoothness_indicators,
-      const ComponentMask &                coefficients_predicate,
-      const double                         smallest_abs_coefficient,
-      const bool                           only_flagged_cells)
+      FESeries::Fourier<dim, spacedim> &fe_fourier,
+      const DoFHandler<dim, spacedim> & dof_handler,
+      const VectorType &                solution,
+      Vector<float> &                   smoothness_indicators,
+      const ComponentMask &             coefficients_predicate,
+      const double                      smallest_abs_coefficient,
+      const bool                        only_flagged_cells)
     {
       Assert(smallest_abs_coefficient >= 0.,
              ExcMessage("smallest_abs_coefficient should be non-negative."));
@@ -510,7 +510,7 @@ namespace SmoothnessEstimator
                 // at least N=pe+1
                 AssertIndexRange(pe, n_modes);
 
-                local_dof_values.reinit(cell->get_fe().dofs_per_cell);
+                local_dof_values.reinit(cell->get_fe().n_dofs_per_cell());
                 cell->get_dof_values(solution, local_dof_values);
 
                 fe_fourier.calculate(local_dof_values,

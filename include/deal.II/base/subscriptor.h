@@ -57,7 +57,6 @@ DEAL_II_NAMESPACE_OPEN
  * list_subscribers().
  *
  * @ingroup memory
- * @author Guido Kanschat, Daniel Arndt, 1998 - 2005, 2018
  */
 class Subscriptor
 {
@@ -104,6 +103,14 @@ public:
   operator=(Subscriptor &&) noexcept;
 
   /**
+   * @name Subscriptor functionality
+   *
+   * Classes derived from Subscriptor provide a facility to subscribe to this
+   * object. This is mostly used by the SmartPointer class.
+   */
+  // @{
+
+  /**
    * Subscribes a user of the object by storing the pointer @p validity. The
    * subscriber may be identified by text supplied as @p identifier.
    */
@@ -141,6 +148,8 @@ public:
    */
   void
   list_subscribers() const;
+
+  // @}
 
   /**
    * @addtogroup Exceptions
@@ -206,7 +215,6 @@ private:
    * This counter may be read from and written to concurrently in
    * multithreaded code: hence we use the <code>std::atomic</code> class
    * template.
-   *
    */
   mutable std::atomic<unsigned int> counter;
 

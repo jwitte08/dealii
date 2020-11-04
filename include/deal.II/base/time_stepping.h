@@ -28,9 +28,6 @@ DEAL_II_NAMESPACE_OPEN
 
 /**
  * Namespace containing the time stepping methods.
- *
- * @author Bruno Turcksin
- * @date 2014
  */
 
 namespace TimeStepping
@@ -40,6 +37,7 @@ namespace TimeStepping
    * - Explicit methods (see ExplicitRungeKutta::initialize):
    *   - FORWARD_EULER (first order)
    *   - RK_THIRD_ORDER (third order Runge-Kutta)
+   *   - SSP_THIRD_ORDER (third order SSP Runge-Kutta)
    *   - RK_CLASSIC_FOURTH_ORDER (classical fourth order Runge-Kutta)
    * - Implicit methods (see ImplicitRungeKutta::initialize):
    *   - BACKWARD_EULER (first order)
@@ -49,25 +47,72 @@ namespace TimeStepping
    * - Embedded explicit methods (see EmbeddedExplicitRungeKutta::initialize):
    *   - HEUN_EULER (second order)
    *   - BOGACKI_SHAMPINE (third order)
-   *   - DOPRI: Dormand-Prince (fifth order; this is the method used by ode45
-   *     in MATLAB)
+   *   - DOPRI (Dormand-Prince method, fifth order; this is the method used by
+   * ode45 in MATLAB)
    *   - FEHLBERG (fifth order)
-   *   - CASH_KARP (firth order)
+   *   - CASH_KARP (fifth order)
    */
   enum runge_kutta_method
   {
+    /**
+     * Forward Euler method, first order.
+     */
     FORWARD_EULER,
+    /**
+     * Third order Runge-Kutta method.
+     */
     RK_THIRD_ORDER,
+    /**
+     * Third order Strong Stability Preserving (SSP) Runge-Kutta method
+     * (SSP time discretizations are also called Total Variation Diminishing
+     * (TVD) methods in the literature, see @cite gottlieb2001strong).
+     */
+    SSP_THIRD_ORDER,
+    /**
+     * Classical fourth order Runge-Kutta method.
+     */
     RK_CLASSIC_FOURTH_ORDER,
+    /**
+     * Backward Euler method, first order.
+     */
     BACKWARD_EULER,
+    /**
+     * Implicit midpoint method, second order.
+     */
     IMPLICIT_MIDPOINT,
+    /**
+     * Crank-Nicolson method, second order.
+     */
     CRANK_NICOLSON,
+    /**
+     * Two stage SDIRK method (short for "singly diagonally implicit
+     * Runge-Kutta"), second order.
+     */
     SDIRK_TWO_STAGES,
+    /**
+     * Heun's method (improved Euler's method), second order.
+     */
     HEUN_EULER,
+    /**
+     * Bogacki–Shampine method, third-order.
+     */
     BOGACKI_SHAMPINE,
+    /**
+     * Dormand-Prince method, fifth order; this is the method used by
+     * ode45 in MATLAB.
+     */
     DOPRI,
+    /**
+     * Fehlberg method, fifth order.
+     */
     FEHLBERG,
+    /**
+     * Cash–Karp method, fifth order.
+     */
     CASH_KARP,
+    /**
+     * Invalid.
+     */
     invalid
   };
 
@@ -75,14 +120,21 @@ namespace TimeStepping
 
   /**
    * Reason for exiting evolve_one_time_step when using an embedded method:
-   * DELTA_T (the time step is in the valid range), MIN_DELTA_T (the time step
-   * was increased to the minimum acceptable time step), MAX_DELTA_T (the time
-   * step was reduced to the maximum acceptable time step).
+   * DELTA_T, MIN_DELTA_T, MAX_DELTA_T.
    */
   enum embedded_runge_kutta_time_step
   {
+    /**
+     * The time step is in the valid range.
+     */
     DELTA_T,
+    /**
+     * The time step was increased to the minimum acceptable time step.
+     */
     MIN_DELTA_T,
+    /**
+     * The time step was reduced to the maximum acceptable time step.
+     */
     MAX_DELTA_T
   };
 
@@ -138,9 +190,6 @@ namespace TimeStepping
 
   /**
    * Base class for the Runge-Kutta method
-   *
-   * @author Damien Lebrun-Grandie, Bruno Turcksin
-   * @date 2014
    */
   template <typename VectorType>
   class RungeKutta : public TimeStepping<VectorType>
@@ -472,7 +521,7 @@ namespace TimeStepping
 
 
   /**
-   * This is class is derived from RungeKutta and implement embedded explicit
+   * This class is derived from RungeKutta and implements embedded explicit
    * methods.
    */
   template <typename VectorType>

@@ -40,7 +40,7 @@ struct CellData;
 /**
  * This class implements an input mechanism for grid data. It allows to read a
  * grid structure into a triangulation object. At present, UCD (unstructured
- * cell data), DB Mesh, XDA, %Gmsh, Tecplot, NetCDF, UNV, VTK, ASSIMP, and Cubit
+ * cell data), DB Mesh, XDA, %Gmsh, Tecplot, UNV, VTK, ASSIMP, and Cubit
  * are supported as input format for grid data. Any numerical data other than
  * geometric (vertex locations) and topological (how vertices form cells,
  * faces, and edges) information is ignored, but the readers for the various
@@ -299,7 +299,6 @@ struct CellData;
  *
  * @ingroup grid
  * @ingroup input
- * @author Wolfgang Bangerth, 1998, 2000, Luca Heltai, 2004, 2007, Jean-Paul
  * Pelteret 2015, Timo Heister 2015,  Krzysztof Bzowski, 2015
  */
 
@@ -327,8 +326,6 @@ public:
     xda,
     /// Use read_msh()
     msh,
-    /// Use read_netcdf()
-    netcdf,
     /// Use read_tecplot()
     tecplot,
     /// Use read_vtk()
@@ -343,6 +340,11 @@ public:
    * Constructor.
    */
   GridIn();
+
+  /**
+   * Constructor. Attach this triangulation to be fed with the grid data.
+   */
+  GridIn(Triangulation<dim, spacedim> &tria);
 
   /**
    * Attach this triangulation to be fed with the grid data.
@@ -367,20 +369,22 @@ public:
 
   /**
    * Read grid data from a unstructured vtk file. The vtk file may contain
-   * the following VTK cell types: VTK_HEXAHEDRON, VTK_QUAD, and VTK_LINE.
+   * the following VTK cell types: VTK_HEXAHEDRON (12), VTK_TETRA (10),
+   * VTK_QUAD (9), VTK_TRIANGLE (5), and VTK_LINE (3).
    *
    * Depending on the template dimension, only some of the above are accepted.
    *
    * In particular, in three dimensions, this function expects the file to
    * contain
    *
-   * - VTK_HEXAHEDRON cell types
-   * - VTK_QUAD cell types, to specify optional boundary or interior quad faces
+   * - VTK_HEXAHEDRON/VTK_TETRA cell types
+   * - VTK_QUAD/VTK_TRIANGLE cell types, to specify optional boundary or
+   *   interior quad faces
    * - VTK_LINE cell types, to specify optional boundary or interior edges
    *
    * In two dimensions:
    *
-   * - VTK_QUAD cell types
+   * - VTK_QUAD/VTK_TRIANGLE cell types
    * - VTK_LINE cell types, to specify optional boundary or interior edges
    *
    * In one dimension
@@ -400,8 +404,7 @@ public:
    * The companion GridOut::write_vtk function can be used to write VTK files
    * compatible with this method.
    *
-   * @author Mayank Sabharwal, Andreas Putz, 2013
-   * @author Luca Heltai, 2018
+   * @ingroup simplex
    */
   void
   read_vtk(std::istream &in);
@@ -419,8 +422,6 @@ public:
    * When this flag is set to true, the generated vtu file contains the
    * triangulation in a xml section which is ignored by vtu general vtu readers.
    * If this section is absent, an exception is thrown.
-   *
-   * @author Luca Heltai, Nicola Giuliani, 2020
    */
   void
   read_vtu(std::istream &in);
@@ -512,20 +513,11 @@ public:
    * @note The input function of deal.II does not distinguish between newline
    * and other whitespace. Therefore, deal.II will be able to read files in a
    * slightly more general format than %Gmsh.
+   *
+   * @ingroup simplex
    */
   void
   read_msh(std::istream &in);
-
-  /**
-   * Read grid data from a NetCDF file. The only data format currently
-   * supported is the <tt>TAU grid format</tt>.
-   *
-   * This function requires the library to be linked with the NetCDF library.
-   *
-   * @deprecated Support for NetCDF in deal.II is deprecated.
-   */
-  DEAL_II_DEPRECATED void
-  read_netcdf(const std::string &filename);
 
   /**
    * Read grid data from a file containing tecplot ASCII data. This also works

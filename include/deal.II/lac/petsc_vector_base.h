@@ -51,7 +51,6 @@ namespace PETScWrappers
  *
  * @ingroup PETScWrappers
  * @ingroup Vectors
- * @author Wolfgang Bangerth, 2004
  */
 namespace PETScWrappers
 {
@@ -93,8 +92,12 @@ namespace PETScWrappers
        */
       VectorReference(const VectorBase &vector, const size_type index);
 
-
     public:
+      /*
+       * Copy constrcutor.
+       */
+      VectorReference(const VectorReference &vector) = default;
+
       /**
        * This looks like a copy operator, but does something different than
        * usual. In particular, it does not copy the member variables of this
@@ -235,7 +238,6 @@ namespace PETScWrappers
    * before you actually use the vector.
    *
    * @ingroup PETScWrappers
-   * @author Wolfgang Bangerth, 2004
    */
   class VectorBase : public Subscriptor
   {
@@ -278,7 +280,7 @@ namespace PETScWrappers
     operator=(const VectorBase &) = delete;
 
     /**
-     * Destructor
+     * Destructor.
      */
     virtual ~VectorBase() override;
 
@@ -434,7 +436,10 @@ namespace PETScWrappers
      * vector, this function allows to set a whole set of elements at once.
      * The indices of the elements to be set are stated in the first argument,
      * the corresponding values in the second.
+     *
+     * @deprecated Use import() instead.
      */
+    DEAL_II_DEPRECATED
     void
     set(const std::vector<size_type> &  indices,
         const std::vector<PetscScalar> &values);
@@ -592,13 +597,23 @@ namespace PETScWrappers
 
     /**
      * Return the value of the vector element with the largest negative value.
+     *
+     * @deprecated This function has been deprecated to improve compatibility
+     * with other classes inheriting from VectorSpaceVector. If you need to
+     * use this functionality then use the PETSc function VecMin instead.
      */
+    DEAL_II_DEPRECATED
     real_type
     min() const;
 
     /**
      * Return the value of the vector element with the largest positive value.
+     *
+     * @deprecated This function has been deprecated to improve compatibility
+     * with other classes inheriting from VectorSpaceVector. If you need to
+     * use this functionality then use the PETSc function VecMax instead.
      */
+    DEAL_II_DEPRECATED
     real_type
     max() const;
 
@@ -614,7 +629,11 @@ namespace PETScWrappers
      * Return @p true if the vector has no negative entries, i.e. all entries
      * are zero or positive. This function is used, for example, to check
      * whether refinement indicators are really all positive (or zero).
+     *
+     * @deprecated This function has been deprecated to improve compatibility
+     * with other classes inheriting from VectorSpaceVector.
      */
+    DEAL_II_DEPRECATED
     bool
     is_non_negative() const;
 
@@ -810,7 +829,6 @@ namespace PETScWrappers
    * exchanges the data of the two vectors.
    *
    * @relatesalso PETScWrappers::VectorBase
-   * @author Wolfgang Bangerth, 2004
    */
   inline void
   swap(VectorBase &u, VectorBase &v)

@@ -25,7 +25,6 @@
  * DEAL::1018.29
  * DEAL::1020.72
  * DEAL::1020.72
- *
  */
 
 #include <deal.II/base/index_set.h>
@@ -147,7 +146,7 @@ test()
         fe_eval.reinit(cell);
         for (unsigned int q = 0; q < n_q_points; ++q)
           fe_eval.submit_value(one, q);
-        fe_eval.integrate(true, false);
+        fe_eval.integrate(EvaluationFlags::values);
         fe_eval.distribute_local_to_global(inv_mass_matrix);
       }
     inv_mass_matrix.compress(VectorOperation::add);

@@ -584,11 +584,16 @@ namespace Step22
                                       const int        proc,
                                       Vector<double> & value) const
   {
-    typename DoFHandler<dim>::active_cell_iterator cell =
-      GridTools::find_active_cell_around_point(dof_handler, point);
+    try
+      {
+        typename DoFHandler<dim>::active_cell_iterator cell =
+          GridTools::find_active_cell_around_point(dof_handler, point);
 
-    if (cell->is_locally_owned())
-      VectorTools::point_value(dof_handler, solution, point, value);
+        if (cell->is_locally_owned())
+          VectorTools::point_value(dof_handler, solution, point, value);
+      }
+    catch (GridTools::ExcPointNotFound<dim> &p)
+      {}
 
     std::vector<double> tmp(value.size());
     for (unsigned int i = 0; i < value.size(); ++i)
@@ -699,11 +704,11 @@ namespace Step22
           filenames.push_back(std::string("solution-") +
                               Utilities::int_to_string(refinement_cycle, 2) +
                               "." + Utilities::int_to_string(i, 2) + ".vtu");
-        const std::string pvtu_master_filename =
+        const std::string pvtu_filename =
           ("solution-" + Utilities::int_to_string(refinement_cycle, 2) +
            ".pvtu");
-        std::ofstream pvtu_master(pvtu_master_filename.c_str());
-        data_out.write_pvtu_record(pvtu_master, filenames);
+        std::ofstream pvtu_output(pvtu_filename.c_str());
+        data_out.write_pvtu_record(pvtu_output, filenames);
       }
   }
 

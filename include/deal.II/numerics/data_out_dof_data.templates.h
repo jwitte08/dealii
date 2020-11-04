@@ -46,6 +46,8 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/data_out_dof_data.h>
 
+#include <deal.II/simplex/fe_lib.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -60,10 +62,32 @@ namespace internal
   {
     template <int dim, int spacedim>
     ParallelDataBase<dim, spacedim>::ParallelDataBase(
+      const unsigned int                    n_datasets,
+      const unsigned int                    n_subdivisions,
+      const std::vector<unsigned int> &     n_postprocessor_outputs,
+      const dealii::Mapping<dim, spacedim> &mapping,
+      const std::vector<
+        std::shared_ptr<dealii::hp::FECollection<dim, spacedim>>>
+        &               finite_elements,
+      const UpdateFlags update_flags,
+      const bool        use_face_values)
+      : ParallelDataBase<dim, spacedim>(
+          n_datasets,
+          n_subdivisions,
+          n_postprocessor_outputs,
+          dealii::hp::MappingCollection<dim, spacedim>(mapping),
+          finite_elements,
+          update_flags,
+          use_face_values)
+    {}
+
+
+    template <int dim, int spacedim>
+    ParallelDataBase<dim, spacedim>::ParallelDataBase(
       const unsigned int               n_datasets,
       const unsigned int               n_subdivisions,
       const std::vector<unsigned int> &n_postprocessor_outputs,
-      const Mapping<dim, spacedim> &   mapping,
+      const dealii::hp::MappingCollection<dim, spacedim> &mapping,
       const std::vector<
         std::shared_ptr<dealii::hp::FECollection<dim, spacedim>>>
         &               finite_elements,
@@ -79,9 +103,49 @@ namespace internal
       unsigned int n_q_points = 0;
       if (use_face_values == false)
         {
-          dealii::hp::QCollection<dim> quadrature(
-            QIterated<dim>(QTrapez<1>(), n_subdivisions));
-          n_q_points = quadrature[0].size();
+          const bool do_simplex =
+            std::any_of(finite_elements.begin(),
+                        finite_elements.end(),
+                        [](const auto &fe) {
+                          for (unsigned int i = 0; i < fe->size(); ++i)
+                            if ((*fe)[i].reference_cell_type() !=
+                                ReferenceCell::get_hypercube(dim))
+                              return true;
+                          return false;
+                        });
+
+          const bool do_hex =
+            std::any_of(finite_elements.begin(),
+                        finite_elements.end(),
+                        [](const auto &fe) {
+                          for (unsigned int i = 0; i < fe->size(); ++i)
+                            if ((*fe)[i].reference_cell_type() ==
+                                ReferenceCell::get_hypercube(dim))
+                              return true;
+                          return false;
+                        });
+
+          std::unique_ptr<dealii::Quadrature<dim>> quadrature1;
+          std::unique_ptr<dealii::Quadrature<dim>> quadrature2;
+
+          if (do_simplex)
+            {
+              Assert(1 <= n_subdivisions && n_subdivisions <= 2,
+                     ExcNotImplemented());
+              quadrature1.reset(new Quadrature<dim>(
+                Simplex::FE_P<dim, spacedim>(n_subdivisions == 1 ? 1 : 2)
+                  .get_unit_support_points()));
+            }
+
+          if (do_hex)
+            {
+              quadrature2.reset(new Quadrature<dim>(
+                QIterated<dim>(QTrapezoid<1>(), n_subdivisions)));
+            }
+
+          n_q_points = std::max(do_simplex ? quadrature1->size() : 0,
+                                do_hex ? quadrature2->size() : 1);
+
           x_fe_values.resize(this->finite_elements.size());
           for (unsigned int i = 0; i < this->finite_elements.size(); ++i)
             {
@@ -95,18 +159,31 @@ namespace internal
                     break;
                   }
               if (x_fe_values[i].get() == nullptr)
-                x_fe_values[i] =
-                  std::make_shared<dealii::hp::FEValues<dim, spacedim>>(
-                    this->mapping_collection,
-                    *this->finite_elements[i],
-                    quadrature,
-                    this->update_flags);
+                {
+                  dealii::hp::QCollection<dim> quadrature;
+
+                  for (unsigned int j = 0; j < this->finite_elements[i]->size();
+                       ++j)
+                    if ((*this->finite_elements[i])[j].reference_cell_type() !=
+                        ReferenceCell::get_hypercube(dim))
+                      quadrature.push_back(*quadrature1);
+                    else
+                      quadrature.push_back(*quadrature2);
+
+                  x_fe_values[i] =
+                    std::make_shared<dealii::hp::FEValues<dim, spacedim>>(
+                      this->mapping_collection,
+                      *this->finite_elements[i],
+                      quadrature,
+                      do_simplex ? (update_flags | update_quadrature_points) :
+                                   update_flags);
+                }
             }
         }
       else
         {
           dealii::hp::QCollection<dim - 1> quadrature(
-            QIterated<dim - 1>(QTrapez<1>(), n_subdivisions));
+            QIterated<dim - 1>(QTrapezoid<1>(), n_subdivisions));
           n_q_points = quadrature[0].size();
           x_fe_face_values.resize(this->finite_elements.size());
           for (unsigned int i = 0; i < this->finite_elements.size(); ++i)
@@ -164,9 +241,49 @@ namespace internal
       if (data.x_fe_values.empty() == false)
         {
           Assert(data.x_fe_face_values.empty() == true, ExcInternalError());
-          dealii::hp::QCollection<dim> quadrature(
-            QIterated<dim>(QTrapez<1>(), n_subdivisions));
+
+          const bool do_simplex =
+            std::any_of(finite_elements.begin(),
+                        finite_elements.end(),
+                        [](const auto &fe) {
+                          for (unsigned int i = 0; i < fe->size(); ++i)
+                            if ((*fe)[i].reference_cell_type() !=
+                                ReferenceCell::get_hypercube(dim))
+                              return true;
+                          return false;
+                        });
+
+          const bool do_hex =
+            std::any_of(finite_elements.begin(),
+                        finite_elements.end(),
+                        [](const auto &fe) {
+                          for (unsigned int i = 0; i < fe->size(); ++i)
+                            if ((*fe)[i].reference_cell_type() ==
+                                ReferenceCell::get_hypercube(dim))
+                              return true;
+                          return false;
+                        });
+
+          std::unique_ptr<dealii::Quadrature<dim>> quadrature1;
+          std::unique_ptr<dealii::Quadrature<dim>> quadrature2;
+
+          if (do_simplex)
+            {
+              Assert(1 <= n_subdivisions && n_subdivisions <= 2,
+                     ExcNotImplemented());
+              quadrature1.reset(new Quadrature<dim>(
+                Simplex::FE_P<dim, spacedim>(n_subdivisions == 1 ? 1 : 2)
+                  .get_unit_support_points()));
+            }
+
+          if (do_hex)
+            {
+              quadrature2.reset(new Quadrature<dim>(
+                QIterated<dim>(QTrapezoid<1>(), n_subdivisions)));
+            }
+
           x_fe_values.resize(this->finite_elements.size());
+
           for (unsigned int i = 0; i < this->finite_elements.size(); ++i)
             {
               // check if there is a finite element that is equal to the present
@@ -179,18 +296,31 @@ namespace internal
                     break;
                   }
               if (x_fe_values[i].get() == nullptr)
-                x_fe_values[i] =
-                  std::make_shared<dealii::hp::FEValues<dim, spacedim>>(
-                    this->mapping_collection,
-                    *this->finite_elements[i],
-                    quadrature,
-                    this->update_flags);
+                {
+                  dealii::hp::QCollection<dim> quadrature;
+
+                  for (unsigned int j = 0; j < this->finite_elements[i]->size();
+                       ++j)
+                    if ((*this->finite_elements[i])[j].reference_cell_type() !=
+                        ReferenceCell::get_hypercube(dim))
+                      quadrature.push_back(*quadrature1);
+                    else
+                      quadrature.push_back(*quadrature2);
+
+                  x_fe_values[i] =
+                    std::make_shared<dealii::hp::FEValues<dim, spacedim>>(
+                      this->mapping_collection,
+                      *this->finite_elements[i],
+                      quadrature,
+                      do_simplex ? (update_flags | update_quadrature_points) :
+                                   update_flags);
+                }
             }
         }
       else
         {
           dealii::hp::QCollection<dim - 1> quadrature(
-            QIterated<dim - 1>(QTrapez<1>(), n_subdivisions));
+            QIterated<dim - 1>(QTrapezoid<1>(), n_subdivisions));
           x_fe_face_values.resize(this->finite_elements.size());
           for (unsigned int i = 0; i < this->finite_elements.size(); ++i)
             {
@@ -548,8 +678,6 @@ namespace internal
     /**
      * Class that stores a pointer to a vector of type equal to the template
      * argument, and provides the functions to extract data from it.
-     *
-     * @author Wolfgang Bangerth, 2004
      */
     template <typename DoFHandlerType, typename VectorType>
     class DataEntry : public DataEntryBase<DoFHandlerType>
@@ -1253,7 +1381,7 @@ namespace internal
       const VectorType *vector = &((*vectors)[dof_cell->level()]);
 
       const unsigned int dofs_per_cell =
-        this->dof_handler->get_fe(0).dofs_per_cell;
+        this->dof_handler->get_fe(0).n_dofs_per_cell();
 
       std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
       dof_cell->get_mg_dof_indices(dof_indices);
@@ -1292,7 +1420,7 @@ namespace internal
       const VectorType *vector = &((*vectors)[dof_cell->level()]);
 
       const unsigned int dofs_per_cell =
-        this->dof_handler->get_fe(0).dofs_per_cell;
+        this->dof_handler->get_fe(0).n_dofs_per_cell();
 
       std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
       dof_cell->get_mg_dof_indices(dof_indices);

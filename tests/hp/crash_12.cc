@@ -20,7 +20,7 @@
 //
 // this code in particular tests some compensating code in
 // dof_tools.cc, where we have to make sure that we select a suitable
-// set of master dofs. this is mostly trivial in 2d and for most fe
+// set of primary dofs. this is mostly trivial in 2d and for most fe
 // combinations in 3d as well. the exceptions are that it doesn't work
 // as easily in 3d for the combinations Q4/Q3, Q5/Q3, and
 // Q5/Q4. Higher order finite elements in 3d will probably only
@@ -80,9 +80,9 @@ test()
   hp::FECollection<dim> fe;
   fe.push_back(FE_Q<dim>(1));
   fe.push_back(FE_Q<dim>(2));
-  fe.push_back(FE_Q<dim>(QIterated<1>(QTrapez<1>(), 3)));
-  fe.push_back(FE_Q<dim>(QIterated<1>(QTrapez<1>(), 4)));
-  fe.push_back(FE_Q<dim>(QIterated<1>(QTrapez<1>(), 5)));
+  fe.push_back(FE_Q<dim>(QIterated<1>(QTrapezoid<1>(), 3)));
+  fe.push_back(FE_Q<dim>(QIterated<1>(QTrapezoid<1>(), 4)));
+  fe.push_back(FE_Q<dim>(QIterated<1>(QTrapezoid<1>(), 5)));
 
   hp::DoFHandler<dim> dof_handler(triangulation);
 

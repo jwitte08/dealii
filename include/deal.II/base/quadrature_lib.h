@@ -33,8 +33,6 @@ DEAL_II_NAMESPACE_OPEN
  * described in <a
  * href="http://en.wikipedia.org/wiki/Numerical_Recipes">Numerical
  * Recipes</a>.
- *
- * @author Guido Kanschat, 2001
  */
 template <int dim>
 class QGauss : public Quadrature<dim>
@@ -69,8 +67,6 @@ public:
  * @sa http://en.wikipedia.org/wiki/Handbook_of_Mathematical_Functions @sa
  * Karniadakis, G.E. and Sherwin, S.J.: Spectral/hp element methods for
  * computational fluid dynamics. Oxford: Oxford University Press, 2005
- *
- * @author Guido Kanschat, 2005, 2006; F. Prill, 2006
  */
 template <int dim>
 class QGaussLobatto : public Quadrature<dim>
@@ -112,22 +108,33 @@ public:
 
 /**
  * The trapezoidal rule for numerical quadrature. This formula with two
- * quadrature points is exact for linear polynomials.
- *
- * The class is poorly named since the proper name of the quadrature formula
- * is "trapezoidal rule", or sometimes also called the "trapezoid rule". The
- * misnomer results from the fact that its original authors' poor English
- * language skills led them to translate the name incorrectly from the German
- * "Trapezregel".
- *
- * @author Wolfgang Bangerth, 1998
+ * quadrature points is exact for linear polynomials and uses the
+ * end points of an interval for function evaluation in 1d, see
+ * https://en.wikipedia.org/wiki/Trapezoidal_rule . In higher dimensions,
+ * the class is constructed via a tensor product and then uses the
+ * vertices of a quadrilateral or hexahedron for function evaluation.
  */
 template <int dim>
-class QTrapez : public Quadrature<dim>
+class QTrapezoid : public Quadrature<dim>
 {
 public:
-  QTrapez();
+  QTrapezoid();
 };
+
+
+/**
+ * An alias for QTrapezoid available for historic reasons. This name is
+ * deprecated.
+ *
+ * The class was originally named QTrapez, a poorly named choice since the
+ * proper name of the quadrature formula
+ * is "trapezoidal rule", or sometimes also called the "trapezoid rule". The
+ * misnomer resulted from the fact that its original authors' poor English
+ * language skills led them to translate the name incorrectly from the German
+ * "Trapezregel".
+ */
+template <int dim>
+using QTrapez DEAL_II_DEPRECATED = QTrapezoid<dim>;
 
 
 
@@ -460,8 +467,6 @@ private:
  *
  * The weights and functions for Gauss Legendre formula have been tabulated up
  * to order 12.
- *
- * @author Nicola Giuliani, Luca Heltai 2015
  */
 template <int dim>
 class QTelles : public Quadrature<dim>
@@ -492,8 +497,6 @@ public:
  * the integral $\int_0^1 f(x) w(x) dx$ with the weight: $w(x) =
  * 1/\sqrt{x(1-x)}$. For details see: M. Abramowitz & I.A. Stegun: Handbook of
  * Mathematical Functions, par. 25.4.38
- *
- * @author Giuseppe Pitton, Luca Heltai 2015
  */
 template <int dim>
 class QGaussChebyshev : public Quadrature<dim>
@@ -517,8 +520,6 @@ public:
  * with the left endpoint as quadrature node, but the quadrature node can be
  * imposed at the right endpoint through the variable ep that can assume the
  * values left or right.
- *
- * @author Giuseppe Pitton, Luca Heltai 2015
  */
 template <int dim>
 class QGaussRadauChebyshev : public Quadrature<dim>
@@ -564,8 +565,6 @@ private:
  * $\int_0^1 f(x) w(x) dx$ with the weight: $w(x) = 1/\sqrt{x(1-x)}$. For
  * details see: M. Abramowitz & I.A. Stegun: Handbook of Mathematical
  * Functions, par. 25.4.40
- *
- * @author Giuseppe Pitton, Luca Heltai 2015
  */
 template <int dim>
 class QGaussLobattoChebyshev : public Quadrature<dim>
@@ -604,8 +603,6 @@ public:
  * singularities at certain points, or functions that present jumps along a
  * co-dimension one surface inside the reference element, like in the extended
  * finite element method (XFEM).
- *
- * @author Luca Heltai, 2017.
  */
 template <int dim>
 class QSimplex : public Quadrature<dim>
@@ -664,8 +661,6 @@ public:
  *  \end{pmatrix}
  *  \qquad \theta \dealcoloneq \frac\pi 2 \hat y
  * \f]
- *
- * @author Luca Heltai, 2017
  */
 class QTrianglePolar : public QSimplex<2>
 {
@@ -720,8 +715,6 @@ public:
  *
  * When $\beta = 1$, this transformation is also known as the Lachat-Watson
  * transformation.
- *
- * @author Luca Heltai, Nicola Giuliani, 2017.
  */
 class QDuffy : public QSimplex<2>
 {
@@ -757,8 +750,6 @@ public:
 /**
  * A quadrature to use when the cell should be split into subregions to
  * integrate using one or more base quadratures.
- *
- * @author Luca Heltai, 2017.
  */
 template <int dim>
 class QSplit : public Quadrature<dim>
@@ -821,7 +812,7 @@ QGaussLog<1>::get_quadrature_weights(const unsigned int);
 template <>
 QMidpoint<1>::QMidpoint();
 template <>
-QTrapez<1>::QTrapez();
+QTrapezoid<1>::QTrapezoid();
 template <>
 QSimpson<1>::QSimpson();
 template <>

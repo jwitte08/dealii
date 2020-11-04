@@ -107,8 +107,6 @@ namespace internal
      * with several data fields for the individual quadrature formulas.
      *
      * @ingroup matrixfree
-     *
-     * @author Katharina Kormann, Martin Kronbichler, 2018
      */
     template <int structdim,
               int spacedim,
@@ -222,7 +220,8 @@ namespace internal
        * but the default case (cell integrals or boundary integrals) only
        * fills the zeroth component and ignores the first one.
        */
-      AlignedVector<Tensor<2, spacedim, VectorizedArrayType>> jacobians[2];
+      std::array<AlignedVector<Tensor<2, spacedim, VectorizedArrayType>>, 2>
+        jacobians;
 
       /**
        * The storage of the gradients of the inverse Jacobian
@@ -239,10 +238,12 @@ namespace internal
        * but the default case (cell integrals or boundary integrals) only
        * fills the zeroth component and ignores the first one.
        */
-      AlignedVector<Tensor<1,
-                           spacedim *(spacedim + 1) / 2,
-                           Tensor<1, spacedim, VectorizedArrayType>>>
-        jacobian_gradients[2];
+      std::array<
+        AlignedVector<Tensor<1,
+                             spacedim *(spacedim + 1) / 2,
+                             Tensor<1, spacedim, VectorizedArrayType>>>,
+        2>
+        jacobian_gradients;
 
       /**
        * Stores the Jacobian transformations times the normal vector (this
@@ -251,8 +252,8 @@ namespace internal
        *
        * Indexed by @p data_index_offsets.
        */
-      AlignedVector<Tensor<1, spacedim, VectorizedArrayType>>
-        normals_times_jacobians[2];
+      std::array<AlignedVector<Tensor<1, spacedim, VectorizedArrayType>>, 2>
+        normals_times_jacobians;
 
       /**
        * Stores the index offset of a particular cell into the quadrature
@@ -309,8 +310,6 @@ namespace internal
      * interiors for use in the matrix-free class.
      *
      * @ingroup matrixfree
-     *
-     * @author Katharina Kormann and Martin Kronbichler, 2010, 2011, 2017
      */
     template <int dim, typename Number, typename VectorizedArrayType>
     struct MappingInfo
@@ -517,8 +516,6 @@ namespace internal
     /**
      * A helper class to extract either cell or face data from mapping info
      * for use in FEEvaluationBase.
-     *
-     * @author Katharina Kormann, Martin Kronbichler, 2018
      */
     template <int, typename, bool, typename>
     struct MappingInfoCellsOrFaces;

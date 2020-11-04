@@ -73,7 +73,7 @@ namespace VectorTools
         std::vector<double> rhs_values(n_q_points);
 
         for (; cell != endc; ++cell)
-          for (unsigned int face : GeometryInfo<dim>::face_indices())
+          for (unsigned int face : cell->face_indices())
             if (cell->face(face)->at_boundary() &&
                 (boundary_ids.empty() ||
                  (boundary_ids.find(cell->face(face)->boundary_id()) !=
@@ -104,7 +104,7 @@ namespace VectorTools
                                                Vector<double>(n_components));
 
         for (; cell != endc; ++cell)
-          for (unsigned int face : GeometryInfo<dim>::face_indices())
+          for (unsigned int face : cell->face_indices())
             if (cell->face(face)->at_boundary() &&
                 (boundary_ids.empty() ||
                  (boundary_ids.find(cell->face(face)->boundary_id()) !=
@@ -186,7 +186,7 @@ namespace VectorTools
   void
   create_boundary_right_hand_side(
     const hp::MappingCollection<dim, spacedim> &               mapping,
-    const hp::DoFHandler<dim, spacedim> &                      dof_handler,
+    const DoFHandler<dim, spacedim> &                          dof_handler,
     const hp::QCollection<dim - 1> &                           quadrature,
     const Function<spacedim, typename VectorType::value_type> &rhs_function,
     VectorType &                                               rhs_vector,
@@ -209,7 +209,7 @@ namespace VectorTools
     std::vector<types::global_dof_index> dofs(fe.max_dofs_per_cell());
     Vector<double>                       cell_vector(fe.max_dofs_per_cell());
 
-    typename hp::DoFHandler<dim, spacedim>::active_cell_iterator
+    typename DoFHandler<dim, spacedim>::active_cell_iterator
       cell = dof_handler.begin_active(),
       endc = dof_handler.end();
 
@@ -218,7 +218,7 @@ namespace VectorTools
         std::vector<double> rhs_values;
 
         for (; cell != endc; ++cell)
-          for (unsigned int face : GeometryInfo<dim>::face_indices())
+          for (unsigned int face : cell->face_indices())
             if (cell->face(face)->at_boundary() &&
                 (boundary_ids.empty() ||
                  (boundary_ids.find(cell->face(face)->boundary_id()) !=
@@ -256,7 +256,7 @@ namespace VectorTools
         std::vector<Vector<double>> rhs_values;
 
         for (; cell != endc; ++cell)
-          for (unsigned int face : GeometryInfo<dim>::face_indices())
+          for (unsigned int face : cell->face_indices())
             if (cell->face(face)->at_boundary() &&
                 (boundary_ids.empty() ||
                  (boundary_ids.find(cell->face(face)->boundary_id()) !=
@@ -325,7 +325,7 @@ namespace VectorTools
   template <int dim, int spacedim, typename VectorType>
   void
   create_boundary_right_hand_side(
-    const hp::DoFHandler<dim, spacedim> &                      dof_handler,
+    const DoFHandler<dim, spacedim> &                          dof_handler,
     const hp::QCollection<dim - 1> &                           quadrature,
     const Function<spacedim, typename VectorType::value_type> &rhs_function,
     VectorType &                                               rhs_vector,
@@ -484,7 +484,7 @@ namespace VectorTools
   void
   create_right_hand_side(
     const hp::MappingCollection<dim, spacedim> &               mapping,
-    const hp::DoFHandler<dim, spacedim> &                      dof_handler,
+    const DoFHandler<dim, spacedim> &                          dof_handler,
     const hp::QCollection<dim> &                               quadrature,
     const Function<spacedim, typename VectorType::value_type> &rhs_function,
     VectorType &                                               rhs_vector,
@@ -511,7 +511,7 @@ namespace VectorTools
     std::vector<types::global_dof_index> dofs(fe.max_dofs_per_cell());
     Vector<Number>                       cell_vector(fe.max_dofs_per_cell());
 
-    typename hp::DoFHandler<dim, spacedim>::active_cell_iterator
+    typename DoFHandler<dim, spacedim>::active_cell_iterator
       cell = dof_handler.begin_active(),
       endc = dof_handler.end();
 
@@ -623,7 +623,7 @@ namespace VectorTools
   template <int dim, int spacedim, typename VectorType>
   void
   create_right_hand_side(
-    const hp::DoFHandler<dim, spacedim> &                      dof_handler,
+    const DoFHandler<dim, spacedim> &                          dof_handler,
     const hp::QCollection<dim> &                               quadrature,
     const Function<spacedim, typename VectorType::value_type> &rhs_function,
     VectorType &                                               rhs_vector,

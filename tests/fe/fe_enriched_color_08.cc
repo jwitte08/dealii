@@ -242,8 +242,9 @@ main(int argc, char **argv)
   for (unsigned int i = 0; i < vec_predicates.size(); ++i)
     {
       // constant function.
-      ConstantFunction<dim> func(10 + i); // constant function
-      vec_enrichments.push_back(std::make_shared<ConstantFunction<dim>>(func));
+      Functions::ConstantFunction<dim> func(10 + i); // constant function
+      vec_enrichments.push_back(
+        std::make_shared<Functions::ConstantFunction<dim>>(func));
     }
 
   // Construct helper class to construct fe collection

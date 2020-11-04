@@ -64,8 +64,6 @@ namespace internal
      * setter functions. Knowledge of the actual data format is therefore
      * encapsulated to the present hierarchy of classes as well as the
      * dealii::DoFHandler class.
-     *
-     * @author Wolfgang Bangerth, 1998, 2006, Guido Kanschat, 2012
      */
     template <int dim>
     class DoFLevel
@@ -73,7 +71,7 @@ namespace internal
     public:
       /**
        * Cache for the DoF indices on cells. The size of this array equals the
-       * number of cells on a given level times selected_fe.dofs_per_cell.
+       * number of cells on a given level times selected_fe.n_dofs_per_cell().
        */
       std::vector<types::global_dof_index> cell_dof_indices_cache;
 

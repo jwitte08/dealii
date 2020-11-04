@@ -45,7 +45,6 @@ DEAL_II_NAMESPACE_OPEN
  * the general description of the FilteredIterator class.
  *
  * @ingroup Iterators
- * @author Wolfgang Bangerth, 2002
  */
 namespace IteratorFilters
 {
@@ -225,7 +224,6 @@ namespace IteratorFilters
    * pointed to is equal to a value or set of values given to the constructor,
    * assuming that the iterator allows querying for a material id.
    *
-   * @author Jean-Paul Pelteret, Denis Davydov, 2015
    *
    * @ingroup Iterators
    */
@@ -272,7 +270,6 @@ namespace IteratorFilters
    * pointed to is equal to a value or set of values given to the constructor,
    * assuming that the iterator allows querying for an active FE index.
    *
-   * @author Jean-Paul Pelteret, Denis Davydov, 2015
    *
    * @ingroup Iterators
    */
@@ -318,7 +315,6 @@ namespace IteratorFilters
    * Filter for iterators that evaluates to true if the iterator of the object
    * pointed to is on the boundary.
    *
-   * @author Bruno Turcksin, 2016
    *
    * @ingroup Iterators
    */
@@ -441,7 +437,7 @@ namespace IteratorFilters
  * <h3>Initialization of filtered iterators</h3>
  *
  * Filtered iterators are given a predicate at construction time which cannot
- * be changed any more. This behaviour would be expected if the predicate
+ * be changed any more. This behavior would be expected if the predicate
  * would have been given as a template parameter to the class, but since that
  * would make the declaration of filtered iterators a nightmare, we rather
  * give the predicate as an unchangeable entity to the constructor. Note that
@@ -523,7 +519,6 @@ namespace IteratorFilters
  *
  * @ingroup grid
  * @ingroup Iterators
- * @author Wolfgang Bangerth, 2002
  */
 template <typename BaseIterator>
 class FilteredIterator : public BaseIterator
@@ -786,7 +781,6 @@ private:
  * explicitly specify the type of the base iterator by hand -- it is deduced
  * automatically here.
  *
- * @author Wolfgang Bangerth
  * @relatesalso FilteredIterator
  */
 template <typename BaseIterator, typename Predicate>
@@ -858,7 +852,6 @@ namespace internal
  *     }
  * @endcode
  *
- * @author Bruno Turcksin, 2016
  * @relatesalso FilteredIterator
  * @ingroup CPP11
  */
@@ -907,7 +900,6 @@ filter_iterators(IteratorRange<BaseIterator> i, const Predicate &p)
  *     }
  * @endcode
  *
- * @author Bruno Turcksin, 2016
  * @relatesalso FilteredIterator
  * @ingroup CPP11
  */

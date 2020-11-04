@@ -106,7 +106,7 @@ SolutionTransfer<dim, VectorType, DoFHandlerType>::prepare_for_pure_refinement()
 
   for (unsigned int i = 0; cell != endc; ++cell, ++i)
     {
-      indices_on_cell[i].resize(cell->get_fe().dofs_per_cell);
+      indices_on_cell[i].resize(cell->get_fe().n_dofs_per_cell());
       // on each cell store the indices of the
       // dofs. after refining we get the values
       // on the children by taking these
@@ -161,7 +161,7 @@ SolutionTransfer<dim, VectorType, DoFHandlerType>::refine_interpolate(
           const unsigned int this_fe_index =
             pointerstruct->second.active_fe_index;
           const unsigned int dofs_per_cell =
-            cell->get_dof_handler().get_fe(this_fe_index).dofs_per_cell;
+            cell->get_dof_handler().get_fe(this_fe_index).n_dofs_per_cell();
           local_values.reinit(dofs_per_cell, true);
 
           // make sure that the size of the stored indices is the same as
@@ -196,25 +196,22 @@ namespace internal
    * which no such interpolation is
    * implemented.
    */
-  template <typename DoFHandlerType>
-  void
-  extract_interpolation_matrices(const DoFHandlerType &,
-                                 dealii::Table<2, FullMatrix<double>> &)
-  {}
-
   template <int dim, int spacedim>
   void
-  extract_interpolation_matrices(
-    const dealii::hp::DoFHandler<dim, spacedim> &dof,
-    dealii::Table<2, FullMatrix<double>> &       matrices)
+  extract_interpolation_matrices(const dealii::DoFHandler<dim, spacedim> &dof,
+                                 dealii::Table<2, FullMatrix<double>> &matrices)
   {
+    if (dof.has_hp_capabilities() == false)
+      return;
+
     const dealii::hp::FECollection<dim, spacedim> &fe = dof.get_fe_collection();
     matrices.reinit(fe.size(), fe.size());
     for (unsigned int i = 0; i < fe.size(); ++i)
       for (unsigned int j = 0; j < fe.size(); ++j)
         if (i != j)
           {
-            matrices(i, j).reinit(fe[i].dofs_per_cell, fe[j].dofs_per_cell);
+            matrices(i, j).reinit(fe[i].n_dofs_per_cell(),
+                                  fe[j].n_dofs_per_cell());
 
             // see if we can get the interpolation matrices for this
             // combination of elements. if not, reset the matrix sizes to zero
@@ -250,8 +247,8 @@ namespace internal
     restriction_is_additive.resize(fe.size());
     for (unsigned int f = 0; f < fe.size(); ++f)
       {
-        restriction_is_additive[f].resize(fe[f].dofs_per_cell);
-        for (unsigned int i = 0; i < fe[f].dofs_per_cell; ++i)
+        restriction_is_additive[f].resize(fe[f].n_dofs_per_cell());
+        for (unsigned int i = 0; i < fe[f].n_dofs_per_cell(); ++i)
           restriction_is_additive[f][i] = fe[f].restriction_is_additive(i);
       }
   }
@@ -338,7 +335,7 @@ SolutionTransfer<dim, VectorType, DoFHandlerType>::
       // CASE 1: active cell that remains as it is
       if (cell->is_active() && !cell->coarsen_flag_set())
         {
-          const unsigned int dofs_per_cell = cell->get_fe().dofs_per_cell;
+          const unsigned int dofs_per_cell = cell->get_fe().n_dofs_per_cell();
           indices_on_cell[n_sr].resize(dofs_per_cell);
           // cell will not be coarsened,
           // so we get away by storing the
@@ -360,10 +357,8 @@ SolutionTransfer<dim, VectorType, DoFHandlerType>::
           // case. we choose the 'least dominant fe' on all children from
           // the associated FECollection.
           std::set<unsigned int> fe_indices_children;
-          for (unsigned int child_index = 0; child_index < cell->n_children();
-               ++child_index)
+          for (const auto &child : cell->child_iterators())
             {
-              const auto &child = cell->child(child_index);
               Assert(child->is_active() && child->coarsen_flag_set(),
                      typename dealii::Triangulation<
                        dim>::ExcInconsistentCoarseningFlags());
@@ -377,11 +372,13 @@ SolutionTransfer<dim, VectorType, DoFHandlerType>::
               fe_indices_children, /*codim=*/0);
 
           Assert(target_fe_index != numbers::invalid_unsigned_int,
-                 typename dealii::hp::FECollection<
-                   dim>::ExcNoDominatedFiniteElementAmongstChildren());
+                 (typename dealii::DoFCellAccessor<
+                   dim,
+                   DoFHandlerType::space_dimension,
+                   false>::ExcNoDominatedFiniteElementOnChildren()));
 
           const unsigned int dofs_per_cell =
-            dof_handler->get_fe(target_fe_index).dofs_per_cell;
+            dof_handler->get_fe(target_fe_index).n_dofs_per_cell();
 
           std::vector<Vector<typename VectorType::value_type>>(
             in_size, Vector<typename VectorType::value_type>(dofs_per_cell))
@@ -496,7 +493,8 @@ SolutionTransfer<dim, VectorType, DoFHandlerType>::interpolate(
               Assert(!cell->has_children(), ExcInternalError());
               Assert(indexptr == nullptr, ExcInternalError());
 
-              const unsigned int dofs_per_cell = cell->get_fe().dofs_per_cell;
+              const unsigned int dofs_per_cell =
+                cell->get_fe().n_dofs_per_cell();
               dofs.resize(dofs_per_cell);
               // get the local
               // indices

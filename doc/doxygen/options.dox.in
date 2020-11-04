@@ -24,7 +24,7 @@ SHORT_NAMES            = NO
 CASE_SENSE_NAMES       = YES
 
 
-INLINE_INHERITED_MEMB  = NO
+INLINE_INHERITED_MEMB  = YES
 STRIP_FROM_PATH        = @CMAKE_SOURCE_DIR@ @CMAKE_BINARY_DIR@
 STRIP_FROM_INC_PATH    = @CMAKE_SOURCE_DIR@/include @CMAKE_BINARY_DIR@/include
 
@@ -52,7 +52,7 @@ SORT_MEMBER_DOCS       = NO
 SORT_BRIEF_DOCS        = NO
 SORT_BY_SCOPE_NAME     = NO
 GENERATE_TODOLIST      = YES
-GENERATE_DEPRECATEDLIST= NO
+GENERATE_DEPRECATEDLIST= YES
 SHOW_USED_FILES        = YES
 
 #---------------------------------------------------------------------------
@@ -191,7 +191,7 @@ PREDEFINED             = DOXYGEN=1 \
                          DEAL_II_ARPACK_WITH_PARPACK=1 \
                          DEAL_II_WITH_ASSIMP=1 \
                          DEAL_II_WITH_BOOST=1 \
-                         DEAL_II_WITH_CPP_TASKFLOW=1 \
+                         DEAL_II_WITH_TASKFLOW=1 \
                          DEAL_II_WITH_COMPLEX_VALUES=1 \
                          DEAL_II_WITH_CUDA=1 \
                          DEAL_II_COMPILER_CUDA_AWARE=1 \
@@ -207,7 +207,6 @@ PREDEFINED             = DOXYGEN=1 \
                          DEAL_II_MPI_VERSION_MAJOR=3 \
                          DEAL_II_MPI_VERSION_MINOR=0 \
                          DEAL_II_WITH_MUPARSER=1 \
-                         DEAL_II_WITH_NETCDF=1 \
                          DEAL_II_WITH_OPENCASCADE=1 \
                          DEAL_II_WITH_P4EST=1 \
                          DEAL_II_P4EST_VERSION_MAJOR=2 \

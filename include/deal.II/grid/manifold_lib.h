@@ -24,9 +24,18 @@
 
 #include <deal.II/grid/manifold.h>
 
-#include <boost/container/small_vector.hpp>
-
 DEAL_II_NAMESPACE_OPEN
+
+// forward declaration
+namespace internal
+{
+  namespace MappingQGenericImplementation
+  {
+    template <int, int>
+    class InverseQuadraticApproximation;
+  }
+} // namespace internal
+
 
 /**
  * Manifold description for a polar coordinate system.
@@ -56,8 +65,6 @@ DEAL_II_NAMESPACE_OPEN
  * make any sense.
  *
  * @ingroup manifold
- *
- * @author Luca Heltai, Mauro Bardelloni, 2014-2016
  */
 template <int dim, int spacedim = dim>
 class PolarManifold : public ChartManifold<dim, spacedim, spacedim>
@@ -224,8 +231,6 @@ private:
  * ball. (See also the extensive discussion in step-65.)
  *
  * @ingroup manifold
- *
- * @author Mauro Bardelloni, Luca Heltai, Daniel Arndt, 2016, 2017
  */
 template <int dim, int spacedim = dim>
 class SphericalManifold : public Manifold<dim, spacedim>
@@ -380,8 +385,6 @@ private:
  * run time exception whenever spacedim is not equal to three.
  *
  * @ingroup manifold
- *
- * @author Luca Heltai, Daniel Arndt, 2014, 2017
  */
 template <int dim, int spacedim = dim>
 class CylindricalManifold : public ChartManifold<dim, spacedim, 3>
@@ -501,8 +504,6 @@ private:
  * @image html elliptical_hyper_shell.png
  *
  * @ingroup manifold
- *
- * @author Stefano Dominici, 2018
  */
 template <int dim, int spacedim = dim>
 class EllipticalManifold : public ChartManifold<dim, spacedim, spacedim>
@@ -518,7 +519,6 @@ public:
    * manifold.
    * @param eccentricity Eccentricity of the
    * manifold $e\in\left]0,1\right[$.
-   *
    */
   EllipticalManifold(const Point<spacedim> &    center,
                      const Tensor<1, spacedim> &major_axis_direction,
@@ -586,8 +586,6 @@ private:
  * actually one the inverse of the other.
  *
  * @ingroup manifold
- *
- * @author Luca Heltai, 2014
  */
 template <int dim, int spacedim = dim, int chartdim = dim>
 class FunctionManifold : public ChartManifold<dim, spacedim, chartdim>
@@ -781,8 +779,6 @@ private:
  * GridGenerator::torus.
  *
  * @ingroup manifold
- *
- * @author Timo Heister, 2016
  */
 template <int dim>
 class TorusManifold : public ChartManifold<dim, 3, 3>
@@ -964,8 +960,6 @@ private:
  * axis-aligned bounding boxes.
  *
  * @ingroup manifold
- *
- * @author Martin Kronbichler, Luca Heltai, 2017
  */
 template <int dim, int spacedim = dim>
 class TransfiniteInterpolationManifold : public Manifold<dim, spacedim>
@@ -1149,6 +1143,14 @@ private:
    * use a FlatManifold description.
    */
   FlatManifold<dim> chart_manifold;
+
+  /**
+   * A vector of quadratic approximations to the inverse map from real points
+   * to chart points for each of the coarse mesh cells.
+   */
+  std::vector<internal::MappingQGenericImplementation::
+                InverseQuadraticApproximation<dim, spacedim>>
+    quadratic_approximation;
 
   /**
    * The connection to Triangulation::signals::clear that must be reset once

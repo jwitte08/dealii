@@ -253,18 +253,6 @@ namespace GridOutFlags
     unsigned int n_extra_curved_line_points;
 
     /**
-     * Based on the vertices of the face and #n_boundary_face_points
-     * additional points a tensor product mesh (transformed to the real space)
-     * of (#n_boundary_face_points+2)<sup>dim-1</sup> points is plotted on
-     * each boundary face.
-     *
-     * @deprecated Use n_extra_curved_line_points instead, which has
-     * a more precise name. For compatibility this is implemented as a
-     * reference to n_extra_curved_line_points.
-     */
-    DEAL_II_DEPRECATED unsigned int &n_boundary_face_points;
-
-    /**
      * Boolean indicating whether or not interior lines should be plotted with
      * <tt>n_extra_curved_line_points</tt> line segments.
      */
@@ -290,19 +278,6 @@ namespace GridOutFlags
             const unsigned int n_extra_curved_line_points      = 2,
             const bool         curved_inner_cells              = false,
             const bool         write_additional_boundary_lines = true);
-
-    /**
-     * Copy constructor. Needed since this class (for backwards compatibility)
-     * has a reference member variable.
-     */
-    Gnuplot(const Gnuplot &flags);
-
-    /**
-     * Copy operator. Needed since this class (for backwards compatibility)
-     * has a reference member variable.
-     */
-    Gnuplot &
-    operator=(const Gnuplot &flags);
 
     /**
      * Declare parameters in ParameterHandler.
@@ -949,7 +924,7 @@ namespace GridOutFlags
  *
  * Usage is simple: either you use the direct form
  * @code
- *   ofstream output_file("some_filename");
+ *   std::ofstream output_file("some_filename");
  *   GridOut().write_gnuplot (tria, output_file);
  * @endcode
  * if you know which format you want to have, or if you want the format to be
@@ -957,8 +932,8 @@ namespace GridOutFlags
  * @code
  *   GridOut::OutputFormat grid_format =
  *     GridOut::parse_output_format(get_format_name_from_somewhere());
- *   ofstream output_file("some_filename"
- *                        + GridOut::default_suffix(output_format));
+ *   std::ofstream output_file("some_filename"
+ *                             + GridOut::default_suffix(output_format));
  *   GridOut().write (tria, output_file, output_format);
  * @endcode
  * The function <tt>get_output_format_names()</tt> provides a list of possible
@@ -1013,9 +988,6 @@ namespace GridOutFlags
  *
  * @ingroup grid
  * @ingroup output
- * @author Wolfgang Bangerth, Guido Kanschat, Luca Heltai, Stefan Nauber,
- * Christian Wülker
- * @date 1999 - 2013
  */
 class GridOut
 {
@@ -1295,8 +1267,6 @@ public:
    *
    * The companion GridIn::read_vtk function can be used to read VTK files
    * generated with this method.
-   *
-   * @author Luca Heltai, 2018
    */
   template <int dim, int spacedim>
   void

@@ -134,8 +134,6 @@ DEAL_II_NAMESPACE_OPEN
  * <code>size_type</code> type.
  *
  * @note TransposeTable uses this template to implement its iterators.
- *
- * @author David Wells, 2018
  */
 template <class DerivedIterator, class AccessorType>
 class LinearIndexIterator
@@ -260,10 +258,16 @@ public:
   }
 
   /**
-   * Inverse of operator==().
+   * Opposite of operator==().
    */
-  bool
-  operator!=(const DerivedIterator &) const;
+  template <typename OtherIterator>
+  friend typename std::enable_if<
+    std::is_convertible<OtherIterator, DerivedIterator>::value,
+    bool>::type
+  operator!=(const LinearIndexIterator &left, const OtherIterator &right)
+  {
+    return !(left == right);
+  }
 
   /**
    * Comparison operator: uses the same ordering as operator<(), but also
@@ -447,16 +451,6 @@ inline typename LinearIndexIterator<DerivedIterator, AccessorType>::pointer
   LinearIndexIterator<DerivedIterator, AccessorType>::operator->() const
 {
   return &accessor;
-}
-
-
-
-template <class DerivedIterator, class AccessorType>
-inline bool
-LinearIndexIterator<DerivedIterator, AccessorType>::
-operator!=(const DerivedIterator &other) const
-{
-  return !(*this == other);
 }
 
 

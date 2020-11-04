@@ -139,8 +139,6 @@ namespace Particles
    * difficult to write either.
    *
    * @ingroup Particle
-   * @author Rene Gassmoeller, 2017
-   *
    */
   template <int dim, int spacedim = dim>
   class Particle
@@ -242,6 +240,17 @@ namespace Particles
      * whether this is a valid location in the simulation domain.
      *
      * @param [in] new_location The new location for this particle.
+     *
+     * @note In parallel programs, the ParticleHandler class stores particles
+     *   on both the locally owned cells, as well as on ghost cells. The
+     *   particles on the latter are *copies* of particles owned on other
+     *   processors, and should therefore be treated in the same way as
+     *   ghost entries in @ref GlossGhostedVector "vectors with ghost elements"
+     *   or @ref GlossGhostCell "ghost cells": In both cases, one should
+     *   treat the ghost elements or cells as `const` objects that shouldn't
+     *   be modified even if the objects allow for calls that modify
+     *   properties. Rather, properties should only be modified on processors
+     *   that actually *own* the particle.
      */
     void
     set_location(const Point<spacedim> &new_location);
@@ -259,6 +268,17 @@ namespace Particles
      *
      * @param [in] new_reference_location The new reference location for
      * this particle.
+     *
+     * @note In parallel programs, the ParticleHandler class stores particles
+     *   on both the locally owned cells, as well as on ghost cells. The
+     *   particles on the latter are *copies* of particles owned on other
+     *   processors, and should therefore be treated in the same way as
+     *   ghost entries in @ref GlossGhostedVector "vectors with ghost elements"
+     *   or @ref GlossGhostCell "ghost cells": In both cases, one should
+     *   treat the ghost elements or cells as `const` objects that shouldn't
+     *   be modified even if the objects allow for calls that modify
+     *   properties. Rather, properties should only be modified on processors
+     *   that actually *own* the particle.
      */
     void
     set_reference_location(const Point<dim> &new_reference_location);
@@ -270,15 +290,40 @@ namespace Particles
     get_reference_location() const;
 
     /**
-     * Return the ID number of this particle.
+     * Return the ID number of this particle. The ID of a particle is intended
+     * to be a property that is globally unique even in parallel computations
+     * and is transfered along with other properties of a particle if it
+     * moves from a cell owned by the current processor to a cell owned by
+     * a different processor, or if ownership of the cell it is on is
+     * transferred to a different processor.
      */
     types::particle_index
     get_id() const;
 
     /**
-     * Set the ID number of this particle.
+     * Set the ID number of this particle. The ID of a particle is intended
+     * to be a property that is globally unique even in parallel computations
+     * and is transfered along with other properties of a particle if it
+     * moves from a cell owned by the current processor to a cell owned by
+     * a different processor, or if ownership of the cell it is on is
+     * transferred to a different processor. As a consequence, when setting
+     * the ID of a particle, care needs to be taken to ensure that particles
+     * have globally unique IDs. (The ParticleHandler does not itself check
+     * whether particle IDs so set are globally unique in a parallel setting
+     * since this would be a very expensive operation.)
      *
      * @param[in] new_id The new ID number for this particle.
+     *
+     * @note In parallel programs, the ParticleHandler class stores particles
+     *   on both the locally owned cells, as well as on ghost cells. The
+     *   particles on the latter are *copies* of particles owned on other
+     *   processors, and should therefore be treated in the same way as
+     *   ghost entries in @ref GlossGhostedVector "vectors with ghost elements"
+     *   or @ref GlossGhostCell "ghost cells": In both cases, one should
+     *   treat the ghost elements or cells as `const` objects that shouldn't
+     *   be modified even if the objects allow for calls that modify
+     *   properties. Rather, properties should only be modified on processors
+     *   that actually *own* the particle.
      */
     void
     set_id(const types::particle_index &new_id);
@@ -289,6 +334,11 @@ namespace Particles
      * since the particle does not know about the properties,
      * we want to do it not at construction time. Another use for this
      * function is after particle transfer to a new process.
+     *
+     * If a particle already stores properties in a property pool, then
+     * their values are saved, the memory is released in the previous
+     * property pool, and a copy of the particle's properties will be
+     * allocated in the new property pool.
      */
     void
     set_property_pool(PropertyPool &property_pool);
@@ -305,6 +355,17 @@ namespace Particles
      *
      * @param [in] new_properties An ArrayView containing the
      * new properties for this particle.
+     *
+     * @note In parallel programs, the ParticleHandler class stores particles
+     *   on both the locally owned cells, as well as on ghost cells. The
+     *   particles on the latter are *copies* of particles owned on other
+     *   processors, and should therefore be treated in the same way as
+     *   ghost entries in @ref GlossGhostedVector "vectors with ghost elements"
+     *   or @ref GlossGhostCell "ghost cells": In both cases, one should
+     *   treat the ghost elements or cells as `const` objects that shouldn't
+     *   be modified even if the objects allow for calls that modify
+     *   properties. Rather, properties should only be modified on processors
+     *   that actually *own* the particle.
      */
     void
     set_properties(const ArrayView<const double> &new_properties);
@@ -401,7 +462,7 @@ namespace Particles
 
   template <int dim, int spacedim>
   template <class Archive>
-  void
+  inline void
   Particle<dim, spacedim>::load(Archive &ar, const unsigned int)
   {
     unsigned int n_properties = 0;
@@ -415,9 +476,11 @@ namespace Particles
       }
   }
 
+
+
   template <int dim, int spacedim>
   template <class Archive>
-  void
+  inline void
   Particle<dim, spacedim>::save(Archive &ar, const unsigned int) const
   {
     unsigned int n_properties = 0;
@@ -430,8 +493,153 @@ namespace Particles
     if (n_properties > 0)
       ar &boost::serialization::make_array(properties, n_properties);
   }
+
+
+
+  template <int dim, int spacedim>
+  inline void
+  Particle<dim, spacedim>::set_location(const Point<spacedim> &new_loc)
+  {
+    location = new_loc;
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline const Point<spacedim> &
+  Particle<dim, spacedim>::get_location() const
+  {
+    return location;
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline void
+  Particle<dim, spacedim>::set_reference_location(const Point<dim> &new_loc)
+  {
+    reference_location = new_loc;
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline const Point<dim> &
+  Particle<dim, spacedim>::get_reference_location() const
+  {
+    return reference_location;
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline types::particle_index
+  Particle<dim, spacedim>::get_id() const
+  {
+    return id;
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline void
+  Particle<dim, spacedim>::set_id(const types::particle_index &new_id)
+  {
+    id = new_id;
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline void
+  Particle<dim, spacedim>::set_property_pool(PropertyPool &new_property_pool)
+  {
+    // First, we do want to save any properties that may
+    // have previously been set, and copy them over to the memory allocated
+    // on the new pool
+    PropertyPool::Handle new_handle = PropertyPool::invalid_handle;
+    if (property_pool != nullptr && properties != PropertyPool::invalid_handle)
+      {
+        new_handle = new_property_pool.allocate_properties_array();
+
+        ArrayView<double> old_properties = this->get_properties();
+        ArrayView<double> new_properties =
+          property_pool->get_properties(new_handle);
+        std::copy(old_properties.cbegin(),
+                  old_properties.cend(),
+                  new_properties.begin());
+      }
+
+    // If the particle currently has a reference to properties, then
+    // release those.
+    if (property_pool != nullptr && properties != PropertyPool::invalid_handle)
+      property_pool->deallocate_properties_array(properties);
+
+
+    // Then set the pointer to the property pool we want to use. Also set the
+    // handle to any properties, if we have copied any above.
+    property_pool = &new_property_pool;
+    properties    = new_handle;
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline const ArrayView<const double>
+  Particle<dim, spacedim>::get_properties() const
+  {
+    Assert(has_properties(), ExcInternalError());
+
+    return property_pool->get_properties(properties);
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline bool
+  Particle<dim, spacedim>::has_properties() const
+  {
+    return (property_pool != nullptr) &&
+           (properties != PropertyPool::invalid_handle);
+  }
+
 } // namespace Particles
 
 DEAL_II_NAMESPACE_CLOSE
+
+
+namespace boost
+{
+  namespace geometry
+  {
+    namespace index
+    {
+      // Forward declaration of bgi::indexable
+      template <class T>
+      struct indexable;
+
+      /**
+       * Make sure we can construct an RTree of Particles::Particle objects.
+       */
+      template <int dim, int spacedim>
+      struct indexable<dealii::Particles::Particle<dim, spacedim>>
+      {
+        /**
+         * boost::rtree expects a const reference to an indexable object. For
+         * a Particles::Particle object, this is its reference location.
+         */
+        using result_type = const dealii::Point<spacedim> &;
+
+        result_type
+        operator()(
+          const dealii::Particles::Particle<dim, spacedim> &particle) const
+        {
+          return particle.get_location();
+        }
+      };
+
+    } // namespace index
+  }   // namespace geometry
+} // namespace boost
 
 #endif

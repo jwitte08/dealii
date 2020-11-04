@@ -209,7 +209,8 @@ namespace Step50
                          true);
 
     mg_constrained_dofs.clear();
-    mg_constrained_dofs.initialize(mg_dof_handler, dirichlet_boundary);
+    mg_constrained_dofs.initialize(mg_dof_handler);
+    mg_constrained_dofs.make_zero_boundary_constraints(mg_dof_handler, {0});
 
     const unsigned int n_levels = triangulation.n_global_levels();
 
@@ -409,7 +410,10 @@ namespace Step50
     SolverControl         coarse_solver_control(1000, 1e-10, false, false);
     SolverGMRES<vector_t> coarse_solver(coarse_solver_control);
     PreconditionIdentity  id;
-    MGCoarseGridLACIteration<SolverGMRES<vector_t>, vector_t>
+    MGCoarseGridIterativeSolver<vector_t,
+                                SolverGMRES<vector_t>,
+                                matrix_t,
+                                PreconditionIdentity>
       coarse_grid_solver(coarse_solver, coarse_matrix, id);
 
     typedef TrilinosWrappers::PreconditionJacobi         Smoother;

@@ -48,13 +48,10 @@ namespace VectorTools
      * mapping here because the function we evaluate for the DoFs is zero in
      * the mapped locations as well as in the original, unmapped locations
      */
-    template <int dim,
-              int spacedim,
-              template <int, int> class DoFHandlerType,
-              typename number>
+    template <int dim, int spacedim, typename number>
     void
     interpolate_zero_boundary_values(
-      const DoFHandlerType<dim, spacedim> &      dof_handler,
+      const DoFHandler<dim, spacedim> &          dof_handler,
       std::map<types::global_dof_index, number> &boundary_values)
     {
       // loop over all boundary faces
@@ -78,7 +75,7 @@ namespace VectorTools
       // that is actually wholly on
       // the boundary, not only by
       // one line or one vertex
-      typename DoFHandlerType<dim, spacedim>::active_cell_iterator
+      typename DoFHandler<dim, spacedim>::active_cell_iterator
         cell = dof_handler.begin_active(),
         endc = dof_handler.end();
       std::vector<types::global_dof_index> face_dof_indices;
@@ -86,10 +83,11 @@ namespace VectorTools
         for (auto f : GeometryInfo<dim>::face_indices())
           if (cell->at_boundary(f))
             {
-              face_dof_indices.resize(cell->get_fe().dofs_per_face);
+              face_dof_indices.resize(cell->get_fe().n_dofs_per_face(f));
               cell->face(f)->get_dof_indices(face_dof_indices,
                                              cell->active_fe_index());
-              for (unsigned int i = 0; i < cell->get_fe().dofs_per_face; ++i)
+              for (unsigned int i = 0; i < cell->get_fe().n_dofs_per_face(f);
+                   ++i)
                 // enter zero boundary values
                 // for all boundary nodes
                 //
@@ -105,14 +103,13 @@ namespace VectorTools
      */
     template <int dim,
               int spacedim,
-              template <int, int> class DoFHandlerType,
               template <int, int> class M_or_MC,
               template <int> class Q_or_QC,
               typename number>
     void
     project_compute_b_v(
       const M_or_MC<dim, spacedim> &             mapping,
-      const DoFHandlerType<dim, spacedim> &      dof,
+      const DoFHandler<dim, spacedim> &          dof,
       const Function<spacedim, number> &         function,
       const bool                                 enforce_zero_boundary,
       const Q_or_QC<dim - 1> &                   q_boundary,
@@ -149,15 +146,12 @@ namespace VectorTools
         }
     }
 
+
     /*
      * MatrixFree implementation of project() for an arbitrary number of
-     * components and arbitrary degree of the FiniteElement.
+     * components of the FiniteElement.
      */
-    template <int components,
-              int fe_degree,
-              int dim,
-              typename Number,
-              int spacedim>
+    template <int components, int dim, typename Number, int spacedim>
     void
     project_matrix_free(
       const Mapping<dim, spacedim> &   mapping,
@@ -182,9 +176,6 @@ namespace VectorTools
       Assert(dof.get_fe(0).n_components() == function.n_components,
              ExcDimensionMismatch(dof.get_fe(0).n_components(),
                                   function.n_components));
-      Assert(fe_degree == -1 ||
-               dof.get_fe().degree == static_cast<unsigned int>(fe_degree),
-             ExcDimensionMismatch(fe_degree, dof.get_fe().degree));
       Assert(dof.get_fe(0).n_components() == components,
              ExcDimensionMismatch(components, dof.get_fe(0).n_components()));
 
@@ -203,8 +194,8 @@ namespace VectorTools
                           additional_data);
       using MatrixType = MatrixFreeOperators::MassOperator<
         dim,
-        fe_degree,
-        fe_degree + 2,
+        -1,
+        0,
         components,
         LinearAlgebra::distributed::Vector<Number>>;
       MatrixType mass_matrix;
@@ -224,17 +215,16 @@ namespace VectorTools
 
         // account for inhomogeneous constraints
         inhomogeneities.update_ghost_values();
-        FEEvaluation<dim, fe_degree, fe_degree + 2, components, Number> phi(
-          *matrix_free);
+        FEEvaluation<dim, -1, 0, components, Number> phi(*matrix_free);
         for (unsigned int cell = 0; cell < matrix_free->n_macro_cells(); ++cell)
           {
             phi.reinit(cell);
             phi.read_dof_values_plain(inhomogeneities);
-            phi.evaluate(true, false);
+            phi.evaluate(EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               phi.submit_value(phi.get_value(q), q);
 
-            phi.integrate(true, false);
+            phi.integrate(EvaluationFlags::values);
             phi.distribute_local_to_global(rhs);
           }
         rhs.compress(VectorOperation::add);
@@ -253,81 +243,6 @@ namespace VectorTools
       work_result += inhomogeneities;
 
       constraints.distribute(work_result);
-    }
-
-
-
-    /**
-     * Helper interface. After figuring out the number of components in
-     * project_matrix_free_component, we determine the degree of the
-     * FiniteElement and call project_matrix_free with the appropriate
-     * template arguments.
-     */
-    template <int components, int dim, typename Number, int spacedim>
-    void
-    project_matrix_free_degree(
-      const Mapping<dim, spacedim> &   mapping,
-      const DoFHandler<dim, spacedim> &dof,
-      const AffineConstraints<Number> &constraints,
-      const Quadrature<dim> &          quadrature,
-      const Function<
-        spacedim,
-        typename LinearAlgebra::distributed::Vector<Number>::value_type>
-        &                                         function,
-      LinearAlgebra::distributed::Vector<Number> &work_result,
-      const bool                                  enforce_zero_boundary,
-      const Quadrature<dim - 1> &                 q_boundary,
-      const bool                                  project_to_boundary_first)
-    {
-      switch (dof.get_fe().degree)
-        {
-          case 1:
-            project_matrix_free<components, 1>(mapping,
-                                               dof,
-                                               constraints,
-                                               quadrature,
-                                               function,
-                                               work_result,
-                                               enforce_zero_boundary,
-                                               q_boundary,
-                                               project_to_boundary_first);
-            break;
-
-          case 2:
-            project_matrix_free<components, 2>(mapping,
-                                               dof,
-                                               constraints,
-                                               quadrature,
-                                               function,
-                                               work_result,
-                                               enforce_zero_boundary,
-                                               q_boundary,
-                                               project_to_boundary_first);
-            break;
-
-          case 3:
-            project_matrix_free<components, 3>(mapping,
-                                               dof,
-                                               constraints,
-                                               quadrature,
-                                               function,
-                                               work_result,
-                                               enforce_zero_boundary,
-                                               q_boundary,
-                                               project_to_boundary_first);
-            break;
-
-          default:
-            project_matrix_free<components, -1>(mapping,
-                                                dof,
-                                                constraints,
-                                                quadrature,
-                                                function,
-                                                work_result,
-                                                enforce_zero_boundary,
-                                                q_boundary,
-                                                project_to_boundary_first);
-        }
     }
 
 
@@ -353,51 +268,51 @@ namespace VectorTools
       switch (dof.get_fe(0).n_components())
         {
           case 1:
-            project_matrix_free_degree<1>(mapping,
-                                          dof,
-                                          constraints,
-                                          quadrature,
-                                          function,
-                                          work_result,
-                                          enforce_zero_boundary,
-                                          q_boundary,
-                                          project_to_boundary_first);
+            project_matrix_free<1>(mapping,
+                                   dof,
+                                   constraints,
+                                   quadrature,
+                                   function,
+                                   work_result,
+                                   enforce_zero_boundary,
+                                   q_boundary,
+                                   project_to_boundary_first);
             break;
 
           case 2:
-            project_matrix_free_degree<2>(mapping,
-                                          dof,
-                                          constraints,
-                                          quadrature,
-                                          function,
-                                          work_result,
-                                          enforce_zero_boundary,
-                                          q_boundary,
-                                          project_to_boundary_first);
+            project_matrix_free<2>(mapping,
+                                   dof,
+                                   constraints,
+                                   quadrature,
+                                   function,
+                                   work_result,
+                                   enforce_zero_boundary,
+                                   q_boundary,
+                                   project_to_boundary_first);
             break;
 
           case 3:
-            project_matrix_free_degree<3>(mapping,
-                                          dof,
-                                          constraints,
-                                          quadrature,
-                                          function,
-                                          work_result,
-                                          enforce_zero_boundary,
-                                          q_boundary,
-                                          project_to_boundary_first);
+            project_matrix_free<3>(mapping,
+                                   dof,
+                                   constraints,
+                                   quadrature,
+                                   function,
+                                   work_result,
+                                   enforce_zero_boundary,
+                                   q_boundary,
+                                   project_to_boundary_first);
             break;
 
           case 4:
-            project_matrix_free_degree<4>(mapping,
-                                          dof,
-                                          constraints,
-                                          quadrature,
-                                          function,
-                                          work_result,
-                                          enforce_zero_boundary,
-                                          q_boundary,
-                                          project_to_boundary_first);
+            project_matrix_free<4>(mapping,
+                                   dof,
+                                   constraints,
+                                   quadrature,
+                                   function,
+                                   work_result,
+                                   enforce_zero_boundary,
+                                   q_boundary,
+                                   project_to_boundary_first);
             break;
 
           default:
@@ -480,13 +395,12 @@ namespace VectorTools
     template <int dim,
               int spacedim,
               typename VectorType,
-              template <int, int> class DoFHandlerType,
               template <int, int> class M_or_MC,
               template <int> class Q_or_QC>
     void
     do_project(
       const M_or_MC<dim, spacedim> &                             mapping,
-      const DoFHandlerType<dim, spacedim> &                      dof,
+      const DoFHandler<dim, spacedim> &                          dof,
       const AffineConstraints<typename VectorType::value_type> & constraints,
       const Q_or_QC<dim> &                                       quadrature,
       const Function<spacedim, typename VectorType::value_type> &function,
@@ -584,7 +498,7 @@ namespace VectorTools
                                                            vec_result);
     }
 
-    template <int dim, typename VectorType, int spacedim, int fe_degree>
+    template <int dim, typename VectorType, int spacedim>
     void
     project_parallel(
       const Mapping<dim, spacedim> &                            mapping,
@@ -601,9 +515,6 @@ namespace VectorTools
              ExcDimensionMismatch(dof.get_fe(0).n_components(), 1));
       Assert(vec_result.size() == dof.n_dofs(),
              ExcDimensionMismatch(vec_result.size(), dof.n_dofs()));
-      Assert(fe_degree == -1 ||
-               dof.get_fe().degree == static_cast<unsigned int>(fe_degree),
-             ExcDimensionMismatch(fe_degree, dof.get_fe().degree));
 
       // set up mass matrix and right hand side
       typename MatrixFree<dim, Number>::AdditionalData additional_data;
@@ -618,12 +529,8 @@ namespace VectorTools
                           constraints,
                           QGauss<1>(dof.get_fe().degree + 2),
                           additional_data);
-      using MatrixType = MatrixFreeOperators::MassOperator<
-        dim,
-        fe_degree,
-        fe_degree + 2,
-        1,
-        LinearAlgebra::distributed::Vector<Number>>;
+      using MatrixType = MatrixFreeOperators::
+        MassOperator<dim, -1, 0, 1, LinearAlgebra::distributed::Vector<Number>>;
       MatrixType mass_matrix;
       mass_matrix.initialize(matrix_free);
       mass_matrix.compute_diagonal();
@@ -643,7 +550,7 @@ namespace VectorTools
                                 quadrature,
                                 update_values | update_JxW_values);
 
-        const unsigned int dofs_per_cell = dof.get_fe().dofs_per_cell;
+        const unsigned int dofs_per_cell = dof.get_fe().n_dofs_per_cell();
         const unsigned int n_q_points    = quadrature.size();
         Vector<Number>     cell_rhs(dofs_per_cell);
         std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
@@ -699,11 +606,7 @@ namespace VectorTools
 
 
 
-    template <int dim,
-              typename VectorType,
-              int spacedim,
-              int fe_degree,
-              int n_q_points_1d>
+    template <int dim, typename VectorType, int spacedim>
     void
     project_parallel(
       std::shared_ptr<const MatrixFree<dim, typename VectorType::value_type>>
@@ -723,16 +626,9 @@ namespace VectorTools
              ExcDimensionMismatch(dof.get_fe(0).n_components(), 1));
       Assert(vec_result.size() == dof.n_dofs(),
              ExcDimensionMismatch(vec_result.size(), dof.n_dofs()));
-      Assert(fe_degree == -1 ||
-               dof.get_fe().degree == static_cast<unsigned int>(fe_degree),
-             ExcDimensionMismatch(fe_degree, dof.get_fe().degree));
 
-      using MatrixType = MatrixFreeOperators::MassOperator<
-        dim,
-        fe_degree,
-        n_q_points_1d,
-        1,
-        LinearAlgebra::distributed::Vector<Number>>;
+      using MatrixType = MatrixFreeOperators::
+        MassOperator<dim, -1, 0, 1, LinearAlgebra::distributed::Vector<Number>>;
       MatrixType mass_matrix;
       mass_matrix.initialize(matrix_free, {fe_component});
       mass_matrix.compute_diagonal();
@@ -747,9 +643,8 @@ namespace VectorTools
 
       // assemble right hand side:
       {
-        FEEvaluation<dim, fe_degree, n_q_points_1d, 1, Number> fe_eval(
-          *matrix_free, fe_component);
-        const unsigned int n_cells    = matrix_free->n_macro_cells();
+        FEEvaluation<dim, -1, 0, 1, Number> fe_eval(*matrix_free, fe_component);
+        const unsigned int n_cells    = matrix_free->n_cell_batches();
         const unsigned int n_q_points = fe_eval.n_q_points;
 
         for (unsigned int cell = 0; cell < n_cells; ++cell)
@@ -758,7 +653,7 @@ namespace VectorTools
             for (unsigned int q = 0; q < n_q_points; ++q)
               fe_eval.submit_value(func(cell, q), q);
 
-            fe_eval.integrate(true, false);
+            fe_eval.integrate(EvaluationFlags::values);
             fe_eval.distribute_local_to_global(rhs);
           }
         rhs.compress(VectorOperation::add);
@@ -811,7 +706,8 @@ namespace VectorTools
       // If we can, use the matrix-free implementation
       bool use_matrix_free =
         MatrixFree<dim, typename VectorType::value_type>::is_supported(
-          dof.get_fe());
+          dof.get_fe()) &&
+        dof.get_fe().n_base_elements() == 1;
 
       // enforce_zero_boundary and project_to_boundary_first
       // are not yet supported.
@@ -860,24 +756,8 @@ namespace VectorTools
             const unsigned int)> &                                  func,
           VectorType &                                              vec_result)
   {
-    switch (dof.get_fe().degree)
-      {
-        case 1:
-          internal::project_parallel<dim, VectorType, spacedim, 1>(
-            mapping, dof, constraints, quadrature, func, vec_result);
-          break;
-        case 2:
-          internal::project_parallel<dim, VectorType, spacedim, 2>(
-            mapping, dof, constraints, quadrature, func, vec_result);
-          break;
-        case 3:
-          internal::project_parallel<dim, VectorType, spacedim, 3>(
-            mapping, dof, constraints, quadrature, func, vec_result);
-          break;
-        default:
-          internal::project_parallel<dim, VectorType, spacedim, -1>(
-            mapping, dof, constraints, quadrature, func, vec_result);
-      }
+    internal::project_parallel<dim, VectorType, spacedim>(
+      mapping, dof, constraints, quadrature, func, vec_result);
   }
 
 
@@ -889,38 +769,15 @@ namespace VectorTools
             typename VectorType::value_type,
             VectorizedArray<typename VectorType::value_type>>>      matrix_free,
           const AffineConstraints<typename VectorType::value_type> &constraints,
-          const unsigned int      n_q_points_1d,
+          const unsigned int,
           const std::function<VectorizedArray<typename VectorType::value_type>(
             const unsigned int,
             const unsigned int)> &func,
           VectorType &            vec_result,
           const unsigned int      fe_component)
   {
-    const unsigned int fe_degree =
-      matrix_free->get_dof_handler(fe_component).get_fe().degree;
-
-    if (fe_degree + 1 == n_q_points_1d)
-      switch (fe_degree)
-        {
-          case 1:
-            internal::project_parallel<dim, VectorType, dim, 1, 2>(
-              matrix_free, constraints, func, vec_result, fe_component);
-            break;
-          case 2:
-            internal::project_parallel<dim, VectorType, dim, 2, 3>(
-              matrix_free, constraints, func, vec_result, fe_component);
-            break;
-          case 3:
-            internal::project_parallel<dim, VectorType, dim, 3, 4>(
-              matrix_free, constraints, func, vec_result, fe_component);
-            break;
-          default:
-            internal::project_parallel<dim, VectorType, dim, -1, 0>(
-              matrix_free, constraints, func, vec_result, fe_component);
-        }
-    else
-      internal::project_parallel<dim, VectorType, dim, -1, 0>(
-        matrix_free, constraints, func, vec_result, fe_component);
+    internal::project_parallel<dim, VectorType, dim>(
+      matrix_free, constraints, func, vec_result, fe_component);
   }
 
 
@@ -1035,7 +892,7 @@ namespace VectorTools
   template <int dim, typename VectorType, int spacedim>
   void
   project(const hp::MappingCollection<dim, spacedim> &              mapping,
-          const hp::DoFHandler<dim, spacedim> &                     dof,
+          const DoFHandler<dim, spacedim> &                         dof,
           const AffineConstraints<typename VectorType::value_type> &constraints,
           const hp::QCollection<dim> &                              quadrature,
           const Function<spacedim, typename VectorType::value_type> &function,
@@ -1062,7 +919,7 @@ namespace VectorTools
 
   template <int dim, typename VectorType, int spacedim>
   void
-  project(const hp::DoFHandler<dim, spacedim> &                     dof,
+  project(const DoFHandler<dim, spacedim> &                         dof,
           const AffineConstraints<typename VectorType::value_type> &constraints,
           const hp::QCollection<dim> &                              quadrature,
           const Function<spacedim, typename VectorType::value_type> &function,

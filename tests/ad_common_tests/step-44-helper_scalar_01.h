@@ -874,7 +874,7 @@ namespace Step44
     const QGauss<dim - 1>                qf_face;
     const unsigned int                   n_q_points;
     const unsigned int                   n_q_points_f;
-    ConstraintMatrix                     constraints;
+    AffineConstraints<double>            constraints;
     BlockSparsityPattern                 sparsity_pattern;
     BlockSparseMatrix<double>            tangent_matrix;
     BlockVector<double>                  system_rhs;
@@ -966,7 +966,7 @@ namespace Step44
     make_grid();
     system_setup();
     {
-      ConstraintMatrix constraints;
+      AffineConstraints<double> constraints;
       constraints.close();
       const ComponentSelectFunction<dim> J_mask(J_component, n_components);
       VectorTools::project(dof_handler_ref,
@@ -1874,14 +1874,14 @@ namespace Step44
         VectorTools::interpolate_boundary_values(
           dof_handler_ref,
           boundary_id,
-          ZeroFunction<dim>(n_components),
+          Functions::ZeroFunction<dim>(n_components),
           constraints,
           fe.component_mask(x_displacement));
       else
         VectorTools::interpolate_boundary_values(
           dof_handler_ref,
           boundary_id,
-          ZeroFunction<dim>(n_components),
+          Functions::ZeroFunction<dim>(n_components),
           constraints,
           fe.component_mask(x_displacement));
     }
@@ -1891,14 +1891,14 @@ namespace Step44
         VectorTools::interpolate_boundary_values(
           dof_handler_ref,
           boundary_id,
-          ZeroFunction<dim>(n_components),
+          Functions::ZeroFunction<dim>(n_components),
           constraints,
           fe.component_mask(y_displacement));
       else
         VectorTools::interpolate_boundary_values(
           dof_handler_ref,
           boundary_id,
-          ZeroFunction<dim>(n_components),
+          Functions::ZeroFunction<dim>(n_components),
           constraints,
           fe.component_mask(y_displacement));
     }
@@ -1911,7 +1911,7 @@ namespace Step44
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement) |
                fe.component_mask(z_displacement)));
@@ -1919,7 +1919,7 @@ namespace Step44
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement) |
                fe.component_mask(z_displacement)));
@@ -1930,14 +1930,14 @@ namespace Step44
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               fe.component_mask(z_displacement));
           else
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               fe.component_mask(z_displacement));
         }
@@ -1947,7 +1947,7 @@ namespace Step44
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement) |
                fe.component_mask(z_displacement)));
@@ -1955,7 +1955,7 @@ namespace Step44
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement) |
                fe.component_mask(z_displacement)));
@@ -1969,14 +1969,14 @@ namespace Step44
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement)));
           else
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement)));
         }
@@ -1986,14 +1986,14 @@ namespace Step44
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement)));
           else
             VectorTools::interpolate_boundary_values(
               dof_handler_ref,
               boundary_id,
-              ZeroFunction<dim>(n_components),
+              Functions::ZeroFunction<dim>(n_components),
               constraints,
               (fe.component_mask(x_displacement)));
         }

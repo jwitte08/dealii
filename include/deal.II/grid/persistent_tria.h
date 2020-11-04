@@ -103,7 +103,6 @@ DEAL_II_NAMESPACE_OPEN
  * restore().
  *
  * @ingroup grid
- * @author Wolfgang Bangerth, 1999
  */
 template <int dim, int spacedim = dim>
 class PersistentTriangulation : public Triangulation<dim, spacedim>
@@ -202,10 +201,10 @@ public:
                        const std::vector<CellData<dim>> &  cells,
                        const SubCellData &subcelldata) override;
 
-  /*
+  /**
    * @copydoc Triangulation::create_triangulation()
    *
-   * @note Not inmplemented yet.
+   * @note Not implemented yet.
    */
   virtual void
   create_triangulation(

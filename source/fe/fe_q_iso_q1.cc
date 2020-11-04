@@ -50,8 +50,8 @@ FE_Q_iso_Q1<dim, spacedim>::FE_Q_iso_Q1(const unsigned int subdivisions)
          ExcMessage("This element can only be used with a positive number of "
                     "subelements"));
 
-  QTrapez<1>   trapez;
-  QIterated<1> points(trapez, subdivisions);
+  QTrapezoid<1> trapez;
+  QIterated<1>  points(trapez, subdivisions);
 
   this->initialize(points.get_points());
 }
@@ -84,9 +84,9 @@ FE_Q_iso_Q1<dim, spacedim>::
   AssertDimension(support_point_values.size(),
                   this->get_unit_support_points().size());
   AssertDimension(support_point_values.size(), nodal_values.size());
-  AssertDimension(this->dofs_per_cell, nodal_values.size());
+  AssertDimension(this->n_dofs_per_cell(), nodal_values.size());
 
-  for (unsigned int i = 0; i < this->dofs_per_cell; ++i)
+  for (unsigned int i = 0; i < this->n_dofs_per_cell(); ++i)
     {
       AssertDimension(support_point_values[i].size(), 1);
 

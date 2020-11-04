@@ -243,7 +243,7 @@ do_test(const std::vector<const DoFHandler<dim> *> &dof)
     DoFTools::extract_locally_relevant_dofs(*dof[i], locally_relevant_dofs[i]);
 
   // Dirichlet BC
-  ZeroFunction<dim>                                   zero_function;
+  Functions::ZeroFunction<dim>                        zero_function;
   std::map<types::boundary_id, const Function<dim> *> dirichlet_boundary;
   dirichlet_boundary[0] = &zero_function;
 
@@ -316,7 +316,10 @@ do_test(const std::vector<const DoFHandler<dim> *> &dof)
   // level constraints:
   std::vector<MGConstrainedDoFs> mg_constrained_dofs(dof.size());
   for (unsigned int i = 0; i < dof.size(); ++i)
-    mg_constrained_dofs[i].initialize(*dof[i], dirichlet_boundary);
+    {
+      mg_constrained_dofs[i].initialize(*dof[i]);
+      mg_constrained_dofs[i].make_zero_boundary_constraints(*dof[i], {0});
+    }
 
   // set up multigrid in analogy to step-37
   typedef BlockLaplace<dim,

@@ -36,6 +36,13 @@
 
 DEAL_II_NAMESPACE_OPEN
 
+#ifdef signals
+#  error \
+    "The name 'signals' is already defined. You are most likely using the QT library \
+and using the 'signals' keyword. You can either #include the Qt headers (or any conflicting headers) \
+*after* the deal.II headers or you can define the 'QT_NO_KEYWORDS' macro and use the 'Q_SIGNALS' macro."
+#endif
+
 /*!@addtogroup mg */
 /*@{*/
 
@@ -130,8 +137,6 @@ namespace mg
  * will have to set up quite a few auxiliary objects before you can use it.
  * Unfortunately, it seems that this can be avoided only be restricting the
  * flexibility of this class in an unacceptable way.
- *
- * @author Guido Kanschat, 1999 - 2005
  */
 template <typename VectorType>
 class Multigrid : public Subscriptor
@@ -447,8 +452,6 @@ private:
  * If VectorType is in fact a block vector and the TRANSFER object supports
  * use of a separate DoFHandler for each block, this class also allows
  * to be initialized with a separate DoFHandler for each block.
- *
- * @author Guido Kanschat, Daniel Arndt, 1999, 2000, 2001, 2002, 2017
  */
 template <int dim, typename VectorType, class TRANSFER>
 class PreconditionMG : public Subscriptor

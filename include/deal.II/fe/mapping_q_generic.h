@@ -20,6 +20,7 @@
 #include <deal.II/base/config.h>
 
 #include <deal.II/base/derivative_form.h>
+#include <deal.II/base/polynomial.h>
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/table.h>
 #include <deal.II/base/vectorization.h>
@@ -128,8 +129,6 @@ class MappingQCache;
  * qualities if the transition between curved boundaries and flat interior
  * domains is spread over a larger range as the mesh is refined. This is
  * provided by the special manifold TransfiniteInterpolationManifold.
- *
- * @author Wolfgang Bangerth, 2015, Martin Kronbichler, 2017
  */
 template <int dim, int spacedim = dim>
 class MappingQGeneric : public Mapping<dim, spacedim>
@@ -181,6 +180,13 @@ public:
   transform_real_to_unit_cell(
     const typename Triangulation<dim, spacedim>::cell_iterator &cell,
     const Point<spacedim> &p) const override;
+
+  // for documentation, see the Mapping base class
+  virtual void
+  transform_points_real_to_unit_cell(
+    const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+    const ArrayView<const Point<spacedim>> &                    real_points,
+    const ArrayView<Point<dim>> &unit_points) const override;
 
   /**
    * @}
@@ -297,7 +303,6 @@ public:
     void
     compute_shape_function_values(const std::vector<Point<dim>> &unit_points);
 
-
     /**
      * Shape function at quadrature point. Shape functions are in tensor
      * product order, so vertices must be reordered to obtain transformation.
@@ -410,7 +415,7 @@ public:
      * Unit tangential vectors. Used for the computation of boundary forms and
      * normal vectors.
      *
-     * This array has (dim-1)*GeometryInfo%<dim%>::%faces_per_cell entries. The
+     * This array has `(dim-1) * GeometryInfo::faces_per_cell` entries. The
      * first GeometryInfo::faces_per_cell contain the vectors in the first
      * tangential direction for each face; the second set of
      * GeometryInfo::faces_per_cell entries contain the vectors in the second
@@ -599,15 +604,40 @@ protected:
   const unsigned int polynomial_degree;
 
   /*
-   * The default line support points. These are used when computing
-   * the location in real space of the support points on lines and
-   * quads, which are asked to the Manifold<dim,spacedim> class.
+   * The default line support points. These are used when computing the
+   * location in real space of the support points on lines and quads, which
+   * are needed by the Manifold<dim,spacedim> class.
    *
-   * The number of quadrature points depends on the degree of this
-   * class, and it matches the number of degrees of freedom of an
-   * FE_Q<1>(this->degree).
+   * The number of points depends on the degree of this class, and it matches
+   * the number of degrees of freedom of an FE_Q<1>(this->degree).
    */
-  QGaussLobatto<1> line_support_points;
+  const std::vector<Point<1>> line_support_points;
+
+  /*
+   * The one-dimensional polynomials defined as Lagrange polynomials from the
+   * line support points. These are used for point evaluations and match the
+   * polynomial space of an FE_Q<1>(this->degree).
+   */
+  const std::vector<Polynomials::Polynomial<double>> polynomials_1d;
+
+  /*
+   * The numbering from the lexicographic to the hierarchical ordering used
+   * when expanding the tensor product with the mapping support points (which
+   * come in hierarchical numbers).
+   */
+  const std::vector<unsigned int> renumber_lexicographic_to_hierarchic;
+
+  /*
+   * The support points in reference coordinates. These are used for
+   * constructing approximations of the output of
+   * compute_mapping_support_points() when evaluating the mapping on the fly,
+   * rather than going through the FEValues interface provided by
+   * InternalData.
+   *
+   * The number of points depends on the degree of this class, and it matches
+   * the number of degrees of freedom of an FE_Q<dim>(this->degree).
+   */
+  const std::vector<Point<dim>> unit_cell_support_points;
 
   /**
    * A vector of tables of weights by which we multiply the locations of the
@@ -628,7 +658,8 @@ protected:
    * For the definition of this table see equation (8) of the `mapping'
    * report.
    */
-  std::vector<Table<2, double>> support_point_weights_perimeter_to_interior;
+  const std::vector<Table<2, double>>
+    support_point_weights_perimeter_to_interior;
 
   /**
    * A table of weights by which we multiply the locations of the vertex
@@ -642,7 +673,7 @@ protected:
    * in 2D, 8 in 3D), and as many rows as there are additional support points
    * in the mapping, i.e., <code>(degree+1)^dim - 2^dim</code>.
    */
-  Table<2, double> support_point_weights_cell;
+  const Table<2, double> support_point_weights_cell;
 
   /**
    * Return the locations of support points for the mapping. For example, for

@@ -44,6 +44,9 @@ namespace PETScWrappers
 
 namespace SLEPcWrappers
 {
+  // forward declaration
+  class SolverBase;
+
   /**
    * Base class for spectral transformation classes using the SLEPc solvers
    * which are selected based on flags passed to the spectral transformation.
@@ -69,7 +72,6 @@ namespace SLEPcWrappers
    * @note These options can also be set at the command line.
    *
    * @ingroup SLEPcWrappers
-   * @author Toby D. Young 2009, 2013; and Denis Davydov 2015.
    */
   class TransformationBase
   {
@@ -118,7 +120,6 @@ namespace SLEPcWrappers
    * An implementation of the transformation interface using the SLEPc Shift.
    *
    * @ingroup SLEPcWrappers
-   * @author Toby D. Young 2009
    */
   class TransformationShift : public TransformationBase
   {
@@ -159,7 +160,6 @@ namespace SLEPcWrappers
    * and Invert.
    *
    * @ingroup SLEPcWrappers
-   * @author Toby D. Young 2009
    */
   class TransformationShiftInvert : public TransformationBase
   {
@@ -204,7 +204,6 @@ namespace SLEPcWrappers
    * 3.5.0 and thus cannot be used in the newer versions.
    *
    * @ingroup SLEPcWrappers
-   * @author Toby D. Young 2009
    */
   class TransformationSpectrumFolding : public TransformationBase
   {
@@ -244,7 +243,6 @@ namespace SLEPcWrappers
    * An implementation of the transformation interface using the SLEPc Cayley.
    *
    * @ingroup SLEPcWrappers
-   * @author Toby D. Young 2009
    */
   class TransformationCayley : public TransformationBase
   {

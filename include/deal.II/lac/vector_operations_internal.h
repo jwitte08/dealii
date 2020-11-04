@@ -20,6 +20,7 @@
 #include <deal.II/base/config.h>
 
 #include <deal.II/base/memory_space.h>
+#include <deal.II/base/memory_space_data.h>
 #include <deal.II/base/multithread_info.h>
 #include <deal.II/base/parallel.h>
 #include <deal.II/base/types.h>
@@ -89,7 +90,7 @@ namespace internal
 
 
 
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
     /**
      * This struct takes the loop range from the tbb parallel for loop and
      * translates it to the actual ranges of the for loop within the vector. It
@@ -153,7 +154,7 @@ namespace internal
       const std::shared_ptr<::dealii::parallel::internal::TBBPartitioner>
         &partitioner)
     {
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
       const size_type vec_size = end - start;
       // only go to the parallel function in case there are at least 4 parallel
       // items, otherwise the overhead is too large
@@ -1229,7 +1230,7 @@ namespace internal
 
 
 
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
     /**
      * This struct takes the loop range from the tbb parallel for loop and
      * translates it to the actual ranges of the reduction loop inside the
@@ -1358,7 +1359,7 @@ namespace internal
       const std::shared_ptr<::dealii::parallel::internal::TBBPartitioner>
         &partitioner)
     {
-#ifdef DEAL_II_WITH_THREADS
+#ifdef DEAL_II_WITH_TBB
       const size_type vec_size = end - start;
       // only go to the parallel function in case there are at least 4 parallel
       // items, otherwise the overhead is too large

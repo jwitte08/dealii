@@ -37,6 +37,12 @@ class InterGridMap;
 template <int dim, int spacedim>
 class Mapping;
 
+namespace hp
+{
+  template <int dim, int spacedim>
+  class MappingCollection;
+}
+
 namespace VectorTools
 {
   /**
@@ -55,37 +61,38 @@ namespace VectorTools
    * with the hanging nodes from space @p dof afterwards, to make the result
    * continuous again.
    *
-   * The template argument <code>DoFHandlerType</code> may either be of type
-   * DoFHandler or hp::DoFHandler.
-   *
    * See the general documentation of this namespace for further information.
-   *
-   * @todo The @p mapping argument should be replaced by a
-   * hp::MappingCollection in case of a hp::DoFHandler.
    */
-  template <int dim,
-            int spacedim,
-            typename VectorType,
-            template <int, int> class DoFHandlerType>
+  template <int dim, int spacedim, typename VectorType>
   void
   interpolate(
     const Mapping<dim, spacedim> &                             mapping,
-    const DoFHandlerType<dim, spacedim> &                      dof,
+    const DoFHandler<dim, spacedim> &                          dof,
     const Function<spacedim, typename VectorType::value_type> &function,
     VectorType &                                               vec,
     const ComponentMask &component_mask = ComponentMask());
 
   /**
-   * Call the @p interpolate() function above with
-   * <tt>mapping=MappingQGeneric1@<dim>@()</tt>.
+   * Same as above but in an hp context.
    */
-  template <int dim,
-            int spacedim,
-            typename VectorType,
-            template <int, int> class DoFHandlerType>
+  template <int dim, int spacedim, typename VectorType>
   void
   interpolate(
-    const DoFHandlerType<dim, spacedim> &                      dof,
+    const hp::MappingCollection<dim, spacedim> &               mapping,
+    const DoFHandler<dim, spacedim> &                          dof,
+    const Function<spacedim, typename VectorType::value_type> &function,
+    VectorType &                                               vec,
+    const ComponentMask &component_mask = ComponentMask());
+
+
+  /**
+   * Call the @p interpolate() function above with
+   * <tt>mapping=MappingQGeneric@<dim,spacedim@>(1)</tt>.
+   */
+  template <int dim, int spacedim, typename VectorType>
+  void
+  interpolate(
+    const DoFHandler<dim, spacedim> &                          dof,
     const Function<spacedim, typename VectorType::value_type> &function,
     VectorType &                                               vec,
     const ComponentMask &component_mask = ComponentMask());
@@ -161,17 +168,12 @@ namespace VectorTools
    * these objects separately (the order depends on what you want to get
    * between cells), then each subsequent call will rewrite the intercell @p
    * dofs of the previous one.
-   *
-   * @author Valentin Zingan, 2013
    */
-  template <int dim,
-            int spacedim,
-            typename VectorType,
-            template <int, int> class DoFHandlerType>
+  template <int dim, int spacedim, typename VectorType>
   void
   interpolate_based_on_material_id(
-    const Mapping<dim, spacedim> &       mapping,
-    const DoFHandlerType<dim, spacedim> &dof_handler,
+    const Mapping<dim, spacedim> &   mapping,
+    const DoFHandler<dim, spacedim> &dof_handler,
     const std::map<types::material_id,
                    const Function<spacedim, typename VectorType::value_type> *>
       &                  function_map,
@@ -202,15 +204,12 @@ namespace VectorTools
    * parallel::distributed::Triangulation<dim>::no_automatic_repartitioning
    * flag).
    */
-  template <int dim,
-            int spacedim,
-            typename VectorType,
-            template <int, int> class DoFHandlerType>
+  template <int dim, int spacedim, typename VectorType>
   void
-  interpolate_to_different_mesh(const DoFHandlerType<dim, spacedim> &dof1,
-                                const VectorType &                   u1,
-                                const DoFHandlerType<dim, spacedim> &dof2,
-                                VectorType &                         u2);
+  interpolate_to_different_mesh(const DoFHandler<dim, spacedim> &dof1,
+                                const VectorType &               u1,
+                                const DoFHandler<dim, spacedim> &dof2,
+                                VectorType &                     u2);
 
   /**
    * Compute the interpolation of a @p dof1-function @p u1 to a @p dof2-function
@@ -225,15 +224,12 @@ namespace VectorTools
    * Without it - due to cellwise interpolation - the resulting output vector
    * does not necessarily respect continuity requirements at hanging nodes.
    */
-  template <int dim,
-            int spacedim,
-            typename VectorType,
-            template <int, int> class DoFHandlerType>
+  template <int dim, int spacedim, typename VectorType>
   void
   interpolate_to_different_mesh(
-    const DoFHandlerType<dim, spacedim> &                     dof1,
+    const DoFHandler<dim, spacedim> &                         dof1,
     const VectorType &                                        u1,
-    const DoFHandlerType<dim, spacedim> &                     dof2,
+    const DoFHandler<dim, spacedim> &                         dof2,
     const AffineConstraints<typename VectorType::value_type> &constraints,
     VectorType &                                              u2);
 
@@ -244,13 +240,10 @@ namespace VectorTools
    * @p intergridmap has to be initialized via InterGridMap::make_mapping
    * pointing from a source DoFHandler to a destination DoFHandler.
    */
-  template <int dim,
-            int spacedim,
-            typename VectorType,
-            template <int, int> class DoFHandlerType>
+  template <int dim, int spacedim, typename VectorType>
   void
   interpolate_to_different_mesh(
-    const InterGridMap<DoFHandlerType<dim, spacedim>> &       intergridmap,
+    const InterGridMap<DoFHandler<dim, spacedim>> &           intergridmap,
     const VectorType &                                        u1,
     const AffineConstraints<typename VectorType::value_type> &constraints,
     VectorType &                                              u2);
@@ -284,17 +277,12 @@ namespace VectorTools
    *
    * This function is only implemented for FiniteElements where the specified
    * components are primitive.
-   *
-   * @author Luca Heltai, 2015
    */
-  template <int dim,
-            int spacedim,
-            template <int, int> class DoFHandlerType,
-            typename VectorType>
+  template <int dim, int spacedim, typename VectorType>
   void
-  get_position_vector(const DoFHandlerType<dim, spacedim> &dh,
-                      VectorType &                         vector,
-                      const ComponentMask &mask = ComponentMask());
+  get_position_vector(const DoFHandler<dim, spacedim> &dh,
+                      VectorType &                     vector,
+                      const ComponentMask &            mask = ComponentMask());
 
   //@}
 } // namespace VectorTools

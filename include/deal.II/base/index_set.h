@@ -50,7 +50,7 @@ DEAL_II_NAMESPACE_OPEN
 /**
  * A class that represents a subset of indices among a larger set. For
  * example, it can be used to denote the set of degrees of freedom within the
- * range $[0,\text{dof\_handler.n\_dofs})$ that belongs to a particular
+ * range $[0,\mathrm{dof\_handler.n\_dofs()})$ that belongs to a particular
  * subdomain, or those among all degrees of freedom that are stored on a
  * particular processor in a distributed parallel computation.
  *
@@ -68,8 +68,6 @@ DEAL_II_NAMESPACE_OPEN
  * The data structures used in this class along with a rationale can be found
  * in the
  * @ref distributed_paper "Distributed Computing paper".
- *
- * @author Wolfgang Bangerth, 2009
  */
 class IndexSet
 {
@@ -348,7 +346,6 @@ public:
    * Split the set indices represented by this object into blocks given by the
    * @p n_indices_per_block structure. The sum of its entries must match the
    * global size of the current object.
-   *
    */
   std::vector<IndexSet>
   split_by_block(
