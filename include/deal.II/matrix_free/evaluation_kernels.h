@@ -821,7 +821,7 @@ namespace internal
                           dim,
                           fe_degree,
                           n_q_points_1d,
-                          dim,
+                          // dim,
                           Number>
   {
     static void

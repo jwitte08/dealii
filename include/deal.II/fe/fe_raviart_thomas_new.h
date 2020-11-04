@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2018 by the deal.II authors
+// Copyright (C) 2003 - 2019 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -270,8 +270,6 @@ DEAL_II_NAMESPACE_OPEN
  * @note The degree stored in the member variable
  * FiniteElementData<dim>::degree is higher by one than the constructor
  * argument!
- *
- * @author Guido Kanschat, 2005, Zhu Liang, 2008
  */
 template <int dim>
 class FE_RaviartThomasNodal_new : public FE_PolyTensor<dim>
@@ -301,12 +299,15 @@ public:
 
   virtual void
   get_face_interpolation_matrix(const FiniteElement<dim> &source,
-                                FullMatrix<double> &matrix) const override;
+                                FullMatrix<double> &      matrix,
+                                const unsigned int face_no = 0) const override;
 
   virtual void
-  get_subface_interpolation_matrix(const FiniteElement<dim> &source,
-                                   const unsigned int        subface,
-                                   FullMatrix<double> &matrix) const override;
+  get_subface_interpolation_matrix(
+    const FiniteElement<dim> &source,
+    const unsigned int        subface,
+    FullMatrix<double> &      matrix,
+    const unsigned int        face_no = 0) const override;
   virtual bool
   hp_constraints_are_implemented() const override;
 
@@ -317,7 +318,8 @@ public:
   hp_line_dof_identities(const FiniteElement<dim> &fe_other) const override;
 
   virtual std::vector<std::pair<unsigned int, unsigned int>>
-  hp_quad_dof_identities(const FiniteElement<dim> &fe_other) const override;
+  hp_quad_dof_identities(const FiniteElement<dim> &fe_other,
+                         const unsigned int        face_no = 0) const override;
 
   /**
    * @copydoc FiniteElement::compare_for_domination()
