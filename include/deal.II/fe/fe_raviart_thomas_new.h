@@ -338,8 +338,18 @@ public:
                   Quadrature<1>                                     quad) const
   {
     using namespace internal::MatrixFreeFunctions;
-    UnivariateShapeData<Number> lower;
-    UnivariateShapeData<Number> higher;
+
+    /// to be on the safe side set shape_info to its default
+    shape_info = internal::MatrixFreeFunctions::ShapeInfo<Number>{};
+
+    AssertDimension(shape_info.data.size(), 0U); // double-check
+    shape_info.data.reserve(2U);
+    /// c++17: auto & higher = shape_info.data.emplace_back();
+    shape_info.data.emplace_back();
+    shape_info.data.emplace_back();
+    UnivariateShapeData<Number> &higher = shape_info.data.front();
+    UnivariateShapeData<Number> &lower  = shape_info.data.back();
+
     lower.element_type              = tensor_symmetric;
     higher.element_type             = tensor_symmetric;
     lower.fe_degree                 = nodal_basis_of_low.size() - 1;
@@ -421,9 +431,7 @@ public:
           nodal_basis_of_high[i].derivative().derivative().value(1);
       }
 
-    shape_info.data.emplace_back(higher);
-    shape_info.data.emplace_back(lower);
-    shape_info.lexicographic_numbering = lexicographic_transformation;
+    shape_info.lexicographic_numbering = inverse_lexicographic_transformation;
     shape_info.element_type            = raviart_thomas;
     shape_info.n_dimensions            = dim;
     shape_info.n_components            = dim;
