@@ -62,7 +62,7 @@ DEAL_II_NAMESPACE_OPEN
  * @ref GlossPrimitive "not a primitive element"; (ii) the shape functions
  * are defined so that certain integrals over the faces are either zero
  * or one, rather than the common case of certain point values being
- * either zero or one. (There is, however, the FE_RaviartThomas_newNodal
+ * either zero or one. (There is, however, the FE_RaviartThomasNodal
  * element that uses point values.)
  *
  * We follow the commonly used -- though confusing -- definition of the "degree"
@@ -98,7 +98,7 @@ DEAL_II_NAMESPACE_OPEN
  * interpolation and computing the divergence are commuting operations. We
  * require this from interpolating arbitrary functions as well as the
  * #restriction matrices.  It can be achieved by two interpolation schemes,
- * the simplified one in FE_RaviartThomas_newNodal and the original one here:
+ * the simplified one in FE_RaviartThomasNodal and the original one here:
  *
  * <h4>Node values on edges/faces</h4>
  *
@@ -133,6 +133,194 @@ public:
    * Constructor for the Raviart-Thomas element of degree @p p.
    */
   FE_RaviartThomas_new(const unsigned int p);
+
+  /// NEW create h2l transformation
+  std::vector<unsigned int>
+  make_hierarchical_to_lexicographic_index_map(const unsigned int fe_degree) const
+  {
+    const unsigned int n_dofs_per_comp = this->dofs_per_cell / dim;
+
+    std::vector<unsigned int> h2l;
+    h2l.reserve(n_dofs_per_comp * dim);
+
+    /// In hierarchical numbering dofs on faces come first
+  for (unsigned int face_no = 0; face_no < 2 * dim; ++face_no)
+    {
+      const unsigned int stride_x = face_no < 2 ? fe_degree + 2 : 1;
+      const unsigned int stride_y =
+        face_no < 4 ? (fe_degree + 2) * (fe_degree + 1) : fe_degree + 1;
+      const unsigned int offset =
+        (face_no % 2) * Utilities::pow(fe_degree + 1, 1 + face_no / 2);
+      for (unsigned int j = 0; j < (dim > 2 ? fe_degree + 1 : 1); ++j)
+        for (unsigned int i = 0; i < fe_degree + 1; ++i)
+          h2l.push_back(
+            (face_no / 2) * n_dofs_per_comp + offset + i * stride_x +
+            j * stride_y);
+    }
+
+  /// In hierarchical numbering dofs associated with the interior of a cell
+  /// comes next (and last)
+  for (unsigned int k = 0; k < (dim > 2 ? fe_degree + 1 : 1); ++k)
+    for (unsigned int j = 0; j < (dim > 1 ? fe_degree + 1 : 1); ++j)
+      for (unsigned int i = 1; i < fe_degree + 1; ++i)
+        h2l.push_back(k * (fe_degree + 1) * (fe_degree + 2) +
+                                               j * (fe_degree + 2) + i);
+  if (dim > 1)
+    for (unsigned int k = 0; k < (dim > 2 ? fe_degree + 1 : 1); ++k)
+      for (unsigned int j = 1; j < fe_degree + 1; ++j)
+        for (unsigned int i = 0; i < fe_degree + 1; ++i)
+          h2l.push_back(
+            n_dofs_per_comp + k * (fe_degree + 1) * (fe_degree + 2) +
+            j * (fe_degree + 1) + i);
+  if (dim > 2)
+    for (unsigned int k = 1; k < fe_degree + 1; ++k)
+      for (unsigned int j = 0; j < fe_degree + 1; ++j)
+        for (unsigned int i = 0; i < fe_degree + 1; ++i)
+          h2l.push_back(
+            2 * n_dofs_per_comp + k * (fe_degree + 1) * (fe_degree + 1) +
+            j * (fe_degree + 1) + i);
+
+  AssertDimension(h2l.size(), this->dofs_per_cell);
+
+#ifdef DEBUG
+  // assert that we have a valid permutation
+  std::vector<unsigned int> copy(h2l);
+  std::sort(copy.begin(), copy.end());
+  for (unsigned int i = 0; i < copy.size(); ++i)
+    AssertDimension(i, copy[i]);
+#endif
+
+  return h2l;
+  }
+
+  /// NEW the data filled suffices to reflect the tensor structure of this
+  /// finite element
+  template <typename Number>
+  void
+  fill_shape_info(internal::MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
+                  Quadrature<1>                                     quad) const
+  {
+    using namespace internal::MatrixFreeFunctions;
+
+    /// to be on the safe side set shape_info to its default
+    shape_info = ShapeInfo<Number>{};
+
+    AssertDimension(shape_info.data.size(), 0U); // double-check
+    shape_info.data.reserve(2U);
+    /// c++17: auto & higher = shape_info.data.emplace_back();
+    shape_info.data.emplace_back();
+    shape_info.data.emplace_back();
+    UnivariateShapeData<Number> &higher = shape_info.data.front();
+    UnivariateShapeData<Number> &lower  = shape_info.data.back();
+
+    lower.element_type              = tensor_symmetric;
+    lower.fe_degree                 = nodal_basis_of_low.size() - 1;
+    lower.quadrature                = quad;
+    lower.n_q_points_1d             = quad.size();
+    lower.nodal_at_cell_boundaries  = false;
+
+    higher.element_type             = tensor_symmetric;
+    higher.fe_degree                = nodal_basis_of_high.size() - 1;
+    higher.quadrature               = quad;
+    higher.n_q_points_1d            = quad.size();
+    higher.nodal_at_cell_boundaries = false; // TODO ???
+
+    // lower.shape_values =
+    //   AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d); //+1
+    // higher.shape_values =
+    //   AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
+    // lower.shape_gradients =
+    //   AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
+    // higher.shape_gradients =
+    //   AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
+    // lower.shape_hessians =
+    //   AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
+    // higher.shape_hessians =
+    //   AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
+    // lower.shape_data_on_face[0].resize(3 * (lower.fe_degree + 1));
+    // lower.shape_data_on_face[1].resize(3 * (lower.fe_degree + 1));
+    // higher.shape_data_on_face[0].resize(3 * (higher.fe_degree + 1));
+    // higher.shape_data_on_face[1].resize(3 * (higher.fe_degree + 1));
+
+    // const auto          n_q_points_1d = quad.size();
+    // std::vector<double> q_points;
+    // std::transform(quad.get_points().cbegin(),
+    //                quad.get_points().cend(),
+    //                std::back_inserter(q_points),
+    //                [](const auto &point) { return point(0); });
+    // for (std::size_t i = 0; i < (lower.fe_degree + 1); ++i)
+    //   {
+    //     for (std::size_t j = 0; j < n_q_points_1d; ++j)
+    //       {
+    //         lower.shape_values[i * n_q_points_1d + j] =
+    //           nodal_basis_of_low[i].value(q_points[j]);
+    //         lower.shape_gradients[i * n_q_points_1d + j] =
+    //           nodal_basis_of_low[i].derivative().value(q_points[j]);
+    //         lower.shape_hessians[i * n_q_points_1d + j] =
+    //           nodal_basis_of_low[i].derivative().derivative().value(
+    //             q_points[j]);
+    //       }
+    //     lower.shape_data_on_face[0][i] = nodal_basis_of_low[i].value(0);
+    //     lower.shape_data_on_face[0][i + (lower.fe_degree + 1)] =
+    //       nodal_basis_of_low[i].derivative().value(0);
+    //     lower.shape_data_on_face[0][i + 2 * (lower.fe_degree + 1)] =
+    //       nodal_basis_of_low[i].derivative().derivative().value(0);
+    //     lower.shape_data_on_face[1][i] = nodal_basis_of_low[i].value(1);
+    //     lower.shape_data_on_face[1][i + (lower.fe_degree + 1)] =
+    //       nodal_basis_of_low[i].derivative().value(1);
+    //     lower.shape_data_on_face[1][i + 2 * (lower.fe_degree + 1)] =
+    //       nodal_basis_of_low[i].derivative().derivative().value(1);
+    //   }
+    // for (std::size_t i = 0; i < (higher.fe_degree + 1); ++i)
+    //   {
+    //     for (std::size_t j = 0; j < n_q_points_1d; ++j)
+    //       {
+    //         higher.shape_values[i * n_q_points_1d + j] =
+    //           nodal_basis_of_high[i].value(q_points[j]);
+    //         higher.shape_gradients[i * n_q_points_1d + j] =
+    //           nodal_basis_of_high[i].derivative().value(q_points[j]);
+    //         higher.shape_hessians[i * n_q_points_1d + j] =
+    //           nodal_basis_of_high[i].derivative().derivative().value(
+    //             q_points[j]);
+    //       }
+    //     higher.shape_data_on_face[0][i] = nodal_basis_of_high[i].value(0);
+    //     higher.shape_data_on_face[0][i + (higher.fe_degree + 1)] =
+    //       nodal_basis_of_high[i].derivative().value(0);
+    //     higher.shape_data_on_face[0][i + 2 * (higher.fe_degree + 1)] =
+    //       nodal_basis_of_high[i].derivative().derivative().value(0);
+    //     higher.shape_data_on_face[1][i] = nodal_basis_of_high[i].value(1);
+    //     higher.shape_data_on_face[1][i + (higher.fe_degree + 1)] =
+    //       nodal_basis_of_high[i].derivative().value(1);
+    //     higher.shape_data_on_face[1][i + 2 * (higher.fe_degree + 1)] =
+    //       nodal_basis_of_high[i].derivative().derivative().value(1);
+    //   }
+
+    // /// NOTE as of 2021/03/06 the documentation of lexicographic_numbering is
+    // /// wrong: lexicographic_numbering defines a lexicographic-to-hierarchical
+    // /// mapping (l2h) and not vice versa as documented
+    // shape_info.lexicographic_numbering = inverse_lexicographic_transformation;
+    // shape_info.element_type            = raviart_thomas;
+    // shape_info.n_dimensions            = dim;
+    // shape_info.n_components            = dim;
+    // shape_info.dofs_per_component_on_cell =
+    //   (higher.fe_degree + 1) *
+    //   (dim > 1 ? Utilities::pow(lower.fe_degree + 1, dim - 1) : 1);
+    // // dofs_per_component_on_face cannot be set since different faces have
+    // // different numbers, Maximum number is std::pow(lower.fe_degree,dim-1)
+    // // other faces have 0
+    // shape_info.dofs_per_component_on_face = numbers::invalid_unsigned_int;
+    // shape_info.n_q_points                 = Utilities::pow(quad.size(), dim);
+    // shape_info.n_q_points_face =
+    //   dim > 1 ? Utilities::pow(quad.size(), dim - 1) : 1;
+    // shape_info.data_access.reinit(dim, dim);
+    // for (std::size_t i = 0; i < dim; ++i)
+    //   {
+    //     for (std::size_t j = 0; j < dim; ++j)
+    //       {
+    //         shape_info.data_access(i, j) = i == j ? &higher : &lower;
+    //       }
+    //   }
+  }
 
   /**
    * Return a string that uniquely identifies a finite element. This class
@@ -219,6 +407,18 @@ private:
    * evaluated.
    */
   Table<3, double> interior_weights;
+
+  /// NEW hierarchical-to-lexicographic index mapping
+  std::vector<unsigned int> h2l;
+
+  /// NEW lexicographic-to-hierarchical index mapping
+  std::vector<unsigned int> l2h;
+
+  /// NEW univariate raw basis polynomials of degree up to (k+1) 
+  std::vector<Polynomials::Polynomial<double>> nodal_basis_of_high;
+
+  /// NEW univariate raw basis polynomials of degree up to k
+  std::vector<Polynomials::Polynomial<double>> nodal_basis_of_low;
 
   // Allow access from other dimensions.
   template <int dim1>
@@ -425,6 +625,9 @@ public:
           nodal_basis_of_high[i].derivative().derivative().value(1);
       }
 
+    /// NOTE as of 2021/03/06 the documentation of lexicographic_numbering is
+    /// wrong: lexicographic_numbering defines a lexicographic-to-hierarchical
+    /// mapping (l2h) and not vice versa as documented
     shape_info.lexicographic_numbering = inverse_lexicographic_transformation;
     shape_info.element_type            = raviart_thomas;
     shape_info.n_dimensions            = dim;

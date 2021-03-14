@@ -143,6 +143,14 @@ namespace internal
           return;
         }
 
+      const auto *fe_raviart_thomas_new =
+        dynamic_cast<const FE_RaviartThomas_new<dim> *>(&fe_in);
+      if (fe_raviart_thomas_new)
+        {
+          fe_raviart_thomas_new->fill_shape_info(*this, quad);
+          return;
+        }
+
       const FiniteElement<dim> *fe = &fe_in.base_element(base_element_number);
       n_dimensions                 = dim;
       n_components                 = fe_in.n_components();

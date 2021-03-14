@@ -55,12 +55,19 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
                         true),
       std::vector<ComponentMask>(PolynomialsRaviartThomas<dim>::n_polynomials(
                                    deg),
-                                 std::vector<bool>(dim, true)))
+                                 std::vector<bool>(dim, true))),
+  nodal_basis_of_high(Polynomials::LagrangeEquidistant::generate_complete_basis(deg + 1)),
+  nodal_basis_of_low(deg == 0 ? Polynomials::Legendre::generate_complete_basis(0) : Polynomials::LagrangeEquidistant::generate_complete_basis(deg + 1))
 {
   Assert(dim >= 2, ExcImpossibleInDim(dim));
   const unsigned int n_dofs = this->n_dofs_per_cell();
 
   this->mapping_kind = {mapping_raviart_thomas};
+
+  /// Caching the hierarchical-to-lexicographic numbering and its inverse.
+  h2l = std::move(make_hierarchical_to_lexicographic_index_map(deg));
+  l2h = std::move(Utilities::invert_permutation(h2l));
+
   // First, initialize the
   // generalized support points and
   // quadrature weights, since they
@@ -543,12 +550,20 @@ FE_RaviartThomas_new<dim>::convert_generalized_support_point_values_to_dof_value
   const unsigned int start_cell_points =
     GeometryInfo<dim>::faces_per_cell * n_face_points;
 
+  const unsigned int n_interior_nodes_per_component = interior_weights.size(1);
   for (unsigned int k = 0; k < interior_weights.size(0); ++k)
-    for (unsigned int i = 0; i < interior_weights.size(1); ++i)
-      for (unsigned int d = 0; d < dim; ++d)
-        nodal_values[start_cell_dofs + i * dim + d] +=
+    for (unsigned int d = 0; d < dim; ++d)
+      for (unsigned int i = 0; i < n_interior_nodes_per_component; ++i)
+        nodal_values[start_cell_dofs + d * n_interior_nodes_per_component + i] +=
           interior_weights(k, i, d) *
           support_point_values[k + start_cell_points](d);
+  /// OLD
+  // for (unsigned int k = 0; k < interior_weights.size(0); ++k)
+  //   for (unsigned int i = 0; i < interior_weights.size(1); ++i)
+  //     for (unsigned int d = 0; d < dim; ++d)
+  // nodal_values[start_cell_dofs + i * dim + d] +=
+  //   interior_weights(k, i, d) *
+  //   support_point_values[k + start_cell_points](d);
 }
 
 
