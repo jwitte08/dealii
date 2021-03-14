@@ -44,6 +44,7 @@ SET(_unity_include_src
   fe_q_iso_q1.cc
   fe_rannacher_turek.cc
   fe_raviart_thomas.cc
+  fe_raviart_thomas_new.cc
   fe_raviart_thomas_nodal.cc
   fe_raviart_thomas_nodal_new.cc
   fe_rt_bubbles.cc
@@ -114,6 +115,7 @@ SET(_inst
   fe_q_iso_q1.inst.in
   fe_rannacher_turek.inst.in
   fe_raviart_thomas.inst.in
+  fe_raviart_thomas_new.inst.in
   fe_raviart_thomas_nodal.inst.in
   fe_raviart_thomas_nodal_new.inst.in
   fe_rt_bubbles.inst.in

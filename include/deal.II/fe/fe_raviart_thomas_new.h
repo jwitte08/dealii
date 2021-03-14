@@ -62,7 +62,7 @@ DEAL_II_NAMESPACE_OPEN
  * @ref GlossPrimitive "not a primitive element"; (ii) the shape functions
  * are defined so that certain integrals over the faces are either zero
  * or one, rather than the common case of certain point values being
- * either zero or one. (There is, however, the FE_RaviartThomasNodal
+ * either zero or one. (There is, however, the FE_RaviartThomas_newNodal
  * element that uses point values.)
  *
  * We follow the commonly used -- though confusing -- definition of the "degree"
@@ -70,7 +70,7 @@ DEAL_II_NAMESPACE_OPEN
  * the polynomial degree of the <i>largest complete polynomial subspace</i>
  * contained in the finite element space, even if the space may contain shape
  * functions of higher polynomial degree. The lowest order element is
- * consequently FE_RaviartThomas(0), i.e., the Raviart-Thomas element "of
+ * consequently FE_RaviartThomas_new(0), i.e., the Raviart-Thomas element "of
  * degree zero", even though the functions of this space are in general
  * polynomials of degree one in each variable. This choice of "degree"
  * implies that the approximation order of the function itself is
@@ -98,7 +98,7 @@ DEAL_II_NAMESPACE_OPEN
  * interpolation and computing the divergence are commuting operations. We
  * require this from interpolating arbitrary functions as well as the
  * #restriction matrices.  It can be achieved by two interpolation schemes,
- * the simplified one in FE_RaviartThomasNodal and the original one here:
+ * the simplified one in FE_RaviartThomas_newNodal and the original one here:
  *
  * <h4>Node values on edges/faces</h4>
  *
@@ -124,113 +124,107 @@ DEAL_II_NAMESPACE_OPEN
  * The points needed are those of QGauss<sub>k+1</sub> on each face as well as
  * QGauss<sub>k+1</sub> in the interior of the cell (or none for
  * RT<sub>0</sub>).
- *
- *
- * @author Guido Kanschat, 2005, based on previous work by Wolfgang Bangerth.
  */
-// template <int dim>
-// class FE_RaviartThomas : public FE_PolyTensor<dim>
-// {
-// public:
-//   /**
-//    * Constructor for the Raviart-Thomas element of degree @p p.
-//    */
-//   FE_RaviartThomas(const unsigned int p);
+template <int dim>
+class FE_RaviartThomas_new : public FE_PolyTensor<dim>
+{
+public:
+  /**
+   * Constructor for the Raviart-Thomas element of degree @p p.
+   */
+  FE_RaviartThomas_new(const unsigned int p);
 
-//   /**
-//    * Return a string that uniquely identifies a finite element. This class
-//    * returns <tt>FE_RaviartThomas<dim>(degree)</tt>, with @p dim and @p degree
-//    * replaced by appropriate values.
-//    */
-//   virtual std::string
-//   get_name() const override;
+  /**
+   * Return a string that uniquely identifies a finite element. This class
+   * returns <tt>FE_RaviartThomas_new<dim>(degree)</tt>, with @p dim and @p degree
+   * replaced by appropriate values.
+   */
+  virtual std::string
+  get_name() const override;
 
-//   // documentation inherited from the base class
-//   virtual std::unique_ptr<FiniteElement<dim, dim>>
-//   clone() const override;
+  // documentation inherited from the base class
+  virtual std::unique_ptr<FiniteElement<dim, dim>>
+  clone() const override;
 
-//   /**
-//    * This function returns @p true, if the shape function @p shape_index has
-//    * non-zero function values somewhere on the face @p face_index.
-//    *
-//    * Right now, this is only implemented for RT0 in 1D. Otherwise, returns
-//    * always @p true.
-//    */
-//   virtual bool
-//   has_support_on_face(const unsigned int shape_index,
-//                       const unsigned int face_index) const override;
+  /**
+   * This function returns @p true, if the shape function @p shape_index has
+   * non-zero function values somewhere on the face @p face_index.
+   *
+   * Right now, this is only implemented for RT0 in 1D. Otherwise, returns
+   * always @p true.
+   */
+  virtual bool
+  has_support_on_face(const unsigned int shape_index,
+                      const unsigned int face_index) const override;
 
-//   // documentation inherited from the base class
-//   virtual void
-//   convert_generalized_support_point_values_to_dof_values(
-//     const std::vector<Vector<double>> &support_point_values,
-//     std::vector<double> &              nodal_values) const override;
+  // documentation inherited from the base class
+  virtual void
+  convert_generalized_support_point_values_to_dof_values(
+    const std::vector<Vector<double>> &support_point_values,
+    std::vector<double> &              nodal_values) const override;
 
-//   /**
-//    * Return a list of constant modes of the element. This method is currently
-//    * not correctly implemented because it returns ones for all components.
-//    */
-//   virtual std::pair<Table<2, bool>, std::vector<unsigned int>>
-//   get_constant_modes() const override;
+  /**
+   * Return a list of constant modes of the element. This method is currently
+   * not correctly implemented because it returns ones for all components.
+   */
+  virtual std::pair<Table<2, bool>, std::vector<unsigned int>>
+  get_constant_modes() const override;
 
-//   virtual std::size_t
-//   memory_consumption() const override;
+  virtual std::size_t
+  memory_consumption() const override;
 
-// private:
-//   /**
-//    * Only for internal use. Its full name is @p get_dofs_per_object_vector
-//    * function and it creates the @p dofs_per_object vector that is needed
-//    * within the constructor to be passed to the constructor of @p
-//    * FiniteElementData.
-//    */
-//   static std::vector<unsigned int>
-//   get_dpo_vector(const unsigned int degree);
+private:
+  /**
+   * Only for internal use. Its full name is @p get_dofs_per_object_vector
+   * function and it creates the @p dofs_per_object vector that is needed
+   * within the constructor to be passed to the constructor of @p
+   * FiniteElementData.
+   */
+  static std::vector<unsigned int>
+  get_dpo_vector(const unsigned int degree);
 
-//   /**
-//    * Initialize the @p generalized_support_points field of the FiniteElement
-//    * class and fill the tables with interpolation weights (#boundary_weights
-//    * and #interior_weights). Called from the constructor.
-//    */
-//   void
-//   initialize_support_points(const unsigned int rt_degree);
+  /**
+   * Initialize the @p generalized_support_points field of the FiniteElement
+   * class and fill the tables with interpolation weights (#boundary_weights
+   * and #interior_weights). Called from the constructor.
+   */
+  void
+  initialize_support_points(const unsigned int rt_degree);
 
-//   /**
-//    * Initialize the interpolation from functions on refined mesh cells onto
-//    * the father cell. According to the philosophy of the Raviart-Thomas
-//    * element, this restriction operator preserves the divergence of a
-//    function
-//    * weakly.
-//    */
-//   void
-//   initialize_restriction();
+  /**
+   * Initialize the interpolation from functions on refined mesh cells onto
+   * the father cell. According to the philosophy of the Raviart-Thomas
+   * element, this restriction operator preserves the divergence of a function
+   * weakly.
+   */
+  void
+  initialize_restriction();
 
-//   /**
-//    * These are the factors multiplied to a function in the
-//    * #generalized_face_support_points when computing the integration. They
-//    are
-//    * organized such that there is one row for each generalized face support
-//    * point and one column for each degree of freedom on the face.
-//    *
-//    * See the
-//    * @ref GlossGeneralizedSupport "glossary entry on generalized support points"
-//    * for more information.
-//    */
-//   Table<2, double> boundary_weights;
+  /**
+   * These are the factors multiplied to a function in the
+   * #generalized_face_support_points when computing the integration. They are
+   * organized such that there is one row for each generalized face support
+   * point and one column for each degree of freedom on the face.
+   *
+   * See the
+   * @ref GlossGeneralizedSupport "glossary entry on generalized support points"
+   * for more information.
+   */
+  Table<2, double> boundary_weights;
 
-//   /**
-//    * Precomputed factors for interpolation of interior degrees of freedom.
-//    The
-//    * rationale for this Table is the same as for #boundary_weights. Only,
-//    this
-//    * table has a third coordinate for the space direction of the component
-//    * evaluated.
-//    */
-//   Table<3, double> interior_weights;
+  /**
+   * Precomputed factors for interpolation of interior degrees of freedom. The
+   * rationale for this Table is the same as for #boundary_weights. Only, this
+   * table has a third coordinate for the space direction of the component
+   * evaluated.
+   */
+  Table<3, double> interior_weights;
 
-//   // Allow access from other dimensions.
-//   template <int dim1>
-//   friend class FE_RaviartThomas;
-// };
+  // Allow access from other dimensions.
+  template <int dim1>
+  friend class FE_RaviartThomas_new;
+};
+
 
 
 
@@ -533,9 +527,9 @@ private:
 
 #ifndef DOXYGEN
 
-// template <>
-// void
-// FE_RaviartThomas<1>::initialize_restriction();
+template <>
+void
+FE_RaviartThomas_new<1>::initialize_restriction();
 
 #endif // DOXYGEN
 
