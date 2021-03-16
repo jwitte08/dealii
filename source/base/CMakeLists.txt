@@ -74,6 +74,7 @@ SET(_unity_include_src
   polynomials_piecewise.cc
   polynomials_rannacher_turek.cc
   polynomials_raviart_thomas.cc
+  polynomials_raviart_thomas_new.cc
   polynomials_rt_bubbles.cc
   process_grid.cc
   qprojector.cc
