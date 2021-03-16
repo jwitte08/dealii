@@ -43,10 +43,328 @@
 DEAL_II_NAMESPACE_OPEN
 
 
+namespace Tensors
+{
+  /*
+   * transforms an (anisotropic) multi-index into the canonical uni-index with
+   * respect to lexicographical order. That is the first index of the
+   * multi-index runs faster than second and so on.
+   *
+   * order : the order of the multi-index
+   * sizes  : (anisotropic) size of each independent variable (mode)
+   */
+  template <int order, typename IntType = unsigned int>
+  IntType
+  multi_to_uniindex(const std::array<IntType, order> &multiindex,
+                    const std::array<IntType, order> &sizes)
+  {
+    for (IntType k = 0; k < multiindex.size(); ++k)
+      AssertIndexRange(multiindex[k], sizes[k]);
+    IntType uniindex{0};
+    for (int k = order - 1; k >= 0; --k)
+      {
+        // has no effect on purpose for k == order-1 (uniindex is zero)
+        uniindex *= sizes[k];
+        uniindex += multiindex[k];
+      }
+    const auto n_elem = std::accumulate(sizes.cbegin(),
+                                        sizes.cend(),
+                                        1,
+                                        std::multiplies<IntType>());
+    (void)n_elem;
+    AssertIndexRange(uniindex, n_elem);
+
+    return uniindex;
+  }
+
+
+  /*
+   * transforms an (isotropic) multi-index into the canonical uni-index with
+   * respect to lexicographical order. That is the first index of the
+   * multi-index runs faster than second and so on.
+   *
+   * order : the order of the multi-index
+   * size  : isotropic size of each index set (mode)
+   */
+  template <int order, typename IntType = unsigned int>
+  IntType
+  multi_to_uniindex(const std::array<IntType, order> &multiindex,
+                    const IntType                     size)
+  {
+    std::array<IntType, order> sizes;
+    sizes.fill(size);
+    return multi_to_uniindex<order>(multiindex, sizes);
+  }
+
+
+  /*
+   * transforms an uni-index into the canonical (anisotropic) multi-index with
+   * respect to lexicographical order. That is the first index of the
+   * multi-index runs faster than second and so on.
+   *
+   * order : the order of the multi-index
+   * sizes : sizes of each independent variable (mode)
+   */
+  template <int order, typename IntType = unsigned int>
+  std::array<IntType, order>
+  uni_to_multiindex(IntType index, const std::array<IntType, order> &sizes)
+  {
+    const auto n_elem = std::accumulate(sizes.cbegin(),
+                                        sizes.cend(),
+                                        1,
+                                        std::multiplies<IntType>());
+    (void)n_elem;
+    AssertIndexRange(index, n_elem);
+    std::array<IntType, order> multiindex;
+    for (int k = 0; k < order; ++k)
+      {
+        multiindex[k] = index % sizes[k];
+        index         = index / sizes[k];
+      }
+    Assert(index == 0,
+           ExcMessage("Uni-index has remainder after multi-index extraction."));
+    for (IntType k = 0; k < multiindex.size(); ++k)
+      AssertIndexRange(multiindex[k], sizes[k]);
+
+    return multiindex;
+  }
+
+
+  /*
+   * transforms an uni-index into the canonical (isotropic) multi-index with
+   * respect to lexicographical order. That is the first index of the
+   * multi-index runs faster than second and so on.
+   *
+   * order : the order of the multi-index
+   * size  : isotropic size of each index set (mode)
+   */
+  template <int order, typename IntType = unsigned int>
+  std::array<IntType, order>
+  uni_to_multiindex(IntType index, const IntType size)
+  {
+    std::array<IntType, order> sizes;
+    sizes.fill(size);
+    return uni_to_multiindex<order>(index, sizes);
+  }
+
+
+
+  template <int order, typename IntType = unsigned int>
+  struct TensorHelper
+  {
+    TensorHelper(const std::array<IntType, order> &sizes)
+      : n(sizes)
+    {}
+
+    TensorHelper(const IntType size)
+      : n([size]() {
+        std::array<IntType, order> sizes;
+        sizes.fill(size);
+        return sizes;
+      }())
+    {}
+
+    IntType
+    first_index(const unsigned int mode) const
+    {
+      (void)mode;
+      AssertIndexRange(mode, order);
+      return static_cast<IntType>(0);
+    }
+
+    IntType
+    last_index(const unsigned int mode) const
+    {
+      AssertIndexRange(mode, order);
+      return size(mode) - 1;
+    }
+
+    bool
+    is_first_index_1d(const std::array<IntType, order> &multi_index,
+                      const unsigned int                mode) const
+    {
+      AssertIndexRange(mode, order);
+      return multi_index[mode] == first_index(mode);
+    }
+
+    bool
+    is_last_index_1d(const std::array<IntType, order> &multi_index,
+                     const unsigned int                mode) const
+    {
+      AssertIndexRange(mode, order);
+      return multi_index[mode] == last_index(mode);
+    }
+
+    std::array<IntType, order>
+    multi_index(const IntType index) const
+    {
+      return uni_to_multiindex<order, IntType>(index, n);
+    }
+
+    IntType
+    uni_index(const std::array<IntType, order> &multi_index) const
+    {
+      return multi_to_uniindex<order, IntType>(multi_index, n);
+    }
+
+    std::vector<IntType>
+    sliced_indices(const IntType index, const unsigned int mode) const
+    {
+      AssertThrow(order > 0, ExcMessage("Not implemented."));
+
+      std::vector<IntType> indices;
+      AssertIndexRange(mode, order);
+      AssertIndexRange(index, size(mode));
+      if (order == 1)
+        {
+          indices.emplace_back(index);
+          return indices;
+        }
+
+      const auto restrict = [&](const std::array<IntType, order> &multiindex) {
+        std::array<IntType, order - 1> slicedindex;
+        for (auto m = 0U; m < mode; ++m)
+          slicedindex[m] = multiindex[m];
+        for (auto m = mode + 1; m < order; ++m)
+          slicedindex[m - 1] = multiindex[m];
+        return slicedindex;
+      };
+      const auto prolongate =
+        [&](const std::array<IntType, order - 1> &slicedindex) {
+          std::array<IntType, order> multiindex;
+          for (auto m = 0U; m < mode; ++m)
+            multiindex[m] = slicedindex[m];
+          multiindex[mode] = index;
+          for (auto m = mode + 1; m < order; ++m)
+            multiindex[m] = slicedindex[m - 1];
+          return multiindex;
+        };
+
+      TensorHelper<order - 1, IntType> slice(restrict(this->n));
+      for (auto i = 0U; i < slice.n_flat(); ++i)
+        {
+          const auto sliced_index = slice.multi_index(i);
+          const auto multi_index  = prolongate(sliced_index);
+          indices.emplace_back(this->uni_index(multi_index));
+        }
+      return indices;
+    }
+
+    bool
+    is_isotropic() const
+    {
+      for (auto direction = 1U; direction < order; ++direction)
+        if (size(0U) != size(direction))
+          return false;
+      return true;
+    }
+
+    bool
+    operator==(const TensorHelper<order, IntType> &other) const
+    {
+      return std::equal(n.cbegin(),
+                        n.cend(),
+                        other.n.cbegin(),
+                        other.n.cend(),
+                        [](const auto i, const auto j) { return i == j; });
+    }
+
+    IntType
+    n_flat() const
+    {
+      return std::accumulate(n.cbegin(),
+                             n.cend(),
+                             static_cast<IntType>(1),
+                             std::multiplies<IntType>());
+    }
+
+    IntType
+    size(const unsigned int mode) const
+    {
+      AssertIndexRange(mode, order);
+      return n[mode];
+    }
+
+    /**
+     * Returns the minimum size of any dimension.
+     */
+    IntType
+    min_size() const
+    {
+      IntType min = 0;
+      for (const auto i : n)
+        min = std::min(i, min);
+      return min;
+    }
+
+    /**
+     * Returns the maximum size of any dimension.
+     */
+    IntType
+    max_size() const
+    {
+      IntType max = 0;
+      for (const auto i : n)
+        max = std::max(i, max);
+      return max;
+    }
+
+    /**
+     * Returns the dimension which has the minimum size of all dimensions. If
+     * more than one dimension is of minimum size the first dimension with
+     * minimum size is returned.
+     */
+    unsigned int
+    min_dimension() const
+    {
+      return std::distance(n.cbegin(), std::min_element(n.cbegin(), n.cend()));
+    }
+
+    /**
+     * Returns the dimension which has the maximum size of all dimensions. If
+     * more than one dimension is of maximum size the first dimension with
+     * maximum size is returned.
+     */
+    unsigned int
+    max_dimension() const
+    {
+      return std::distance(n.cbegin(), std::max_element(n.cbegin(), n.cend()));
+    }
+
+    const std::array<IntType, order> &
+    size() const
+    {
+      return n;
+    }
+
+    IntType
+    collapsed_size_pre(const unsigned int direction) const
+    {
+      return std::accumulate(n.begin(),
+                             n.begin() + direction,
+                             1,
+                             std::multiplies<IntType>{});
+    }
+
+    IntType
+    collapsed_size_post(const unsigned int direction) const
+    {
+      return std::accumulate(n.begin() + direction + 1,
+                             n.end(),
+                             1,
+                             std::multiplies<IntType>{});
+    }
+
+    const std::array<IntType, order> n;
+  };
+} // namespace Tensors
+
+
+
 template <int dim>
 FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   : FE_PolyTensor<dim>(
-      PolynomialsRaviartThomas<dim>(deg),
+      PolynomialsRaviartThomas_new<dim>(deg),
       FiniteElementData<dim>(get_dpo_vector(deg),
                              dim,
                              deg + 1,
@@ -55,9 +373,14 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
                         true),
       std::vector<ComponentMask>(PolynomialsRaviartThomas<dim>::n_polynomials(
                                    deg),
-                                 std::vector<bool>(dim, true))),
-  nodal_basis_of_high(Polynomials::LagrangeEquidistant::generate_complete_basis(deg + 1)),
-  nodal_basis_of_low(deg == 0 ? Polynomials::Legendre::generate_complete_basis(0) : Polynomials::LagrangeEquidistant::generate_complete_basis(deg + 1))
+                                 std::vector<bool>(dim, true)))
+  /// init by PolynomialsRaviartThomas<dim>(deg)
+  , raw_polynomials_kplus1(
+      Polynomials::LagrangeEquidistant::generate_complete_basis(deg + 1))
+  /// init by PolynomialsRaviartThomas<dim>(deg)
+  , raw_polynomials_k(
+      deg == 0 ? Polynomials::Legendre::generate_complete_basis(0) :
+                 Polynomials::LagrangeEquidistant::generate_complete_basis(deg))
 {
   Assert(dim >= 2, ExcImpossibleInDim(dim));
   const unsigned int n_dofs = this->n_dofs_per_cell();
@@ -74,12 +397,231 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   // are required for interpolation.
   initialize_support_points(deg);
 
-  // Now compute the inverse node matrix, generating the correct
-  // basis functions from the raw ones. For a discussion of what
-  // exactly happens here, see FETools::compute_node_matrix.
-  const FullMatrix<double> M = FETools::compute_node_matrix(*this);
+  /// NEW compute node values from the tensor product of 1d node values and raw
+  /// tensor product polynomials
+  FullMatrix<double> node_value_matrix_kplus1;
+  FullMatrix<double> node_value_matrix_k;
+  {
+    QGauss<1>   quad(deg + 1);
+    const auto  n_q_points_1d = quad.size();
+    const auto &q_points      = quad.get_points();
+    const auto &q_weights     = quad.get_weights();
+
+    const std::vector<Polynomials::Polynomial<double>> node_polynomials_k =
+      Polynomials::Legendre::generate_complete_basis(deg);
+    const std::vector<Polynomials::Polynomial<double>>
+      node_polynomials_kminus1 =
+        deg > 0 ? Polynomials::Legendre::generate_complete_basis(deg - 1) :
+                  std::vector<Polynomials::Polynomial<double>>{};
+
+    AssertDimension(node_polynomials_k.size(), deg + 1);   // double-check
+    AssertDimension(node_polynomials_kminus1.size(), deg); // double-check
+
+    const auto evaluate_node_functional_kplus1 =
+      [&](const unsigned int i, const Polynomials::Polynomial<double> &poly) {
+        AssertIndexRange(i, node_polynomials_kminus1.size() + 2U);
+        /// nodal at endpoint 0
+        if (i == 0U)
+          return poly.value(0.);
+
+        /// nodal at endpoint 1
+        else if (i == deg + 1)
+          return poly.value(1.);
+
+        /// k moments in the interior
+        Assert(i > 0U,
+               ExcMessage("0th node functional has to be treated before!"));
+        const auto &node_poly = node_polynomials_kminus1[i - 1];
+        double      eval      = 0.;
+        for (auto q = 0U; q < n_q_points_1d; ++q)
+          {
+            const double &x_q = q_points[q][0];
+            const auto &  w_q = q_weights[q];
+            eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
+          }
+        return eval;
+      };
+
+    const auto evaluate_node_functional_k =
+      [&](const unsigned int i, const Polynomials::Polynomial<double> &poly) {
+        AssertIndexRange(i, node_polynomials_k.size());
+        /// (k+1) moments in the interior
+        const auto &node_poly = node_polynomials_k[i];
+        double      eval      = 0.;
+        for (auto q = 0U; q < n_q_points_1d; ++q)
+          {
+            const double &x_q = q_points[q][0];
+            const auto &  w_q = q_weights[q];
+            eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
+          }
+        return eval;
+      };
+
+    AssertDimension(raw_polynomials_kplus1.size(), deg + 2);
+    node_value_matrix_kplus1.reinit(deg + 2, deg + 2);
+    for (auto i = 0U; i < deg + 2; ++i)
+      for (auto j = 0U; j < deg + 2; ++j)
+        node_value_matrix_kplus1(i, j) =
+          evaluate_node_functional_kplus1(i, raw_polynomials_kplus1[j]);
+
+    AssertDimension(raw_polynomials_k.size(), deg + 1);
+    node_value_matrix_k.reinit(deg + 1, deg + 1);
+    for (auto i = 0U; i < deg + 1; ++i)
+      for (auto j = 0U; j < deg + 1; ++j)
+        node_value_matrix_k(i, j) =
+          evaluate_node_functional_k(i, raw_polynomials_k[j]);
+  }
+
+  AssertDimension(node_value_matrix_kplus1.m(), node_value_matrix_kplus1.n());
+  AssertDimension(node_value_matrix_k.m(), node_value_matrix_k.n());
+
+  inverse_node_value_matrix_kplus1.reinit(node_value_matrix_kplus1.m(),
+                                          node_value_matrix_kplus1.m());
+  inverse_node_value_matrix_kplus1.invert(node_value_matrix_kplus1);
+  inverse_node_value_matrix_k.reinit(node_value_matrix_k.m(),
+                                     node_value_matrix_k.m());
+  inverse_node_value_matrix_k.invert(node_value_matrix_k);
+
+  FullMatrix<double> node_value_matrix(this->n_dofs_per_cell(),
+                                       this->n_dofs_per_cell());
+  {
+    /// first vector component
+    if (dim > 0)
+      {
+        /// extended (i.e. three-dimensional) index set where all dimensions
+        /// exceeding the template parameter dim are set to 1
+        std::array<unsigned int, 3> n_node_functionals;
+        n_node_functionals.fill(deg + 1);
+        n_node_functionals[0] = deg + 2;
+        for (auto d = dim; d < 3; ++d)
+          n_node_functionals[d] = 1;
+        Tensors::TensorHelper<3, unsigned int> th_node(n_node_functionals);
+
+        /// node functionals and shape functions have the same tensor structure
+        AssertDimension(th_node.n_flat() * dim, this->n_dofs_per_cell());
+
+        double node_value = 0.;
+        for (auto i2 = 0U; i2 < th_node.size(2); ++i2)
+          for (auto i1 = 0U; i1 < th_node.size(1); ++i1)
+            for (auto i0 = 0U; i0 < th_node.size(0); ++i0)
+              for (auto j2 = 0U; j2 < th_node.size(2); ++j2)
+                for (auto j1 = 0U; j1 < th_node.size(1); ++j1)
+                  for (auto j0 = 0U; j0 < th_node.size(0); ++j0)
+                    {
+                      const auto i = th_node.uni_index({i0, i1, i2});
+                      const auto j = th_node.uni_index({j0, j1, j2});
+                      node_value   = node_value_matrix_kplus1(i0, j0);
+                      if (dim > 1)
+                        node_value *= node_value_matrix_k(i1, j1);
+                      if (dim > 2)
+                        node_value *= node_value_matrix_k(i2, j2);
+                      node_value_matrix(i, j) = node_value;
+                    }
+      }
+
+    /// second vector component (if needed)
+    if (dim > 1)
+      {
+        constexpr unsigned int comp = 1;
+
+        /// extended (i.e. three-dimensional) index set where all dimensions
+        /// exceeding the template parameter dim are set to 1
+        std::array<unsigned int, 3> n_node_functionals;
+        n_node_functionals.fill(deg + 1);
+        n_node_functionals[comp] = deg + 2;
+        for (auto d = dim; d < 3; ++d)
+          n_node_functionals[d] = 1;
+        Tensors::TensorHelper<3, unsigned int> th_node(n_node_functionals);
+
+        /// node functionals and shape functions have the same tensor structure
+        AssertDimension(th_node.n_flat() * dim, this->n_dofs_per_cell());
+
+        const unsigned int offset_comp = comp * th_node.n_flat();
+
+        double node_value = 0.;
+        for (auto i2 = 0U; i2 < th_node.size(2); ++i2)
+          for (auto i1 = 0U; i1 < th_node.size(1); ++i1)
+            for (auto i0 = 0U; i0 < th_node.size(0); ++i0)
+              for (auto j2 = 0U; j2 < th_node.size(2); ++j2)
+                for (auto j1 = 0U; j1 < th_node.size(1); ++j1)
+                  for (auto j0 = 0U; j0 < th_node.size(0); ++j0)
+                    {
+                      const auto i =
+                        offset_comp + th_node.uni_index({i0, i1, i2});
+                      const auto j =
+                        offset_comp + th_node.uni_index({j0, j1, j2});
+                      node_value = node_value_matrix_k(i0, j0) *
+                                   node_value_matrix_kplus1(i1, j1);
+                      if (dim > 2)
+                        node_value *= node_value_matrix_k(i2, j2);
+                      node_value_matrix(i, j) = node_value;
+                    }
+      }
+
+    /// third vector component (if needed)
+    if (dim > 2)
+      {
+        constexpr unsigned int comp = 2;
+
+        /// extended (i.e. three-dimensional) index set where all dimensions
+        /// exceeding the template parameter dim are set to 1
+        std::array<unsigned int, 3> n_node_functionals;
+        n_node_functionals.fill(deg + 1);
+        n_node_functionals[comp] = deg + 2;
+        for (auto d = dim; d < 3; ++d)
+          n_node_functionals[d] = 1;
+        Tensors::TensorHelper<3, unsigned int> th_node(n_node_functionals);
+
+        /// node functionals and shape functions have the same tensor structure
+        AssertDimension(th_node.n_flat() * dim, this->n_dofs_per_cell());
+
+        const unsigned int offset_comp = comp * th_node.n_flat();
+
+        double node_value = 0.;
+        for (auto i2 = 0U; i2 < th_node.size(2); ++i2)
+          for (auto i1 = 0U; i1 < th_node.size(1); ++i1)
+            for (auto i0 = 0U; i0 < th_node.size(0); ++i0)
+              for (auto j2 = 0U; j2 < th_node.size(2); ++j2)
+                for (auto j1 = 0U; j1 < th_node.size(1); ++j1)
+                  for (auto j0 = 0U; j0 < th_node.size(0); ++j0)
+                    {
+                      const auto i =
+                        offset_comp + th_node.uni_index({i0, i1, i2});
+                      const auto j =
+                        offset_comp + th_node.uni_index({j0, j1, j2});
+                      node_value = node_value_matrix_k(i0, j0) *
+                                   node_value_matrix_k(i1, j1) *
+                                   node_value_matrix_kplus1(i2, j2);
+                      node_value_matrix(i, j) = node_value;
+                    }
+      }
+  }
+
+  /// DEBUG
+  node_value_matrix.print_formatted(std::cout, 3, true, 0, " ", 1., 1.e-10);
+
+  FullMatrix<double> node_value_matrix_hierarchical(node_value_matrix.m(),
+                                                    node_value_matrix.n());
+  for (auto i = 0U; i < node_value_matrix.m(); ++i)
+    for (auto j = 0U; j < node_value_matrix.n(); ++j)
+      node_value_matrix_hierarchical(l2h[i], j) = node_value_matrix(i, j);
+
+  /// DEBUG
+  node_value_matrix_hierarchical.print_formatted(
+    std::cout, 3, true, 0, " ", 1., 1.e-10);
+
+  // // Now compute the inverse node matrix, generating the correct
+  // // basis functions from the raw ones. For a discussion of what
+  // // exactly happens here, see FETools::compute_node_matrix.
+  // const FullMatrix<double> M = FETools::compute_node_matrix(*this);
+  // /// DEBUG
+  // M.print_formatted(std::cout, 3, true, 0, " ", 1., 1.e-10);
+  // this->inverse_node_matrix.reinit(n_dofs, n_dofs);
+  // this->inverse_node_matrix.invert(M);
+
   this->inverse_node_matrix.reinit(n_dofs, n_dofs);
-  this->inverse_node_matrix.invert(M);
+  this->inverse_node_matrix.invert(node_value_matrix_hierarchical);
+
   // From now on, the shape functions provided by FiniteElement::shape_value
   // and similar functions will be the correct ones, not
   // the raw shape functions from the polynomial space anymore.
@@ -122,6 +664,65 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
       }
 }
 
+
+template <int dim>
+std::vector<unsigned int>
+FE_RaviartThomas_new<dim>::make_hierarchical_to_lexicographic_index_map(
+  const unsigned int fe_degree) const
+{
+  const unsigned int n_dofs_per_comp = this->dofs_per_cell / dim;
+
+  std::vector<unsigned int> h2l;
+  h2l.reserve(n_dofs_per_comp * dim);
+
+  /// In hierarchical numbering dofs on faces come first
+  for (unsigned int face_no = 0; face_no < 2 * dim; ++face_no)
+    {
+      const unsigned int stride_x = face_no < 2 ? fe_degree + 2 : 1;
+      const unsigned int stride_y =
+        face_no < 4 ? (fe_degree + 2) * (fe_degree + 1) : fe_degree + 1;
+      const unsigned int offset =
+        (face_no % 2) * Utilities::pow(fe_degree + 1, 1 + face_no / 2);
+      for (unsigned int j = 0; j < (dim > 2 ? fe_degree + 1 : 1); ++j)
+        for (unsigned int i = 0; i < fe_degree + 1; ++i)
+          h2l.push_back((face_no / 2) * n_dofs_per_comp + offset +
+                        i * stride_x + j * stride_y);
+    }
+
+  /// In hierarchical numbering dofs associated with the interior of a cell
+  /// comes second and last.
+  for (unsigned int k = 0; k < (dim > 2 ? fe_degree + 1 : 1); ++k)
+    for (unsigned int j = 0; j < (dim > 1 ? fe_degree + 1 : 1); ++j)
+      for (unsigned int i = 1; i < fe_degree + 1; ++i)
+        h2l.push_back(k * (fe_degree + 1) * (fe_degree + 2) +
+                      j * (fe_degree + 2) + i);
+  if (dim > 1)
+    for (unsigned int k = 0; k < (dim > 2 ? fe_degree + 1 : 1); ++k)
+      for (unsigned int j = 1; j < fe_degree + 1; ++j)
+        for (unsigned int i = 0; i < fe_degree + 1; ++i)
+          h2l.push_back(n_dofs_per_comp +
+                        k * (fe_degree + 1) * (fe_degree + 2) +
+                        j * (fe_degree + 1) + i);
+  if (dim > 2)
+    for (unsigned int k = 1; k < fe_degree + 1; ++k)
+      for (unsigned int j = 0; j < fe_degree + 1; ++j)
+        for (unsigned int i = 0; i < fe_degree + 1; ++i)
+          h2l.push_back(2 * n_dofs_per_comp +
+                        k * (fe_degree + 1) * (fe_degree + 1) +
+                        j * (fe_degree + 1) + i);
+
+  AssertDimension(h2l.size(), this->dofs_per_cell);
+
+#ifdef DEBUG
+  // assert that we have a valid permutation
+  std::vector<unsigned int> copy(h2l);
+  std::sort(copy.begin(), copy.end());
+  for (unsigned int i = 0; i < copy.size(); ++i)
+    AssertDimension(i, copy[i]);
+#endif
+
+  return h2l;
+}
 
 
 template <int dim>
@@ -472,8 +1073,9 @@ FE_RaviartThomas_new<dim>::get_constant_modes() const
 
 template <int dim>
 bool
-FE_RaviartThomas_new<dim>::has_support_on_face(const unsigned int shape_index,
-                                           const unsigned int face_index) const
+FE_RaviartThomas_new<dim>::has_support_on_face(
+  const unsigned int shape_index,
+  const unsigned int face_index) const
 {
   AssertIndexRange(shape_index, this->n_dofs_per_cell());
   AssertIndexRange(face_index, GeometryInfo<dim>::faces_per_cell);
@@ -514,9 +1116,10 @@ FE_RaviartThomas_new<dim>::has_support_on_face(const unsigned int shape_index,
 
 template <int dim>
 void
-FE_RaviartThomas_new<dim>::convert_generalized_support_point_values_to_dof_values(
-  const std::vector<Vector<double>> &support_point_values,
-  std::vector<double> &              nodal_values) const
+FE_RaviartThomas_new<dim>::
+  convert_generalized_support_point_values_to_dof_values(
+    const std::vector<Vector<double>> &support_point_values,
+    std::vector<double> &              nodal_values) const
 {
   Assert(support_point_values.size() == this->generalized_support_points.size(),
          ExcDimensionMismatch(support_point_values.size(),
@@ -554,9 +1157,9 @@ FE_RaviartThomas_new<dim>::convert_generalized_support_point_values_to_dof_value
   for (unsigned int k = 0; k < interior_weights.size(0); ++k)
     for (unsigned int d = 0; d < dim; ++d)
       for (unsigned int i = 0; i < n_interior_nodes_per_component; ++i)
-        nodal_values[start_cell_dofs + d * n_interior_nodes_per_component + i] +=
-          interior_weights(k, i, d) *
-          support_point_values[k + start_cell_points](d);
+        nodal_values[start_cell_dofs + d * n_interior_nodes_per_component +
+                     i] += interior_weights(k, i, d) *
+                           support_point_values[k + start_cell_points](d);
   /// OLD
   // for (unsigned int k = 0; k < interior_weights.size(0); ++k)
   //   for (unsigned int i = 0; i < interior_weights.size(1); ++i)
