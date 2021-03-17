@@ -171,11 +171,11 @@ public:
   has_support_on_face(const unsigned int shape_index,
                       const unsigned int face_index) const override;
 
-  // documentation inherited from the base class
-  virtual void
-  convert_generalized_support_point_values_to_dof_values(
-    const std::vector<Vector<double>> &support_point_values,
-    std::vector<double> &              nodal_values) const override;
+  // // documentation inherited from the base class
+  // virtual void
+  // convert_generalized_support_point_values_to_dof_values(
+  //   const std::vector<Vector<double>> &support_point_values,
+  //   std::vector<double> &              nodal_values) const override;
 
   /**
    * Return a list of constant modes of the element. This method is currently
@@ -595,105 +595,139 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
   higher.fe_degree                = raw_polynomials_kplus1.size() - 1;
   higher.quadrature               = quad;
   higher.n_q_points_1d            = quad.size();
-  higher.nodal_at_cell_boundaries = false; // TODO ???
+  higher.nodal_at_cell_boundaries = true;
 
-  // lower.shape_values =
-  //   AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
-  //   //+1
-  // higher.shape_values =
-  //   AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
-  // lower.shape_gradients =
-  //   AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
-  // higher.shape_gradients =
-  //   AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
-  // lower.shape_hessians =
-  //   AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
-  // higher.shape_hessians =
-  //   AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
-  // lower.shape_data_on_face[0].resize(3 * (lower.fe_degree + 1));
-  // lower.shape_data_on_face[1].resize(3 * (lower.fe_degree + 1));
-  // higher.shape_data_on_face[0].resize(3 * (higher.fe_degree + 1));
-  // higher.shape_data_on_face[1].resize(3 * (higher.fe_degree + 1));
+  lower.shape_values =
+    AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
+  lower.shape_gradients =
+    AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
+  lower.shape_hessians =
+    AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
+  lower.shape_data_on_face[0].resize(3 * (lower.fe_degree + 1)); // TODO ???
+  lower.shape_data_on_face[1].resize(3 * (lower.fe_degree + 1)); // TODO ???
 
-  // const auto          n_q_points_1d = quad.size();
-  // std::vector<double> q_points;
-  // std::transform(quad.get_points().cbegin(),
-  //                quad.get_points().cend(),
-  //                std::back_inserter(q_points),
-  //                [](const auto &point) { return point(0); });
-  // for (std::size_t i = 0; i < (lower.fe_degree + 1); ++i)
-  //   {
-  //     for (std::size_t j = 0; j < n_q_points_1d; ++j)
-  //       {
-  //         lower.shape_values[i * n_q_points_1d + j] =
-  //           raw_polynomials_k[i].value(q_points[j]);
-  //         lower.shape_gradients[i * n_q_points_1d + j] =
-  //           raw_polynomials_k[i].derivative().value(q_points[j]);
-  //         lower.shape_hessians[i * n_q_points_1d + j] =
-  //           raw_polynomials_k[i].derivative().derivative().value(
-  //             q_points[j]);
-  //       }
-  //     lower.shape_data_on_face[0][i] = raw_polynomials_k[i].value(0);
-  //     lower.shape_data_on_face[0][i + (lower.fe_degree + 1)] =
-  //       raw_polynomials_k[i].derivative().value(0);
-  //     lower.shape_data_on_face[0][i + 2 * (lower.fe_degree + 1)] =
-  //       raw_polynomials_k[i].derivative().derivative().value(0);
-  //     lower.shape_data_on_face[1][i] = raw_polynomials_k[i].value(1);
-  //     lower.shape_data_on_face[1][i + (lower.fe_degree + 1)] =
-  //       raw_polynomials_k[i].derivative().value(1);
-  //     lower.shape_data_on_face[1][i + 2 * (lower.fe_degree + 1)] =
-  //       raw_polynomials_k[i].derivative().derivative().value(1);
-  //   }
-  // for (std::size_t i = 0; i < (higher.fe_degree + 1); ++i)
-  //   {
-  //     for (std::size_t j = 0; j < n_q_points_1d; ++j)
-  //       {
-  //         higher.shape_values[i * n_q_points_1d + j] =
-  //           raw_polynomials_kplus1[i].value(q_points[j]);
-  //         higher.shape_gradients[i * n_q_points_1d + j] =
-  //           raw_polynomials_kplus1[i].derivative().value(q_points[j]);
-  //         higher.shape_hessians[i * n_q_points_1d + j] =
-  //           raw_polynomials_kplus1[i].derivative().derivative().value(
-  //             q_points[j]);
-  //       }
-  //     higher.shape_data_on_face[0][i] = raw_polynomials_kplus1[i].value(0);
-  //     higher.shape_data_on_face[0][i + (higher.fe_degree + 1)] =
-  //       raw_polynomials_kplus1[i].derivative().value(0);
-  //     higher.shape_data_on_face[0][i + 2 * (higher.fe_degree + 1)] =
-  //       raw_polynomials_kplus1[i].derivative().derivative().value(0);
-  //     higher.shape_data_on_face[1][i] = raw_polynomials_kplus1[i].value(1);
-  //     higher.shape_data_on_face[1][i + (higher.fe_degree + 1)] =
-  //       raw_polynomials_kplus1[i].derivative().value(1);
-  //     higher.shape_data_on_face[1][i + 2 * (higher.fe_degree + 1)] =
-  //       raw_polynomials_kplus1[i].derivative().derivative().value(1);
-  //   }
+  higher.shape_values =
+    AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
+  higher.shape_gradients =
+    AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
+  higher.shape_hessians =
+    AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
+  higher.shape_data_on_face[0].resize(3 * (higher.fe_degree + 1));
+  higher.shape_data_on_face[1].resize(3 * (higher.fe_degree + 1));
 
-  // /// NOTE as of 2021/03/06 the documentation of lexicographic_numbering is
-  // /// wrong: lexicographic_numbering defines a
-  // lexicographic-to-hierarchical
-  // /// mapping (l2h) and not vice versa as documented
-  // shape_info.lexicographic_numbering =
-  // inverse_lexicographic_transformation; shape_info.element_type =
-  // raviart_thomas; shape_info.n_dimensions            = dim;
-  // shape_info.n_components            = dim;
-  // shape_info.dofs_per_component_on_cell =
-  //   (higher.fe_degree + 1) *
-  //   (dim > 1 ? Utilities::pow(lower.fe_degree + 1, dim - 1) : 1);
-  // // dofs_per_component_on_face cannot be set since different faces have
-  // // different numbers, Maximum number is std::pow(lower.fe_degree,dim-1)
-  // // other faces have 0
-  // shape_info.dofs_per_component_on_face = numbers::invalid_unsigned_int;
-  // shape_info.n_q_points                 = Utilities::pow(quad.size(), dim);
-  // shape_info.n_q_points_face =
-  //   dim > 1 ? Utilities::pow(quad.size(), dim - 1) : 1;
-  // shape_info.data_access.reinit(dim, dim);
-  // for (std::size_t i = 0; i < dim; ++i)
-  //   {
-  //     for (std::size_t j = 0; j < dim; ++j)
-  //       {
-  //         shape_info.data_access(i, j) = i == j ? &higher : &lower;
-  //       }
-  //   }
+  const auto n_q_points_1d = quad.size();
+
+  std::vector<double> q_points;
+  std::transform(quad.get_points().cbegin(),
+                 quad.get_points().cend(),
+                 std::back_inserter(q_points),
+                 [](const auto &point) { return point(0); });
+
+  const auto fill_shape_data =
+    [&](UnivariateShapeData<Number> &                       info,
+        const std::vector<Polynomials::Polynomial<double>> &raw_polynomials,
+        const FullMatrix<double> &raw_to_shape_matrix) {
+      const unsigned int n_dofs = info.fe_degree + 1;
+
+      AssertDimension(n_dofs, raw_to_shape_matrix.m());
+      AssertDimension(raw_polynomials.size(), raw_to_shape_matrix.n());
+      AssertDimension(n_dofs, raw_polynomials.size());
+
+      std::vector<Tensor<1, 3, double>> raw_data;
+      for (const auto &x_q : q_points)
+        std::transform(raw_polynomials.cbegin(),
+                       raw_polynomials.cend(),
+                       std::back_inserter(raw_data),
+                       [&](const auto &poly) {
+                         Tensor<1, 3, double> values;
+                         poly.value(x_q, 2, values.begin_raw());
+                         return values;
+                       });
+
+      AssertDimension(raw_data.size(), n_dofs * n_q_points_1d);
+
+      std::vector<Tensor<1, 3, double>> raw_data_face;
+      for (const auto &x_q : {0., 1.})
+        std::transform(raw_polynomials.cbegin(),
+                       raw_polynomials.cend(),
+                       std::back_inserter(raw_data_face),
+                       [&](const auto &poly) {
+                         Tensor<1, 3, double> values;
+                         poly.value(x_q, 2, values.begin_raw());
+                         return values;
+                       });
+
+      AssertDimension(raw_data_face.size(), 2 * n_dofs);
+
+      for (unsigned int i = 0; i < (n_dofs); ++i)
+        {
+          for (unsigned int q = 0; q < n_q_points_1d; ++q)
+            {
+              const unsigned int stride         = q * n_dofs;
+              const auto         raw_data_begin = raw_data.cbegin() + stride;
+
+              Tensor<1, 3, double> shape_data;
+              for (unsigned int j = 0; j < n_dofs; ++j)
+                shape_data += raw_to_shape_matrix(i, j) * raw_data_begin[j];
+
+              info.shape_values[i * n_q_points_1d + q]    = shape_data[0];
+              info.shape_gradients[i * n_q_points_1d + q] = shape_data[1];
+              info.shape_hessians[i * n_q_points_1d + q]  = shape_data[2];
+            }
+
+          for (unsigned int face_no = 0; face_no < 2U; ++face_no)
+            {
+              const unsigned int stride = face_no * n_dofs;
+              const auto raw_data_begin = raw_data_face.cbegin() + stride;
+
+              Tensor<1, 3, double> shape_data;
+              for (unsigned int j = 0; j < n_dofs; ++j)
+                shape_data += raw_to_shape_matrix(i, j) * raw_data_begin[j];
+
+              info.shape_data_on_face[face_no][i]              = shape_data[0];
+              info.shape_data_on_face[face_no][n_dofs + i]     = shape_data[1];
+              info.shape_data_on_face[face_no][2 * n_dofs + i] = shape_data[2];
+            }
+        }
+    };
+
+  fill_shape_data(lower, raw_polynomials_k, inverse_node_value_matrix_k);
+  fill_shape_data(higher,
+                  raw_polynomials_kplus1,
+                  inverse_node_value_matrix_kplus1);
+
+  /// NOTE as of 2021/03/06 the documentation of lexicographic_numbering is
+  /// wrong: lexicographic_numbering defines a lexicographic-to-hierarchical
+  /// mapping (l2h) and not vice versa as documented
+  shape_info.lexicographic_numbering = this->l2h;
+  shape_info.element_type            = raviart_thomas;
+  shape_info.n_dimensions            = dim;
+  shape_info.n_components            = dim;
+
+  AssertDimension(this->n_dofs_per_cell() % dim, 0U);
+  shape_info.dofs_per_component_on_cell = this->n_dofs_per_cell() / dim;
+  AssertDimension(shape_info.dofs_per_component_on_cell,
+                  (higher.fe_degree + 1) *
+                    (dim > 1 ? Utilities::pow(lower.fe_degree + 1, dim - 1) :
+                               1));
+  /// dofs_per_component_on_face is not reasonable for this finite element: each
+  /// vector component has faces with either 0 dofs or n_dofs_per_face(). we
+  /// decide to set the maximum here
+  shape_info.dofs_per_component_on_face = this->n_dofs_per_face();
+
+  shape_info.n_q_points = Utilities::pow(quad.size(), dim);
+  shape_info.n_q_points_face =
+    dim > 1 ? Utilities::pow(quad.size(), dim - 1) : 1;
+
+  AssertDimension(shape_info.data.size(), 2U);
+  Assert(&higher == &shape_info.data.front(), ExcInternalError());
+  Assert(&lower == &shape_info.data.back(), ExcInternalError());
+
+  shape_info.data_access.reinit(dim, dim);
+  for (auto dimension = 0U; dimension < dim; ++dimension)
+    for (auto comp = 0U; comp < dim; ++comp)
+      shape_info.data_access(dimension, comp) =
+        dimension == comp ? &higher : &lower;
 }
 
 

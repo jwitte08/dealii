@@ -164,37 +164,6 @@ namespace Tensors
       }())
     {}
 
-    IntType
-    first_index(const unsigned int mode) const
-    {
-      (void)mode;
-      AssertIndexRange(mode, order);
-      return static_cast<IntType>(0);
-    }
-
-    IntType
-    last_index(const unsigned int mode) const
-    {
-      AssertIndexRange(mode, order);
-      return size(mode) - 1;
-    }
-
-    bool
-    is_first_index_1d(const std::array<IntType, order> &multi_index,
-                      const unsigned int                mode) const
-    {
-      AssertIndexRange(mode, order);
-      return multi_index[mode] == first_index(mode);
-    }
-
-    bool
-    is_last_index_1d(const std::array<IntType, order> &multi_index,
-                     const unsigned int                mode) const
-    {
-      AssertIndexRange(mode, order);
-      return multi_index[mode] == last_index(mode);
-    }
-
     std::array<IntType, order>
     multi_index(const IntType index) const
     {
@@ -374,13 +343,10 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
       std::vector<ComponentMask>(PolynomialsRaviartThomas<dim>::n_polynomials(
                                    deg),
                                  std::vector<bool>(dim, true)))
-  /// init by PolynomialsRaviartThomas<dim>(deg)
   , raw_polynomials_kplus1(
-      Polynomials::LagrangeEquidistant::generate_complete_basis(deg + 1))
-  /// init by PolynomialsRaviartThomas<dim>(deg)
+      PolynomialsRaviartThomas_new<dim>::make_univariate_polynomials_high(deg))
   , raw_polynomials_k(
-      deg == 0 ? Polynomials::Legendre::generate_complete_basis(0) :
-                 Polynomials::LagrangeEquidistant::generate_complete_basis(deg))
+      PolynomialsRaviartThomas_new<dim>::make_univariate_polynomials_low(deg))
 {
   Assert(dim >= 2, ExcImpossibleInDim(dim));
   const unsigned int n_dofs = this->n_dofs_per_cell();
@@ -1001,6 +967,11 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
         cached_values_on_cell(i, k, d) =
           this->shape_value_component(i, q_cell.point(k), d);
 
+  const unsigned int n_interior_nodes_per_component = polynomials[0]->n();
+  /// double-checking isotropy among components
+  for (auto comp = 1; comp < dim; ++comp)
+    AssertDimension(n_interior_nodes_per_component, polynomials[comp]->n());
+
   for (unsigned int child = 0; child < GeometryInfo<dim>::max_children_per_cell;
        ++child)
     {
@@ -1010,17 +981,15 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
                                           child);
 
       for (unsigned int k = 0; k < q_sub.size(); ++k)
-        for (unsigned int i_child = 0; i_child < this->n_dofs_per_cell();
-             ++i_child)
-          for (unsigned int d = 0; d < dim; ++d)
-            for (unsigned int i_weight = 0; i_weight < polynomials[d]->n();
-                 ++i_weight)
+        for (unsigned int j = 0; j < this->n_dofs_per_cell(); ++j)
+          for (unsigned int comp = 0; comp < dim; ++comp)
+            for (unsigned int i = 0; i < polynomials[comp]->n(); ++i)
               {
-                this->restriction[iso][child](start_cell_dofs + i_weight * dim +
-                                                d,
-                                              i_child) +=
-                  q_sub.weight(k) * cached_values_on_cell(i_child, k, d) *
-                  polynomials[d]->compute_value(i_weight, q_sub.point(k));
+                const unsigned int ii =
+                  start_cell_dofs + comp * n_interior_nodes_per_component + i;
+                this->restriction[iso][child](ii, j) +=
+                  q_sub.weight(k) * cached_values_on_cell(j, k, comp) *
+                  polynomials[comp]->compute_value(i, q_sub.point(k));
               }
     }
 }
@@ -1114,60 +1083,62 @@ FE_RaviartThomas_new<dim>::has_support_on_face(
 
 
 
-template <int dim>
-void
-FE_RaviartThomas_new<dim>::
-  convert_generalized_support_point_values_to_dof_values(
-    const std::vector<Vector<double>> &support_point_values,
-    std::vector<double> &              nodal_values) const
-{
-  Assert(support_point_values.size() == this->generalized_support_points.size(),
-         ExcDimensionMismatch(support_point_values.size(),
-                              this->generalized_support_points.size()));
-  Assert(nodal_values.size() == this->n_dofs_per_cell(),
-         ExcDimensionMismatch(nodal_values.size(), this->n_dofs_per_cell()));
-  Assert(support_point_values[0].size() == this->n_components(),
-         ExcDimensionMismatch(support_point_values[0].size(),
-                              this->n_components()));
+// template <int dim>
+// void
+// FE_RaviartThomas_new<dim>::
+//   convert_generalized_support_point_values_to_dof_values(
+//     const std::vector<Vector<double>> &support_point_values,
+//     std::vector<double> &              nodal_values) const
+// {
+//   Assert(support_point_values.size() ==
+//   this->generalized_support_points.size(),
+//          ExcDimensionMismatch(support_point_values.size(),
+//                               this->generalized_support_points.size()));
+//   Assert(nodal_values.size() == this->n_dofs_per_cell(),
+//          ExcDimensionMismatch(nodal_values.size(), this->n_dofs_per_cell()));
+//   Assert(support_point_values[0].size() == this->n_components(),
+//          ExcDimensionMismatch(support_point_values[0].size(),
+//                               this->n_components()));
 
-  std::fill(nodal_values.begin(), nodal_values.end(), 0.);
+//   std::fill(nodal_values.begin(), nodal_values.end(), 0.);
 
-  const unsigned int n_face_points = boundary_weights.size(0);
-  for (unsigned int face : GeometryInfo<dim>::face_indices())
-    for (unsigned int k = 0; k < n_face_points; ++k)
-      for (unsigned int i = 0; i < boundary_weights.size(1); ++i)
-        {
-          nodal_values[i + face * this->n_dofs_per_face(face)] +=
-            boundary_weights(k, i) *
-            support_point_values[face * n_face_points + k](
-              GeometryInfo<dim>::unit_normal_direction[face]);
-        }
+//   const unsigned int n_face_points = boundary_weights.size(0);
+//   for (unsigned int face : GeometryInfo<dim>::face_indices())
+//     for (unsigned int k = 0; k < n_face_points; ++k)
+//       for (unsigned int i = 0; i < boundary_weights.size(1); ++i)
+//         {
+//           nodal_values[i + face * this->n_dofs_per_face(face)] +=
+//             boundary_weights(k, i) *
+//             support_point_values[face * n_face_points + k](
+//               GeometryInfo<dim>::unit_normal_direction[face]);
+//         }
 
-  // TODO: the implementation makes the assumption that all faces have the
-  // same number of dofs
-  AssertDimension(this->n_unique_faces(), 1);
-  const unsigned int face_no = 0;
+//   // TODO: the implementation makes the assumption that all faces have the
+//   // same number of dofs
+//   AssertDimension(this->n_unique_faces(), 1);
+//   const unsigned int face_no = 0;
 
-  const unsigned int start_cell_dofs =
-    GeometryInfo<dim>::faces_per_cell * this->n_dofs_per_face(face_no);
-  const unsigned int start_cell_points =
-    GeometryInfo<dim>::faces_per_cell * n_face_points;
+//   const unsigned int start_cell_dofs =
+//     GeometryInfo<dim>::faces_per_cell * this->n_dofs_per_face(face_no);
+//   const unsigned int start_cell_points =
+//     GeometryInfo<dim>::faces_per_cell * n_face_points;
 
-  const unsigned int n_interior_nodes_per_component = interior_weights.size(1);
-  for (unsigned int k = 0; k < interior_weights.size(0); ++k)
-    for (unsigned int d = 0; d < dim; ++d)
-      for (unsigned int i = 0; i < n_interior_nodes_per_component; ++i)
-        nodal_values[start_cell_dofs + d * n_interior_nodes_per_component +
-                     i] += interior_weights(k, i, d) *
-                           support_point_values[k + start_cell_points](d);
-  /// OLD
-  // for (unsigned int k = 0; k < interior_weights.size(0); ++k)
-  //   for (unsigned int i = 0; i < interior_weights.size(1); ++i)
-  //     for (unsigned int d = 0; d < dim; ++d)
-  // nodal_values[start_cell_dofs + i * dim + d] +=
-  //   interior_weights(k, i, d) *
-  //   support_point_values[k + start_cell_points](d);
-}
+//   const unsigned int n_interior_nodes_per_component =
+//   interior_weights.size(1); for (unsigned int k = 0; k <
+//   interior_weights.size(0); ++k)
+//     for (unsigned int d = 0; d < dim; ++d)
+//       for (unsigned int i = 0; i < n_interior_nodes_per_component; ++i)
+//         nodal_values[start_cell_dofs + d * n_interior_nodes_per_component +
+//                      i] += interior_weights(k, i, d) *
+//                            support_point_values[k + start_cell_points](d);
+//   /// OLD
+//   // for (unsigned int k = 0; k < interior_weights.size(0); ++k)
+//   //   for (unsigned int i = 0; i < interior_weights.size(1); ++i)
+//   //     for (unsigned int d = 0; d < dim; ++d)
+//   // nodal_values[start_cell_dofs + i * dim + d] +=
+//   //   interior_weights(k, i, d) *
+//   //   support_point_values[k + start_cell_points](d);
+// }
 
 
 
