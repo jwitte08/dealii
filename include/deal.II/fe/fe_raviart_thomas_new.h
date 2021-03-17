@@ -222,8 +222,7 @@ private:
   template <bool is_nodal>
   double
   evaluate_node_functional_kplus1_impl(
-    const unsigned int i,
-    // const std::vector<double> &poly_values,
+    const unsigned int             i,
     const ArrayView<const double> &poly_values,
     const Quadrature<1> &          quad) const;
 
@@ -233,9 +232,9 @@ private:
                              const Quadrature<1> &                  quad) const;
 
   double
-  evaluate_node_functional_k_impl(const unsigned int         i,
-                                  const std::vector<double> &poly_values,
-                                  const Quadrature<1> &      quad) const;
+  evaluate_node_functional_k_impl(const unsigned int             i,
+                                  const ArrayView<const double> &poly_values,
+                                  const Quadrature<1> &          quad) const;
 
   /**
    * These are the factors multiplied to a function in the
@@ -610,29 +609,29 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
 
   AssertDimension(shape_info.data.size(), 0U); // double-check
   shape_info.data.reserve(2U);
-  /// c++17: auto & higher = shape_info.data.emplace_back();
+  /// c++17: auto & high = shape_info.data.emplace_back();
   shape_info.data.emplace_back();
   shape_info.data.emplace_back();
-  UnivariateShapeData<Number> &higher = shape_info.data.front();
-  UnivariateShapeData<Number> &lower  = shape_info.data.back();
+  UnivariateShapeData<Number> &high = shape_info.data.front();
+  UnivariateShapeData<Number> &low  = shape_info.data.back();
 
-  lower.element_type             = tensor_symmetric;
-  lower.fe_degree                = raw_polynomials_k.size() - 1;
-  lower.quadrature               = quad;
-  lower.n_q_points_1d            = quad.size();
-  lower.nodal_at_cell_boundaries = false;
+  low.element_type             = tensor_symmetric;
+  low.fe_degree                = raw_polynomials_k.size() - 1;
+  low.quadrature               = quad;
+  low.n_q_points_1d            = quad.size();
+  low.nodal_at_cell_boundaries = false;
 
-  higher.element_type             = tensor_symmetric;
-  higher.fe_degree                = raw_polynomials_kplus1.size() - 1;
-  higher.quadrature               = quad;
-  higher.n_q_points_1d            = quad.size();
-  higher.nodal_at_cell_boundaries = true;
+  high.element_type             = tensor_symmetric;
+  high.fe_degree                = raw_polynomials_kplus1.size() - 1;
+  high.quadrature               = quad;
+  high.n_q_points_1d            = quad.size();
+  high.nodal_at_cell_boundaries = true;
 
   std::vector<double> q_points;
   std::transform(quad.get_points().cbegin(),
                  quad.get_points().cend(),
                  std::back_inserter(q_points),
-                 [](const auto &point) { return point(0); });
+                 [](const auto &point) { return point[0]; });
 
   const auto fill_shape_data =
     [&](UnivariateShapeData<Number> &                       info,
@@ -643,14 +642,16 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
 
       const unsigned int n_dofs = info.fe_degree + 1;
 
+      AssertDimension(q_points.size(), info.n_q_points_1d);
+
       info.shape_values    = AlignedVector<Number>(n_dofs * info.n_q_points_1d);
       info.shape_gradients = AlignedVector<Number>(n_dofs * info.n_q_points_1d);
       info.shape_hessians  = AlignedVector<Number>(n_dofs * info.n_q_points_1d);
       info.shape_data_on_face[0].resize(nd * n_dofs);
       info.shape_data_on_face[1].resize(nd * n_dofs);
 
-      AssertDimension(n_dofs, raw_to_shape_matrix.m());
-      AssertDimension(raw_polynomials.size(), raw_to_shape_matrix.n());
+      AssertDimension(n_dofs, raw_to_shape_matrix.m());                 // !!!
+      AssertDimension(raw_polynomials.size(), raw_to_shape_matrix.n()); // !!!
       AssertDimension(n_dofs, raw_polynomials.size());
 
       std::vector<Tensor<1, nd, double>> raw_data;
@@ -660,7 +661,7 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
                        std::back_inserter(raw_data),
                        [&](const auto &poly) {
                          Tensor<1, nd, double> values;
-                         poly.value(x_q, 2, values.begin_raw());
+                         poly.value(x_q, nd - 1, values.begin_raw());
                          return values;
                        });
 
@@ -673,13 +674,13 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
                        std::back_inserter(raw_data_face),
                        [&](const auto &poly) {
                          Tensor<1, nd, double> values;
-                         poly.value(x_q, 2, values.begin_raw());
+                         poly.value(x_q, nd - 1, values.begin_raw());
                          return values;
                        });
 
       AssertDimension(raw_data_face.size(), 2 * n_dofs);
 
-      for (unsigned int i = 0; i < (n_dofs); ++i)
+      for (unsigned int i = 0; i < n_dofs; ++i)
         {
           for (unsigned int q = 0; q < info.n_q_points_1d; ++q)
             {
@@ -688,7 +689,8 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
 
               Tensor<1, nd, double> shape_data;
               for (unsigned int j = 0; j < n_dofs; ++j)
-                shape_data += raw_to_shape_matrix(i, j) * raw_data_begin[j];
+                shape_data +=
+                  raw_to_shape_matrix(i, j) * raw_data_begin[j]; // !!!
 
               info.shape_values[i * info.n_q_points_1d + q]    = shape_data[0];
               info.shape_gradients[i * info.n_q_points_1d + q] = shape_data[1];
@@ -702,7 +704,8 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
 
               Tensor<1, nd, double> shape_data;
               for (unsigned int j = 0; j < n_dofs; ++j)
-                shape_data += raw_to_shape_matrix(i, j) * raw_data_begin[j];
+                shape_data +=
+                  raw_to_shape_matrix(i, j) * raw_data_begin[j]; // !!!
 
               info.shape_data_on_face[face_no][i]              = shape_data[0];
               info.shape_data_on_face[face_no][n_dofs + i]     = shape_data[1];
@@ -711,11 +714,15 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
         }
     };
 
-  fill_shape_data(lower, raw_polynomials_k, inverse_node_value_matrix_k);
+  FullMatrix<double> raw_to_shape_k;
+  raw_to_shape_k.copy_transposed(inverse_node_value_matrix_k);
 
-  fill_shape_data(higher,
-                  raw_polynomials_kplus1,
-                  inverse_node_value_matrix_kplus1);
+  fill_shape_data(low, raw_polynomials_k, raw_to_shape_k);
+
+  FullMatrix<double> raw_to_shape_kplus1;
+  raw_to_shape_kplus1.copy_transposed(inverse_node_value_matrix_kplus1);
+
+  fill_shape_data(high, raw_polynomials_kplus1, raw_to_shape_kplus1);
 
   /// NOTE as of 2021/03/06 the documentation of lexicographic_numbering is
   /// wrong: lexicographic_numbering defines a lexicographic-to-hierarchical
@@ -737,14 +744,14 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
     dim > 1 ? Utilities::pow(quad.size(), dim - 1) : 1;
 
   AssertDimension(shape_info.data.size(), 2U);
-  Assert(&higher == &shape_info.data.front(), ExcInternalError());
-  Assert(&lower == &shape_info.data.back(), ExcInternalError());
+  Assert(&high == &shape_info.data.front(), ExcInternalError());
+  Assert(&low == &shape_info.data.back(), ExcInternalError());
 
   shape_info.data_access.reinit(dim, dim);
   for (auto dimension = 0U; dimension < dim; ++dimension)
     for (auto comp = 0U; comp < dim; ++comp)
       shape_info.data_access(dimension, comp) =
-        dimension == comp ? &higher : &lower;
+        dimension == comp ? &high : &low;
 }
 
 
@@ -778,8 +785,7 @@ template <int dim>
 template <bool is_nodal>
 inline double
 FE_RaviartThomas_new<dim>::evaluate_node_functional_kplus1_impl(
-  const unsigned int i,
-  // const std::vector<double> &poly_values,
+  const unsigned int             i,
   const ArrayView<const double> &poly_values,
   const Quadrature<1> &          quad) const
 {
@@ -820,16 +826,18 @@ FE_RaviartThomas_new<dim>::evaluate_node_functional_k(
                  quad.get_points().cend(),
                  std::back_inserter(poly_values),
                  [&](const auto x_q) { return poly.value(x_q[0]); });
-  return evaluate_node_functional_k_impl(i, poly_values, quad);
+  return evaluate_node_functional_k_impl(i,
+                                         make_array_view<double>(poly_values),
+                                         quad);
 }
 
 
 template <int dim>
 inline double
 FE_RaviartThomas_new<dim>::evaluate_node_functional_k_impl(
-  const unsigned int         i,
-  const std::vector<double> &poly_values,
-  const Quadrature<1> &      quad) const
+  const unsigned int             i,
+  const ArrayView<const double> &poly_values,
+  const Quadrature<1> &          quad) const
 {
   AssertIndexRange(i, node_polynomials_k.size());
   AssertDimension(poly_values.size(), quad.size());
