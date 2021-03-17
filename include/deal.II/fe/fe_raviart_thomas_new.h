@@ -214,6 +214,29 @@ private:
   void
   initialize_restriction();
 
+  double
+  evaluate_node_functional_kplus1(const unsigned int                     i,
+                                  const Polynomials::Polynomial<double> &poly,
+                                  const Quadrature<1> &quad) const;
+
+  template <bool is_nodal>
+  double
+  evaluate_node_functional_kplus1_impl(
+    const unsigned int i,
+    // const std::vector<double> &poly_values,
+    const ArrayView<const double> &poly_values,
+    const Quadrature<1> &          quad) const;
+
+  double
+  evaluate_node_functional_k(const unsigned int                     i,
+                             const Polynomials::Polynomial<double> &poly,
+                             const Quadrature<1> &                  quad) const;
+
+  double
+  evaluate_node_functional_k_impl(const unsigned int         i,
+                                  const std::vector<double> &poly_values,
+                                  const Quadrature<1> &      quad) const;
+
   /**
    * These are the factors multiplied to a function in the
    * #generalized_face_support_points when computing the integration. They are
@@ -240,11 +263,19 @@ private:
   /// NEW lexicographic-to-hierarchical index mapping
   std::vector<unsigned int> l2h;
 
-  /// NEW univariate raw basis polynomials of degree up to (k+1)
-  std::vector<Polynomials::Polynomial<double>> raw_polynomials_kplus1;
+  /// NEW univariate raw polynomial basis of degree up to (k+1)
+  const std::vector<Polynomials::Polynomial<double>> raw_polynomials_kplus1;
 
-  /// NEW univariate raw basis polynomials of degree up to k
-  std::vector<Polynomials::Polynomial<double>> raw_polynomials_k;
+  /// NEW univariate raw polynomial basis of degree up to k
+  const std::vector<Polynomials::Polynomial<double>> raw_polynomials_k;
+
+  /// NEW univariate polynomial basis of degree up to k generating moment-based
+  /// node functionals
+  const std::vector<Polynomials::Polynomial<double>> node_polynomials_k;
+
+  /// NEW univariate polynomial basis of degree up to (k-1) generating
+  /// moment-based node functionals
+  const std::vector<Polynomials::Polynomial<double>> node_polynomials_kminus1;
 
   /// NEW inverse node values which determine the transpose of the
   /// transformation matrix from raw polynomials to the univariate shape
@@ -597,26 +628,6 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
   higher.n_q_points_1d            = quad.size();
   higher.nodal_at_cell_boundaries = true;
 
-  lower.shape_values =
-    AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
-  lower.shape_gradients =
-    AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
-  lower.shape_hessians =
-    AlignedVector<Number>((lower.fe_degree + 1) * lower.n_q_points_1d);
-  lower.shape_data_on_face[0].resize(3 * (lower.fe_degree + 1)); // TODO ???
-  lower.shape_data_on_face[1].resize(3 * (lower.fe_degree + 1)); // TODO ???
-
-  higher.shape_values =
-    AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
-  higher.shape_gradients =
-    AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
-  higher.shape_hessians =
-    AlignedVector<Number>((higher.fe_degree + 1) * higher.n_q_points_1d);
-  higher.shape_data_on_face[0].resize(3 * (higher.fe_degree + 1));
-  higher.shape_data_on_face[1].resize(3 * (higher.fe_degree + 1));
-
-  const auto n_q_points_1d = quad.size();
-
   std::vector<double> q_points;
   std::transform(quad.get_points().cbegin(),
                  quad.get_points().cend(),
@@ -627,32 +638,41 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
     [&](UnivariateShapeData<Number> &                       info,
         const std::vector<Polynomials::Polynomial<double>> &raw_polynomials,
         const FullMatrix<double> &raw_to_shape_matrix) {
+      /// size of data array: value + 1st derivative + 2nd derivative
+      constexpr unsigned int nd = 3;
+
       const unsigned int n_dofs = info.fe_degree + 1;
+
+      info.shape_values    = AlignedVector<Number>(n_dofs * info.n_q_points_1d);
+      info.shape_gradients = AlignedVector<Number>(n_dofs * info.n_q_points_1d);
+      info.shape_hessians  = AlignedVector<Number>(n_dofs * info.n_q_points_1d);
+      info.shape_data_on_face[0].resize(nd * n_dofs);
+      info.shape_data_on_face[1].resize(nd * n_dofs);
 
       AssertDimension(n_dofs, raw_to_shape_matrix.m());
       AssertDimension(raw_polynomials.size(), raw_to_shape_matrix.n());
       AssertDimension(n_dofs, raw_polynomials.size());
 
-      std::vector<Tensor<1, 3, double>> raw_data;
+      std::vector<Tensor<1, nd, double>> raw_data;
       for (const auto &x_q : q_points)
         std::transform(raw_polynomials.cbegin(),
                        raw_polynomials.cend(),
                        std::back_inserter(raw_data),
                        [&](const auto &poly) {
-                         Tensor<1, 3, double> values;
+                         Tensor<1, nd, double> values;
                          poly.value(x_q, 2, values.begin_raw());
                          return values;
                        });
 
-      AssertDimension(raw_data.size(), n_dofs * n_q_points_1d);
+      AssertDimension(raw_data.size(), n_dofs * info.n_q_points_1d);
 
-      std::vector<Tensor<1, 3, double>> raw_data_face;
+      std::vector<Tensor<1, nd, double>> raw_data_face;
       for (const auto &x_q : {0., 1.})
         std::transform(raw_polynomials.cbegin(),
                        raw_polynomials.cend(),
                        std::back_inserter(raw_data_face),
                        [&](const auto &poly) {
-                         Tensor<1, 3, double> values;
+                         Tensor<1, nd, double> values;
                          poly.value(x_q, 2, values.begin_raw());
                          return values;
                        });
@@ -661,18 +681,18 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
 
       for (unsigned int i = 0; i < (n_dofs); ++i)
         {
-          for (unsigned int q = 0; q < n_q_points_1d; ++q)
+          for (unsigned int q = 0; q < info.n_q_points_1d; ++q)
             {
               const unsigned int stride         = q * n_dofs;
               const auto         raw_data_begin = raw_data.cbegin() + stride;
 
-              Tensor<1, 3, double> shape_data;
+              Tensor<1, nd, double> shape_data;
               for (unsigned int j = 0; j < n_dofs; ++j)
                 shape_data += raw_to_shape_matrix(i, j) * raw_data_begin[j];
 
-              info.shape_values[i * n_q_points_1d + q]    = shape_data[0];
-              info.shape_gradients[i * n_q_points_1d + q] = shape_data[1];
-              info.shape_hessians[i * n_q_points_1d + q]  = shape_data[2];
+              info.shape_values[i * info.n_q_points_1d + q]    = shape_data[0];
+              info.shape_gradients[i * info.n_q_points_1d + q] = shape_data[1];
+              info.shape_hessians[i * info.n_q_points_1d + q]  = shape_data[2];
             }
 
           for (unsigned int face_no = 0; face_no < 2U; ++face_no)
@@ -680,7 +700,7 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
               const unsigned int stride = face_no * n_dofs;
               const auto raw_data_begin = raw_data_face.cbegin() + stride;
 
-              Tensor<1, 3, double> shape_data;
+              Tensor<1, nd, double> shape_data;
               for (unsigned int j = 0; j < n_dofs; ++j)
                 shape_data += raw_to_shape_matrix(i, j) * raw_data_begin[j];
 
@@ -692,6 +712,7 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
     };
 
   fill_shape_data(lower, raw_polynomials_k, inverse_node_value_matrix_k);
+
   fill_shape_data(higher,
                   raw_polynomials_kplus1,
                   inverse_node_value_matrix_kplus1);
@@ -706,10 +727,6 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
 
   AssertDimension(this->n_dofs_per_cell() % dim, 0U);
   shape_info.dofs_per_component_on_cell = this->n_dofs_per_cell() / dim;
-  AssertDimension(shape_info.dofs_per_component_on_cell,
-                  (higher.fe_degree + 1) *
-                    (dim > 1 ? Utilities::pow(lower.fe_degree + 1, dim - 1) :
-                               1));
   /// dofs_per_component_on_face is not reasonable for this finite element: each
   /// vector component has faces with either 0 dofs or n_dofs_per_face(). we
   /// decide to set the maximum here
@@ -728,6 +745,104 @@ FE_RaviartThomas_new<dim>::fill_shape_info(
     for (auto comp = 0U; comp < dim; ++comp)
       shape_info.data_access(dimension, comp) =
         dimension == comp ? &higher : &lower;
+}
+
+
+template <int dim>
+inline double
+FE_RaviartThomas_new<dim>::evaluate_node_functional_kplus1(
+  const unsigned int                     i,
+  const Polynomials::Polynomial<double> &poly,
+  const Quadrature<1> &                  quad) const
+{
+  const unsigned int  k = this->degree - 1; // RT index
+  std::vector<double> poly_values;
+  /// nodal at endpoints 0 and 1
+  if (i == 0U || i == (k + 1))
+    {
+      poly_values.emplace_back(i == 0U ? poly.value(0.) : poly.value(1.));
+      return evaluate_node_functional_kplus1_impl<true>(
+        i, make_array_view<double>(poly_values), quad);
+    }
+  /// moment-based for all remaining dofs
+  std::transform(quad.get_points().cbegin(),
+                 quad.get_points().cend(),
+                 std::back_inserter(poly_values),
+                 [&](const auto x_q) { return poly.value(x_q[0]); });
+  return evaluate_node_functional_kplus1_impl<false>(
+    i, make_array_view<double>(poly_values), quad);
+}
+
+
+template <int dim>
+template <bool is_nodal>
+inline double
+FE_RaviartThomas_new<dim>::evaluate_node_functional_kplus1_impl(
+  const unsigned int i,
+  // const std::vector<double> &poly_values,
+  const ArrayView<const double> &poly_values,
+  const Quadrature<1> &          quad) const
+{
+  AssertIndexRange(i, node_polynomials_kminus1.size() + 2U);
+  /// nodal at endpoints
+  if (is_nodal)
+    {
+      AssertDimension(poly_values.size(), 1U);
+      Assert(i == 0U || i == this->degree,
+             ExcMessage("Only the first and last dof are nodal."));
+      return poly_values[0];
+    }
+
+  /// k moments in the interior
+  AssertDimension(poly_values.size(), quad.size());
+  const auto &q_points  = quad.get_points();
+  const auto &q_weights = quad.get_weights();
+  const auto &node_poly = node_polynomials_kminus1[i - 1];
+  double      eval      = 0.;
+  for (auto q = 0U; q < quad.size(); ++q)
+    {
+      const double &x_q = q_points[q][0];
+      eval += poly_values[q] * node_poly.value(x_q) * q_weights[q];
+    }
+  return eval;
+}
+
+
+template <int dim>
+inline double
+FE_RaviartThomas_new<dim>::evaluate_node_functional_k(
+  const unsigned int                     i,
+  const Polynomials::Polynomial<double> &poly,
+  const Quadrature<1> &                  quad) const
+{
+  std::vector<double> poly_values;
+  std::transform(quad.get_points().cbegin(),
+                 quad.get_points().cend(),
+                 std::back_inserter(poly_values),
+                 [&](const auto x_q) { return poly.value(x_q[0]); });
+  return evaluate_node_functional_k_impl(i, poly_values, quad);
+}
+
+
+template <int dim>
+inline double
+FE_RaviartThomas_new<dim>::evaluate_node_functional_k_impl(
+  const unsigned int         i,
+  const std::vector<double> &poly_values,
+  const Quadrature<1> &      quad) const
+{
+  AssertIndexRange(i, node_polynomials_k.size());
+  AssertDimension(poly_values.size(), quad.size());
+  const auto &q_points  = quad.get_points();
+  const auto &q_weights = quad.get_weights();
+  const auto &node_poly = node_polynomials_k[i];
+  double      eval      = 0.;
+  for (auto q = 0U; q < quad.size(); ++q)
+    {
+      const double &x_q = q_points[q][0];
+      eval += poly_values[q] * node_poly.value(x_q) * q_weights[q];
+    }
+  return eval;
 }
 
 

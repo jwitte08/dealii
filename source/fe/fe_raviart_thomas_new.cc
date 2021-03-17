@@ -329,7 +329,6 @@ namespace Tensors
 } // namespace Tensors
 
 
-
 template <int dim>
 FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   : FE_PolyTensor<dim>(
@@ -347,6 +346,10 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
       PolynomialsRaviartThomas_new<dim>::make_univariate_polynomials_high(deg))
   , raw_polynomials_k(
       PolynomialsRaviartThomas_new<dim>::make_univariate_polynomials_low(deg))
+  , node_polynomials_k(Polynomials::Legendre::generate_complete_basis(deg))
+  , node_polynomials_kminus1(
+      deg > 0 ? Polynomials::Legendre::generate_complete_basis(deg - 1) :
+                std::vector<Polynomials::Polynomial<double>>{})
 {
   Assert(dim >= 2, ExcImpossibleInDim(dim));
   const unsigned int n_dofs = this->n_dofs_per_cell();
@@ -368,74 +371,71 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   FullMatrix<double> node_value_matrix_kplus1;
   FullMatrix<double> node_value_matrix_k;
   {
-    QGauss<1>   quad(deg + 1);
-    const auto  n_q_points_1d = quad.size();
-    const auto &q_points      = quad.get_points();
-    const auto &q_weights     = quad.get_weights();
+    QGauss<1> quad(deg + 1);
+    // const auto  n_q_points_1d = quad.size();
+    // const auto &q_points      = quad.get_points();
+    // const auto &q_weights     = quad.get_weights();
 
-    const std::vector<Polynomials::Polynomial<double>> node_polynomials_k =
-      Polynomials::Legendre::generate_complete_basis(deg);
-    const std::vector<Polynomials::Polynomial<double>>
-      node_polynomials_kminus1 =
-        deg > 0 ? Polynomials::Legendre::generate_complete_basis(deg - 1) :
-                  std::vector<Polynomials::Polynomial<double>>{};
+    // AssertDimension(node_polynomials_k.size(), deg + 1);   // double-check
+    // AssertDimension(node_polynomials_kminus1.size(), deg); // double-check
 
-    AssertDimension(node_polynomials_k.size(), deg + 1);   // double-check
-    AssertDimension(node_polynomials_kminus1.size(), deg); // double-check
+    // const auto evaluate_node_functional_kplus1 =
+    //   [&](const unsigned int i, const Polynomials::Polynomial<double> &poly)
+    //   {
+    //     AssertIndexRange(i, node_polynomials_kminus1.size() + 2U);
+    //     /// nodal at endpoint 0
+    //     if (i == 0U)
+    //       return poly.value(0.);
 
-    const auto evaluate_node_functional_kplus1 =
-      [&](const unsigned int i, const Polynomials::Polynomial<double> &poly) {
-        AssertIndexRange(i, node_polynomials_kminus1.size() + 2U);
-        /// nodal at endpoint 0
-        if (i == 0U)
-          return poly.value(0.);
+    //     /// nodal at endpoint 1
+    //     else if (i == deg + 1)
+    //       return poly.value(1.);
 
-        /// nodal at endpoint 1
-        else if (i == deg + 1)
-          return poly.value(1.);
+    //     /// k moments in the interior
+    //     Assert(i > 0U,
+    //            ExcMessage("0th node functional has to be treated before!"));
+    //     const auto &node_poly = node_polynomials_kminus1[i - 1];
+    //     double      eval      = 0.;
+    //     for (auto q = 0U; q < n_q_points_1d; ++q)
+    //       {
+    //         const double &x_q = q_points[q][0];
+    //         const auto &  w_q = q_weights[q];
+    //         eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
+    //       }
+    //     return eval;
+    //   };
 
-        /// k moments in the interior
-        Assert(i > 0U,
-               ExcMessage("0th node functional has to be treated before!"));
-        const auto &node_poly = node_polynomials_kminus1[i - 1];
-        double      eval      = 0.;
-        for (auto q = 0U; q < n_q_points_1d; ++q)
-          {
-            const double &x_q = q_points[q][0];
-            const auto &  w_q = q_weights[q];
-            eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
-          }
-        return eval;
-      };
-
-    const auto evaluate_node_functional_k =
-      [&](const unsigned int i, const Polynomials::Polynomial<double> &poly) {
-        AssertIndexRange(i, node_polynomials_k.size());
-        /// (k+1) moments in the interior
-        const auto &node_poly = node_polynomials_k[i];
-        double      eval      = 0.;
-        for (auto q = 0U; q < n_q_points_1d; ++q)
-          {
-            const double &x_q = q_points[q][0];
-            const auto &  w_q = q_weights[q];
-            eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
-          }
-        return eval;
-      };
+    // const auto evaluate_node_functional_k =
+    //   [&](const unsigned int i, const Polynomials::Polynomial<double> &poly)
+    //   {
+    //     AssertIndexRange(i, node_polynomials_k.size());
+    //     /// (k+1) moments in the interior
+    //     const auto &node_poly = node_polynomials_k[i];
+    //     double      eval      = 0.;
+    //     for (auto q = 0U; q < n_q_points_1d; ++q)
+    //       {
+    //         const double &x_q = q_points[q][0];
+    //         const auto &  w_q = q_weights[q];
+    //         eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
+    //       }
+    //     return eval;
+    //   };
 
     AssertDimension(raw_polynomials_kplus1.size(), deg + 2);
     node_value_matrix_kplus1.reinit(deg + 2, deg + 2);
     for (auto i = 0U; i < deg + 2; ++i)
       for (auto j = 0U; j < deg + 2; ++j)
         node_value_matrix_kplus1(i, j) =
-          evaluate_node_functional_kplus1(i, raw_polynomials_kplus1[j]);
+          this->evaluate_node_functional_kplus1(i,
+                                                raw_polynomials_kplus1[j],
+                                                quad);
 
     AssertDimension(raw_polynomials_k.size(), deg + 1);
     node_value_matrix_k.reinit(deg + 1, deg + 1);
     for (auto i = 0U; i < deg + 1; ++i)
       for (auto j = 0U; j < deg + 1; ++j)
         node_value_matrix_k(i, j) =
-          evaluate_node_functional_k(i, raw_polynomials_k[j]);
+          this->evaluate_node_functional_k(i, raw_polynomials_k[j], quad);
   }
 
   AssertDimension(node_value_matrix_kplus1.m(), node_value_matrix_kplus1.n());
@@ -563,27 +563,11 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
       }
   }
 
-  /// DEBUG
-  node_value_matrix.print_formatted(std::cout, 3, true, 0, " ", 1., 1.e-10);
-
   FullMatrix<double> node_value_matrix_hierarchical(node_value_matrix.m(),
                                                     node_value_matrix.n());
   for (auto i = 0U; i < node_value_matrix.m(); ++i)
     for (auto j = 0U; j < node_value_matrix.n(); ++j)
       node_value_matrix_hierarchical(l2h[i], j) = node_value_matrix(i, j);
-
-  /// DEBUG
-  node_value_matrix_hierarchical.print_formatted(
-    std::cout, 3, true, 0, " ", 1., 1.e-10);
-
-  // // Now compute the inverse node matrix, generating the correct
-  // // basis functions from the raw ones. For a discussion of what
-  // // exactly happens here, see FETools::compute_node_matrix.
-  // const FullMatrix<double> M = FETools::compute_node_matrix(*this);
-  // /// DEBUG
-  // M.print_formatted(std::cout, 3, true, 0, " ", 1., 1.e-10);
-  // this->inverse_node_matrix.reinit(n_dofs, n_dofs);
-  // this->inverse_node_matrix.invert(M);
 
   this->inverse_node_matrix.reinit(n_dofs, n_dofs);
   this->inverse_node_matrix.invert(node_value_matrix_hierarchical);
@@ -854,144 +838,251 @@ template <int dim>
 void
 FE_RaviartThomas_new<dim>::initialize_restriction()
 {
+  using namespace internal::MatrixFreeFunctions;
+
+  Assert(dim > 1, ExcMessage("For dim == 1 treated as special case."));
+
   const unsigned int iso = RefinementCase<dim>::isotropic_refinement - 1;
 
-  QGauss<dim - 1>    q_base(this->degree);
-  const unsigned int n_face_points = q_base.size();
-  // First, compute interpolation on
-  // subfaces
-  for (unsigned int face : GeometryInfo<dim>::face_indices())
-    {
-      // The shape functions of the
-      // child cell are evaluated
-      // in the quadrature points
-      // of a full face.
-      Quadrature<dim> q_face =
-        QProjector<dim>::project_to_face(this->reference_cell_type(),
-                                         q_base,
-                                         face);
-      // Store shape values, since the
-      // evaluation suffers if not
-      // ordered by point
-      Table<2, double> cached_values_on_face(this->n_dofs_per_cell(),
-                                             q_face.size());
-      for (unsigned int k = 0; k < q_face.size(); ++k)
-        for (unsigned int i = 0; i < this->n_dofs_per_cell(); ++i)
-          cached_values_on_face(i, k) = this->shape_value_component(
-            i, q_face.point(k), GeometryInfo<dim>::unit_normal_direction[face]);
+  const unsigned int k = this->degree - 1;
 
-      for (unsigned int sub = 0; sub < GeometryInfo<dim>::max_children_per_face;
-           ++sub)
-        {
-          // The weight functions for
-          // the coarse face are
-          // evaluated on the subface
-          // only.
-          Quadrature<dim> q_sub = QProjector<dim>::project_to_subface(
-            this->reference_cell_type(), q_base, face, sub);
-          const unsigned int child = GeometryInfo<dim>::child_cell_on_face(
-            RefinementCase<dim>::isotropic_refinement, face, sub);
+  const unsigned n_q_points_1d = k + 1;
 
-          // On a certain face, we must
-          // compute the moments of ALL
-          // fine level functions with
-          // the coarse level weight
-          // functions belonging to
-          // that face. Due to the
-          // orthogonalization process
-          // when building the shape
-          // functions, these weights
-          // are equal to the
-          // corresponding shape
-          // functions.
-          for (unsigned int k = 0; k < n_face_points; ++k)
-            for (unsigned int i_child = 0; i_child < this->n_dofs_per_cell();
-                 ++i_child)
-              for (unsigned int i_face = 0;
-                   i_face < this->n_dofs_per_face(face);
-                   ++i_face)
-                {
-                  // The quadrature
-                  // weights on the
-                  // subcell are NOT
-                  // transformed, so we
-                  // have to do it here.
-                  this->restriction[iso][child](
-                    face * this->n_dofs_per_face(face) + i_face, i_child) +=
-                    Utilities::fixed_power<dim - 1>(.5) * q_sub.weight(k) *
-                    cached_values_on_face(i_child, k) *
-                    this->shape_value_component(
-                      face * this->n_dofs_per_face(face) + i_face,
-                      q_sub.point(k),
-                      GeometryInfo<dim>::unit_normal_direction[face]);
-                }
-        }
-    }
+  QGauss<1> unit_quad(n_q_points_1d);
 
-  if (this->degree == 1)
-    return;
+  ShapeInfo<double> shape_info;
+  this->fill_shape_info(shape_info, unit_quad);
 
-  // Create Legendre basis for the space D_xi Q_k. Here, we cannot
-  // use the shape functions
-  std::unique_ptr<AnisotropicPolynomials<dim>> polynomials[dim];
-  for (unsigned int dd = 0; dd < dim; ++dd)
-    {
-      std::vector<std::vector<Polynomials::Polynomial<double>>> poly(dim);
-      for (unsigned int d = 0; d < dim; ++d)
-        poly[d] =
-          Polynomials::Legendre::generate_complete_basis(this->degree - 1);
-      poly[dd] =
-        Polynomials::Legendre::generate_complete_basis(this->degree - 2);
+  const unsigned int   n_dofs_per_vertex_kplus1 = 1U;
+  const unsigned int   n_dofs_per_line_kplus1   = k + 2;
+  FiniteElementData<1> fe_data_kplus1({n_dofs_per_vertex_kplus1,
+                                       n_dofs_per_line_kplus1},
+                                      1,
+                                      k + 1,
+                                      FiniteElementData<1>::H1);
 
-      polynomials[dd] = std::make_unique<AnisotropicPolynomials<dim>>(poly);
-    }
+  std::vector<FullMatrix<double>> restriction_matrices_kplus1;
 
-  // TODO: the implementation makes the assumption that all faces have the
-  // same number of dofs
-  AssertDimension(this->n_unique_faces(), 1);
-  const unsigned int face_no = 0;
+  {
+    const auto &shape_data_kplus1 = shape_info.get_shape_data(0, 0);
 
-  QGauss<dim>        q_cell(this->degree);
-  const unsigned int start_cell_dofs =
-    GeometryInfo<dim>::faces_per_cell * this->n_dofs_per_face(face_no);
+    AssertDimension(shape_data_kplus1.fe_degree, k + 1); // double-check
+    AssertDimension(shape_data_kplus1.n_q_points_1d,
+                    n_q_points_1d); // double-check
 
-  // Store shape values, since the
-  // evaluation suffers if not
-  // ordered by point
-  Table<3, double> cached_values_on_cell(this->n_dofs_per_cell(),
-                                         q_cell.size(),
-                                         dim);
-  for (unsigned int k = 0; k < q_cell.size(); ++k)
-    for (unsigned int i = 0; i < this->n_dofs_per_cell(); ++i)
-      for (unsigned int d = 0; d < dim; ++d)
-        cached_values_on_cell(i, k, d) =
-          this->shape_value_component(i, q_cell.point(k), d);
+    const unsigned int n_dofs_fine    = shape_data_kplus1.fe_degree + 1;
+    const unsigned int n_nodes_coarse = n_dofs_fine;
 
-  const unsigned int n_interior_nodes_per_component = polynomials[0]->n();
-  /// double-checking isotropy among components
-  for (auto comp = 1; comp < dim; ++comp)
-    AssertDimension(n_interior_nodes_per_component, polynomials[comp]->n());
+    const auto evaluate_node_functional_kplus1 =
+      [&](const unsigned int   i,
+          const unsigned int   j,
+          const Quadrature<1> &quad) {
+        AssertIndexRange(j, n_dofs_fine);
+        ArrayView<const double> view_shape_values;
+        /// nodal at endpoints 0 and 1
+        if (i == 0U || i == (k + 1))
+          {
+            const unsigned int face_no = i == 0U ? 0 : 1;
+            view_shape_values.reinit(
+              shape_data_kplus1.shape_data_on_face[face_no].begin() + j, 1U);
+            return evaluate_node_functional_kplus1_impl<true>(i,
+                                                              view_shape_values,
+                                                              quad);
+          }
+        /// moment-based for all remaining dofs
+        view_shape_values.reinit(shape_data_kplus1.shape_values.begin() +
+                                   j * n_q_points_1d,
+                                 n_q_points_1d);
+        return evaluate_node_functional_kplus1_impl<false>(i,
+                                                           view_shape_values,
+                                                           quad);
+      };
 
-  for (unsigned int child = 0; child < GeometryInfo<dim>::max_children_per_cell;
-       ++child)
-    {
-      Quadrature<dim> q_sub =
-        QProjector<dim>::project_to_child(this->reference_cell_type(),
-                                          q_cell,
+    for (auto child = 0U; child < GeometryInfo<1>::max_children_per_cell;
+         ++child)
+      {
+        FullMatrix<double> &restriction_matrix_kplus1 =
+          restriction_matrices_kplus1.emplace_back(n_nodes_coarse, n_dofs_fine);
+
+        Quadrature<1> child_quad =
+          QProjector<1>::project_to_child(fe_data_kplus1.reference_cell_type(),
+                                          unit_quad,
                                           child);
 
-      for (unsigned int k = 0; k < q_sub.size(); ++k)
-        for (unsigned int j = 0; j < this->n_dofs_per_cell(); ++j)
-          for (unsigned int comp = 0; comp < dim; ++comp)
-            for (unsigned int i = 0; i < polynomials[comp]->n(); ++i)
-              {
-                const unsigned int ii =
-                  start_cell_dofs + comp * n_interior_nodes_per_component + i;
-                this->restriction[iso][child](ii, j) +=
-                  q_sub.weight(k) * cached_values_on_cell(j, k, comp) *
-                  polynomials[comp]->compute_value(i, q_sub.point(k));
-              }
+        std::cout << "q points on child " << child << std::endl;
+        for (auto x_q : child_quad.get_points())
+          std::cout << x_q << " ";
+        std::cout << std::endl;
+
+        // std::vector<double> cached_shape_values(n_q_points_1d * n_dofs_fine);
+        // for (unsigned int j = 0; j < n_dofs_fine; ++j)
+        //   for (unsigned int q = 0; q < child_quad.size(); ++q)
+        //     cached_shape_values[q * n_dofs_fine + j] =
+        //       shape_data_kplus1.shape_values[j * n_q_points_1d + q]
+
+        for (unsigned int j = 0; j < n_dofs_fine; ++j)
+          for (unsigned int i = 0; i < n_nodes_coarse; ++i)
+            restriction_matrix_kplus1(i, j) =
+              evaluate_node_functional_kplus1(i, j, child_quad);
+
+        // this->restriction[iso][child](ii, j) +=
+        //   child_quad.weight(k) * cached_values_on_cell(j, k, comp) *
+        //   polynomials[comp]->compute_value(i, child_quad.point(k));
+      }
+  }
+
+  /// DEBUG
+  for (auto child = 0U; child < GeometryInfo<1>::max_children_per_cell; ++child)
+    {
+      std::cout << "restriction_matrix_kplus1 for child " << child << std::endl;
+      restriction_matrices_kplus1[child].print_formatted(
+        std::cout, 3, true, 0, " ", 1., 1.e-10);
     }
+
+
+
+  {
+    QGauss<dim - 1>    q_base(this->degree);
+    const unsigned int n_face_points = q_base.size();
+    // First, compute interpolation on
+    // subfaces
+    for (unsigned int face : GeometryInfo<dim>::face_indices())
+      {
+        // The shape functions of the
+        // child cell are evaluated
+        // in the quadrature points
+        // of a full face.
+        Quadrature<dim> q_face =
+          QProjector<dim>::project_to_face(this->reference_cell_type(),
+                                           q_base,
+                                           face);
+        // Store shape values, since the
+        // evaluation suffers if not
+        // ordered by point
+        Table<2, double> cached_values_on_face(this->n_dofs_per_cell(),
+                                               q_face.size());
+        for (unsigned int k = 0; k < q_face.size(); ++k)
+          for (unsigned int i = 0; i < this->n_dofs_per_cell(); ++i)
+            cached_values_on_face(i, k) = this->shape_value_component(
+              i,
+              q_face.point(k),
+              GeometryInfo<dim>::unit_normal_direction[face]);
+
+        for (unsigned int sub = 0;
+             sub < GeometryInfo<dim>::max_children_per_face;
+             ++sub)
+          {
+            // The weight functions for
+            // the coarse face are
+            // evaluated on the subface
+            // only.
+            Quadrature<dim> q_sub = QProjector<dim>::project_to_subface(
+              this->reference_cell_type(), q_base, face, sub);
+            const unsigned int child = GeometryInfo<dim>::child_cell_on_face(
+              RefinementCase<dim>::isotropic_refinement, face, sub);
+
+            // On a certain face, we must
+            // compute the moments of ALL
+            // fine level functions with
+            // the coarse level weight
+            // functions belonging to
+            // that face. Due to the
+            // orthogonalization process
+            // when building the shape
+            // functions, these weights
+            // are equal to the
+            // corresponding shape
+            // functions.
+            for (unsigned int k = 0; k < n_face_points; ++k)
+              for (unsigned int i_child = 0; i_child < this->n_dofs_per_cell();
+                   ++i_child)
+                for (unsigned int i_face = 0;
+                     i_face < this->n_dofs_per_face(face);
+                     ++i_face)
+                  {
+                    // The quadrature
+                    // weights on the
+                    // subcell are NOT
+                    // transformed, so we
+                    // have to do it here.
+                    this->restriction[iso][child](
+                      face * this->n_dofs_per_face(face) + i_face, i_child) +=
+                      Utilities::fixed_power<dim - 1>(.5) * q_sub.weight(k) *
+                      cached_values_on_face(i_child, k) *
+                      this->shape_value_component(
+                        face * this->n_dofs_per_face(face) + i_face,
+                        q_sub.point(k),
+                        GeometryInfo<dim>::unit_normal_direction[face]);
+                  }
+          }
+      }
+
+    if (this->degree == 1)
+      return;
+
+    // Create Legendre basis for the space D_xi Q_k. Here, we cannot
+    // use the shape functions
+    std::unique_ptr<AnisotropicPolynomials<dim>> polynomials[dim];
+    for (unsigned int dd = 0; dd < dim; ++dd)
+      {
+        std::vector<std::vector<Polynomials::Polynomial<double>>> poly(dim);
+        for (unsigned int d = 0; d < dim; ++d)
+          poly[d] =
+            Polynomials::Legendre::generate_complete_basis(this->degree - 1);
+        poly[dd] =
+          Polynomials::Legendre::generate_complete_basis(this->degree - 2);
+
+        polynomials[dd] = std::make_unique<AnisotropicPolynomials<dim>>(poly);
+      }
+
+    // TODO: the implementation makes the assumption that all faces have the
+    // same number of dofs
+    AssertDimension(this->n_unique_faces(), 1);
+    const unsigned int face_no = 0;
+
+    QGauss<dim>        q_cell(this->degree);
+    const unsigned int start_cell_dofs =
+      GeometryInfo<dim>::faces_per_cell * this->n_dofs_per_face(face_no);
+
+    // Store shape values, since the
+    // evaluation suffers if not
+    // ordered by point
+    Table<3, double> cached_values_on_cell(this->n_dofs_per_cell(),
+                                           q_cell.size(),
+                                           dim);
+    for (unsigned int k = 0; k < q_cell.size(); ++k)
+      for (unsigned int i = 0; i < this->n_dofs_per_cell(); ++i)
+        for (unsigned int d = 0; d < dim; ++d)
+          cached_values_on_cell(i, k, d) =
+            this->shape_value_component(i, q_cell.point(k), d);
+
+    const unsigned int n_interior_nodes_per_component = polynomials[0]->n();
+    /// double-checking isotropy among components
+    for (auto comp = 1; comp < dim; ++comp)
+      AssertDimension(n_interior_nodes_per_component, polynomials[comp]->n());
+
+    for (unsigned int child = 0;
+         child < GeometryInfo<dim>::max_children_per_cell;
+         ++child)
+      {
+        Quadrature<dim> q_sub =
+          QProjector<dim>::project_to_child(this->reference_cell_type(),
+                                            q_cell,
+                                            child);
+
+        for (unsigned int k = 0; k < q_sub.size(); ++k)
+          for (unsigned int j = 0; j < this->n_dofs_per_cell(); ++j)
+            for (unsigned int comp = 0; comp < dim; ++comp)
+              for (unsigned int i = 0; i < polynomials[comp]->n(); ++i)
+                {
+                  const unsigned int ii =
+                    start_cell_dofs + comp * n_interior_nodes_per_component + i;
+                  this->restriction[iso][child](ii, j) +=
+                    q_sub.weight(k) * cached_values_on_cell(j, k, comp) *
+                    polynomials[comp]->compute_value(i, q_sub.point(k));
+                }
+      }
+  }
 }
 
 
@@ -1139,7 +1230,6 @@ FE_RaviartThomas_new<dim>::has_support_on_face(
 //   //   interior_weights(k, i, d) *
 //   //   support_point_values[k + start_cell_points](d);
 // }
-
 
 
 template <int dim>
