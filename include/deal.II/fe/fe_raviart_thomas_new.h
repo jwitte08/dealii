@@ -141,6 +141,9 @@ public:
   make_hierarchical_to_lexicographic_index_map(
     const unsigned int fe_degree) const;
 
+  static std::vector<Polynomials::Polynomial<double>>
+  make_univariate_node_polynomials(int k);
+
   /// NEW the data filled suffices to reflect the tensor structure of this
   /// finite element
   template <typename Number>
@@ -171,11 +174,11 @@ public:
   has_support_on_face(const unsigned int shape_index,
                       const unsigned int face_index) const override;
 
-  // // documentation inherited from the base class
-  // virtual void
-  // convert_generalized_support_point_values_to_dof_values(
-  //   const std::vector<Vector<double>> &support_point_values,
-  //   std::vector<double> &              nodal_values) const override;
+  // documentation inherited from the base class
+  virtual void
+  convert_generalized_support_point_values_to_dof_values(
+    const std::vector<Vector<double>> &support_point_values,
+    std::vector<double> &              nodal_values) const override;
 
   /**
    * Return a list of constant modes of the element. This method is currently
@@ -203,7 +206,8 @@ private:
    * and #interior_weights). Called from the constructor.
    */
   void
-  initialize_support_points(const unsigned int rt_degree);
+  initialize_support_points(const unsigned int   rt_degree,
+                            const Quadrature<1> &quad_1d);
 
   /**
    * Initialize the interpolation from functions on refined mesh cells onto
@@ -288,6 +292,17 @@ private:
   /// function basis of degree up to k. All node functionals are moments on the
   /// unit interval.
   FullMatrix<double> inverse_node_value_matrix_k;
+
+  /// NEW
+  /// rows <-> node functions per face
+  /// columns <-> generalized support points per face
+  Table<2, double> node_functional_weights_face;
+
+  /// NEW
+  /// 0th dimension <-> dim
+  /// 1st dimension <-> node functions associated with cell (interior)
+  /// 2nd dimension <-> generalized support points on cell
+  Table<3, double> node_functional_weights_cell;
 
   // Allow access from other dimensions.
   template <int dim1>

@@ -379,10 +379,9 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
       PolynomialsRaviartThomas_new<dim>::make_univariate_polynomials_high(deg))
   , raw_polynomials_k(
       PolynomialsRaviartThomas_new<dim>::make_univariate_polynomials_low(deg))
-  , node_polynomials_k(Polynomials::Legendre::generate_complete_basis(deg))
+  , node_polynomials_k(make_univariate_node_polynomials(deg))
   , node_polynomials_kminus1(
-      deg > 0 ? Polynomials::Legendre::generate_complete_basis(deg - 1) :
-                std::vector<Polynomials::Polynomial<double>>{})
+      make_univariate_node_polynomials(static_cast<int>(deg) - 1))
 {
   Assert(dim >= 2, ExcImpossibleInDim(dim));
   const unsigned int n_dofs = this->n_dofs_per_cell();
@@ -393,19 +392,19 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   h2l = std::move(make_hierarchical_to_lexicographic_index_map(deg));
   l2h = std::move(Utilities::invert_permutation(h2l));
 
+  QGauss<1> quad(deg + 1);
+
   // First, initialize the
   // generalized support points and
   // quadrature weights, since they
   // are required for interpolation.
-  initialize_support_points(deg);
+  initialize_support_points(deg, quad);
 
   /// NEW compute node values from the tensor product of 1d node values and raw
   /// tensor product polynomials
   FullMatrix<double> node_value_matrix_kplus1;
   FullMatrix<double> node_value_matrix_k;
   {
-    QGauss<1> quad(deg + 1);
-
     AssertDimension(raw_polynomials_kplus1.size(), deg + 2);
     node_value_matrix_kplus1.reinit(deg + 2, deg + 2);
     for (auto i = 0U; i < deg + 2; ++i)
@@ -618,103 +617,138 @@ FE_RaviartThomas_new<dim>::clone() const
 
 template <int dim>
 void
-FE_RaviartThomas_new<dim>::initialize_support_points(const unsigned int deg)
+FE_RaviartThomas_new<dim>::initialize_support_points(
+  const unsigned int   deg,
+  const Quadrature<1> &quad_1d)
 {
-  QGauss<dim>        cell_quadrature(deg + 1);
-  const unsigned int n_interior_points = (deg > 0) ? cell_quadrature.size() : 0;
-
   // TODO: the implementation makes the assumption that all faces have the
   // same number of dofs
   AssertDimension(this->n_unique_faces(), 1);
-  const unsigned int face_no = 0;
+  const unsigned int unique_face_no = 0;
 
-  unsigned int n_face_points = (dim > 1) ? 1 : 0;
-  // compute (deg+1)^(dim-1)
-  for (unsigned int d = 1; d < dim; ++d)
-    n_face_points *= deg + 1;
+  Quadrature<dim> cell_quad(quad_1d);
+  /// TODO special treatment if dim == 1 ?!
+  Quadrature<dim - 1> face_quad(quad_1d);
 
+  /// single-point quadrature at endpoints 0 and 1
+  std::vector<Quadrature<1>> face_quad_1d;
+  face_quad_1d.emplace_back(std::vector<Point<1>>{Point<1>(0.)},
+                            std::vector<double>{1.});
+  face_quad_1d.emplace_back(std::vector<Point<1>>{Point<1>(1.)},
+                            std::vector<double>{1.});
 
-  this->generalized_support_points.resize(
-    GeometryInfo<dim>::faces_per_cell * n_face_points + n_interior_points);
-  this->generalized_face_support_points[face_no].resize(n_face_points);
+  /// dummy for artificial dimensions exceeding template dim
+  Quadrature<1> zero(std::vector<Point<1>>{Point<1>(0.)},
+                     std::vector<double>{1.});
 
-  // Number of the point being entered
-  unsigned int current = 0;
+  /// Caching (dim-1) - dimensional quadrature points at unit facet
+  this->generalized_face_support_points[unique_face_no].clear();
+  this->generalized_face_support_points[unique_face_no] =
+    face_quad.get_points();
 
-  if (dim > 1)
+  {
+    const unsigned int n_dofs_per_face = this->n_dofs_per_face(unique_face_no);
+    const unsigned int n_support_points_per_face = face_quad.size();
+
+    /// isotropic (dim-1) - dimensional tensor product polynomials
+    TensorProductPolynomials<dim - 1> node_polynomials_face(
+      make_univariate_node_polynomials(deg));
+
+    AssertDimension(node_polynomials_face.n(), n_dofs_per_face);
+
+    node_functional_weights_face.reinit(n_dofs_per_face,
+                                        n_support_points_per_face);
+
+    for (auto i = 0U; i < n_dofs_per_face; ++i)
+      for (auto q = 0U; q < n_support_points_per_face; ++q)
+        {
+          const auto &x_q = face_quad.point(q);
+          node_functional_weights_face(i, q) =
+            node_polynomials_face.compute_value(i, x_q) * face_quad.weight(q);
+        }
+  }
+
+  /// Caching dim - dimensional quadrature points for all facets of the unit
+  /// cell
+  for (auto face_no = 0U; face_no < GeometryInfo<dim>::faces_per_cell;
+       ++face_no)
     {
-      QGauss<dim - 1>                   face_points(deg + 1);
-      TensorProductPolynomials<dim - 1> legendre =
-        Polynomials::Legendre::generate_complete_basis(deg);
+      const unsigned int d = GeometryInfo<dim>::unit_normal_direction[face_no];
+      const unsigned     face_no_1d =
+        GeometryInfo<dim>::unit_normal_orientation[face_no] == -1 ? 0U : 1U;
 
-      boundary_weights.reinit(n_face_points, legendre.n());
+      const Quadrature<1> &quad_x =
+        dim > 0 ? (d == 0U ? face_quad_1d[face_no_1d] : quad_1d) : zero;
+      const Quadrature<1> &quad_y =
+        dim > 1 ? (d == 1U ? face_quad_1d[face_no_1d] : quad_1d) : zero;
+      const Quadrature<1> &quad_z =
+        dim > 2 ? (d == 2U ? face_quad_1d[face_no_1d] : quad_1d) : zero;
 
-      for (unsigned int k = 0; k < n_face_points; ++k)
-        {
-          this->generalized_face_support_points[face_no][k] =
-            face_points.point(k);
-          // Compute its quadrature
-          // contribution for each
-          // moment.
-          for (unsigned int i = 0; i < legendre.n(); ++i)
-            {
-              boundary_weights(k, i) =
-                face_points.weight(k) *
-                legendre.compute_value(i, face_points.point(k));
-            }
-        }
+      QAnisotropic<3> this_face_quad(quad_x, quad_y, quad_z);
 
-      Quadrature<dim> faces =
-        QProjector<dim>::project_to_all_faces(this->reference_cell_type(),
-                                              face_points);
-      for (; current < GeometryInfo<dim>::faces_per_cell * n_face_points;
-           ++current)
-        {
-          // Enter the support point
-          // into the vector
-          this->generalized_support_points[current] =
-            faces.point(current + QProjector<dim>::DataSetDescriptor::face(
-                                    this->reference_cell_type(),
-                                    0,
-                                    true,
-                                    false,
-                                    false,
-                                    n_face_points));
-        }
+      std::transform(this_face_quad.get_points().cbegin(),
+                     this_face_quad.get_points().cend(),
+                     std::back_inserter(this->generalized_support_points),
+                     [](const Point<3> &point) {
+                       Point<dim> ppoint;
+                       for (auto d = 0U; d < dim; ++d)
+                         ppoint[d] = point[d];
+                       return ppoint;
+                     });
     }
 
+  AssertDimension(this->generalized_support_points.size(),
+                  GeometryInfo<dim>::faces_per_cell * face_quad.size());
+
+  /// Leave here as there are no interior node functionals we have to cache
+  /// dim - dimensional quadrature points for...
   if (deg == 0)
     return;
 
-  // Create Legendre basis for the space D_xi Q_k
-  std::unique_ptr<AnisotropicPolynomials<dim>> polynomials[dim];
-  for (unsigned int dd = 0; dd < dim; ++dd)
-    {
-      std::vector<std::vector<Polynomials::Polynomial<double>>> poly(dim);
-      for (unsigned int d = 0; d < dim; ++d)
-        poly[d] = Polynomials::Legendre::generate_complete_basis(deg);
-      poly[dd] = Polynomials::Legendre::generate_complete_basis(deg - 1);
+  /// Caching dim - dimensional quadrature points located in the unit cell's
+  /// interior
+  for (const auto &x_q : cell_quad.get_points())
+    this->generalized_support_points.emplace_back(x_q);
 
-      polynomials[dd] = std::make_unique<AnisotropicPolynomials<dim>>(poly);
-    }
+  AssertDimension(this->generalized_support_points.size(),
+                  GeometryInfo<dim>::faces_per_cell * face_quad.size() +
+                    cell_quad.size());
 
-  interior_weights.reinit(
-    TableIndices<3>(n_interior_points, polynomials[0]->n(), dim));
-
-  for (unsigned int k = 0; k < cell_quadrature.size(); ++k)
-    {
-      this->generalized_support_points[current++] = cell_quadrature.point(k);
-      for (unsigned int i = 0; i < polynomials[0]->n(); ++i)
+  {
+    /// vector-valued anisotropic dim - dimensional tensor product polynomials
+    std::vector<AnisotropicPolynomials<dim>> node_polynomials_cell;
+    for (unsigned int comp = 0; comp < dim; ++comp)
+      {
+        std::vector<std::vector<Polynomials::Polynomial<double>>>
+          scalar_polynomials;
         for (unsigned int d = 0; d < dim; ++d)
-          interior_weights(k, i, d) =
-            cell_quadrature.weight(k) *
-            polynomials[d]->compute_value(i, cell_quadrature.point(k));
-    }
+          scalar_polynomials.emplace_back(
+            comp == d ? make_univariate_node_polynomials(deg - 1) :
+                        make_univariate_node_polynomials(deg));
+        node_polynomials_cell.emplace_back(scalar_polynomials);
+      }
 
-  Assert(current == this->generalized_support_points.size(),
-         ExcInternalError());
+    const unsigned int n_nodes_per_comp = node_polynomials_cell[0].n();
+    const unsigned int n_support_points = cell_quad.size();
+
+    node_functional_weights_cell.reinit(
+      TableIndices<3>(dim, n_nodes_per_comp, n_support_points));
+
+    for (auto comp = 0U; comp < dim; ++comp)
+      {
+        AssertDimension(n_nodes_per_comp, node_polynomials_cell[comp].n());
+        for (auto q = 0U; q < n_support_points; ++q)
+          {
+            const auto &w_q = cell_quad.weight(q);
+            const auto &x_q = cell_quad.point(q);
+
+            for (auto i = 0U; i < n_nodes_per_comp; ++i)
+              node_functional_weights_cell(comp, i, q) =
+                w_q * node_polynomials_cell[comp].compute_value(i, x_q);
+          }
+      }
+  }
 }
-
 
 
 template <>
@@ -1026,62 +1060,102 @@ FE_RaviartThomas_new<dim>::has_support_on_face(
 
 
 
-// template <int dim>
-// void
-// FE_RaviartThomas_new<dim>::
-//   convert_generalized_support_point_values_to_dof_values(
-//     const std::vector<Vector<double>> &support_point_values,
-//     std::vector<double> &              nodal_values) const
-// {
-//   Assert(support_point_values.size() ==
-//   this->generalized_support_points.size(),
-//          ExcDimensionMismatch(support_point_values.size(),
-//                               this->generalized_support_points.size()));
-//   Assert(nodal_values.size() == this->n_dofs_per_cell(),
-//          ExcDimensionMismatch(nodal_values.size(), this->n_dofs_per_cell()));
-//   Assert(support_point_values[0].size() == this->n_components(),
-//          ExcDimensionMismatch(support_point_values[0].size(),
-//                               this->n_components()));
+template <int dim>
+void
+FE_RaviartThomas_new<dim>::
+  convert_generalized_support_point_values_to_dof_values(
+    const std::vector<Vector<double>> &values_at_support_points,
+    std::vector<double> &              node_values) const
+{
+  Assert(values_at_support_points.size() ==
+           this->generalized_support_points.size(),
+         ExcDimensionMismatch(values_at_support_points.size(),
+                              this->generalized_support_points.size()));
+  Assert(node_values.size() == this->n_dofs_per_cell(),
+         ExcDimensionMismatch(node_values.size(), this->n_dofs_per_cell()));
+  Assert(values_at_support_points[0].size() == this->n_components(),
+         ExcDimensionMismatch(values_at_support_points[0].size(),
+                              this->n_components()));
 
-//   std::fill(nodal_values.begin(), nodal_values.end(), 0.);
+  // TODO: the implementation makes the assumption that all faces have the
+  // same number of dofs
+  AssertDimension(this->n_unique_faces(), 1);
+  const unsigned int unique_face_no = 0;
+  (void)unique_face_no;
 
-//   const unsigned int n_face_points = boundary_weights.size(0);
-//   for (unsigned int face : GeometryInfo<dim>::face_indices())
-//     for (unsigned int k = 0; k < n_face_points; ++k)
-//       for (unsigned int i = 0; i < boundary_weights.size(1); ++i)
-//         {
-//           nodal_values[i + face * this->n_dofs_per_face(face)] +=
-//             boundary_weights(k, i) *
-//             support_point_values[face * n_face_points + k](
-//               GeometryInfo<dim>::unit_normal_direction[face]);
-//         }
+  std::fill(node_values.begin(), node_values.end(), 0.);
 
-//   // TODO: the implementation makes the assumption that all faces have the
-//   // same number of dofs
-//   AssertDimension(this->n_unique_faces(), 1);
-//   const unsigned int face_no = 0;
+  const unsigned int n_face_nodes = node_functional_weights_face.size(0);
+  const unsigned int n_face_support_points =
+    node_functional_weights_face.size(1);
+  AssertDimension(n_face_support_points,
+                  this->generalized_face_support_points[unique_face_no].size());
 
-//   const unsigned int start_cell_dofs =
-//     GeometryInfo<dim>::faces_per_cell * this->n_dofs_per_face(face_no);
-//   const unsigned int start_cell_points =
-//     GeometryInfo<dim>::faces_per_cell * n_face_points;
+  for (unsigned int face_no : GeometryInfo<dim>::face_indices())
+    {
+      AssertDimension(this->n_dofs_per_face(unique_face_no),
+                      this->n_dofs_per_face(face_no));
+      AssertDimension(this->n_dofs_per_face(unique_face_no), n_face_nodes);
+      const unsigned int node_offset_face  = face_no * n_face_nodes;
+      const unsigned int point_offset_face = face_no * n_face_support_points;
+      const auto         normal_direction =
+        GeometryInfo<dim>::unit_normal_direction[face_no];
+      for (auto i = 0U; i < n_face_nodes; ++i)
+        {
+          const unsigned int ii = node_offset_face + i;
+          for (auto q = 0U; q < n_face_support_points; ++q)
+            {
+              const unsigned int qq = point_offset_face + q;
+              const auto &       function_times_normal =
+                values_at_support_points[qq][normal_direction];
+              node_values[ii] +=
+                node_functional_weights_face(i, q) * function_times_normal;
+            }
+        }
+    }
 
-//   const unsigned int n_interior_nodes_per_component =
-//   interior_weights.size(1); for (unsigned int k = 0; k <
-//   interior_weights.size(0); ++k)
-//     for (unsigned int d = 0; d < dim; ++d)
-//       for (unsigned int i = 0; i < n_interior_nodes_per_component; ++i)
-//         nodal_values[start_cell_dofs + d * n_interior_nodes_per_component +
-//                      i] += interior_weights(k, i, d) *
-//                            support_point_values[k + start_cell_points](d);
-//   /// OLD
-//   // for (unsigned int k = 0; k < interior_weights.size(0); ++k)
-//   //   for (unsigned int i = 0; i < interior_weights.size(1); ++i)
-//   //     for (unsigned int d = 0; d < dim; ++d)
-//   // nodal_values[start_cell_dofs + i * dim + d] +=
-//   //   interior_weights(k, i, d) *
-//   //   support_point_values[k + start_cell_points](d);
-// }
+  const unsigned int node_offset_cell =
+    GeometryInfo<dim>::faces_per_cell * n_face_nodes;
+  const unsigned int point_offset_cell =
+    GeometryInfo<dim>::faces_per_cell * n_face_support_points;
+
+  const unsigned int n_cell_nodes_per_comp =
+    node_functional_weights_cell.size(1);
+  const unsigned int n_cell_support_points =
+    node_functional_weights_cell.size(2);
+
+  AssertDimension(node_functional_weights_cell.size(0), dim);
+  AssertDimension(values_at_support_points.size(),
+                  point_offset_cell + n_cell_support_points);
+  AssertDimension(node_values.size(),
+                  node_offset_cell + dim * n_cell_nodes_per_comp);
+
+  for (auto comp = 0U; comp < dim; ++comp)
+    {
+      const unsigned node_offset_comp = comp * n_cell_nodes_per_comp;
+      for (auto i = 0U; i < n_cell_nodes_per_comp; ++i)
+        {
+          const unsigned int ii = node_offset_cell + node_offset_comp + i;
+          for (auto q = 0U; q < n_cell_support_points; ++q)
+            {
+              const unsigned int qq = point_offset_cell + q;
+              node_values[ii] += node_functional_weights_cell(comp, i, q) *
+                                 values_at_support_points[qq][comp];
+            }
+        }
+    }
+}
+
+
+template <int dim>
+std::vector<Polynomials::Polynomial<double>>
+FE_RaviartThomas_new<dim>::make_univariate_node_polynomials(int k)
+{
+  std::vector<Polynomials::Polynomial<double>> polys;
+  if (k >= 0)
+    polys = std::move(Polynomials::Legendre::generate_complete_basis(k));
+  return polys;
+}
 
 
 template <int dim>
