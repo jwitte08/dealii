@@ -276,16 +276,17 @@ private:
   /// moment-based node functionals
   const std::vector<Polynomials::Polynomial<double>> node_polynomials_kminus1;
 
-  /// NEW inverse node values which determine the transpose of the
+  /// NEW The inverse node values that determine the transpose of the
   /// transformation matrix from raw polynomials to the univariate shape
   /// function basis of degree up to (k+1). The first and last node functional
-  /// is nodal in 0 and 1, resp.. All remaining functionals are moments on the
+  /// is nodal in 0 and 1, resp.. Remaining functionals are moments on the
   /// unit interval.
   FullMatrix<double> inverse_node_value_matrix_kplus1;
 
-  /// NEW inverse node values which determine the transpose the transformation
-  /// matrix from raw polynomials to the univariate shape function basis of
-  /// degree up to k. All node functionals are moments on the unit interval.
+  /// NEW The inverse node values that determine the transpose of the
+  /// transformation matrix from raw polynomials to the univariate shape
+  /// function basis of degree up to k. All node functionals are moments on the
+  /// unit interval.
   FullMatrix<double> inverse_node_value_matrix_k;
 
   // Allow access from other dimensions.

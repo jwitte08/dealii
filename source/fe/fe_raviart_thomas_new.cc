@@ -405,54 +405,6 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   FullMatrix<double> node_value_matrix_k;
   {
     QGauss<1> quad(deg + 1);
-    // const auto  n_q_points_1d = quad.size();
-    // const auto &q_points      = quad.get_points();
-    // const auto &q_weights     = quad.get_weights();
-
-    // AssertDimension(node_polynomials_k.size(), deg + 1);   // double-check
-    // AssertDimension(node_polynomials_kminus1.size(), deg); // double-check
-
-    // const auto evaluate_node_functional_kplus1 =
-    //   [&](const unsigned int i, const Polynomials::Polynomial<double> &poly)
-    //   {
-    //     AssertIndexRange(i, node_polynomials_kminus1.size() + 2U);
-    //     /// nodal at endpoint 0
-    //     if (i == 0U)
-    //       return poly.value(0.);
-
-    //     /// nodal at endpoint 1
-    //     else if (i == deg + 1)
-    //       return poly.value(1.);
-
-    //     /// k moments in the interior
-    //     Assert(i > 0U,
-    //            ExcMessage("0th node functional has to be treated before!"));
-    //     const auto &node_poly = node_polynomials_kminus1[i - 1];
-    //     double      eval      = 0.;
-    //     for (auto q = 0U; q < n_q_points_1d; ++q)
-    //       {
-    //         const double &x_q = q_points[q][0];
-    //         const auto &  w_q = q_weights[q];
-    //         eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
-    //       }
-    //     return eval;
-    //   };
-
-    // const auto evaluate_node_functional_k =
-    //   [&](const unsigned int i, const Polynomials::Polynomial<double> &poly)
-    //   {
-    //     AssertIndexRange(i, node_polynomials_k.size());
-    //     /// (k+1) moments in the interior
-    //     const auto &node_poly = node_polynomials_k[i];
-    //     double      eval      = 0.;
-    //     for (auto q = 0U; q < n_q_points_1d; ++q)
-    //       {
-    //         const double &x_q = q_points[q][0];
-    //         const auto &  w_q = q_weights[q];
-    //         eval += poly.value(x_q) * node_poly.value(x_q) * w_q;
-    //       }
-    //     return eval;
-    //   };
 
     AssertDimension(raw_polynomials_kplus1.size(), deg + 2);
     node_value_matrix_kplus1.reinit(deg + 2, deg + 2);
@@ -477,204 +429,54 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   inverse_node_value_matrix_kplus1.reinit(node_value_matrix_kplus1.m(),
                                           node_value_matrix_kplus1.n());
   inverse_node_value_matrix_kplus1.invert(node_value_matrix_kplus1);
+
   inverse_node_value_matrix_k.reinit(node_value_matrix_k.m(),
                                      node_value_matrix_k.n());
   inverse_node_value_matrix_k.invert(node_value_matrix_k);
 
-  FullMatrix<double> node_value_matrix(this->n_dofs_per_cell(),
-                                       this->n_dofs_per_cell());
-
+  FullMatrix<double> node_value_matrix(n_dofs, n_dofs);
   {
-    /// dummy used to mimick node values for artificial dimensions
+    /// dummy used to mimick node values for "artificial" dimensions
     FullMatrix<double> one(IdentityMatrix(1U));
 
-    AssertDimension(this->n_dofs_per_cell() % dim, 0U);
-    const unsigned int n_dofs_per_comp = this->n_dofs_per_cell() / dim;
+    AssertDimension(n_dofs % dim, 0U);
+    const unsigned int n_dofs_per_comp = n_dofs / dim;
 
-    /// first vector component
-    if (dim > 0)
+    for (unsigned int comp = 0; comp < dim; ++comp)
       {
-        constexpr unsigned int comp        = 0;
-        const unsigned int     offset_comp = comp * n_dofs_per_comp;
-
-        const FullMatrix<double> &N_2 = dim > 2 ? node_value_matrix_k : one;
-        const FullMatrix<double> &N_1 = dim > 1 ? node_value_matrix_k : one;
-        const FullMatrix<double> &N_0 =
-          dim > 0 ? node_value_matrix_kplus1 : one;
-        const FullMatrix<double> &node_value_matrix_comp =
-          Tensors::kronecker_product(N_2, Tensors::kronecker_product(N_1, N_0));
-
-        for (auto i = 0U; i < n_dofs_per_comp; ++i)
-          for (auto j = 0U; j < n_dofs_per_comp; ++j)
-            node_value_matrix(offset_comp + i, offset_comp + j) =
-              node_value_matrix_comp(i, j);
-      }
-
-    /// second vector component
-    if (dim > 1)
-      {
-        constexpr unsigned int comp        = 1;
-        const unsigned int     offset_comp = comp * n_dofs_per_comp;
-
-        const FullMatrix<double> &N_2 = dim > 2 ? node_value_matrix_k : one;
-        const FullMatrix<double> &N_1 =
-          dim > 1 ? node_value_matrix_kplus1 : one;
-        const FullMatrix<double> &N_0 = dim > 0 ? node_value_matrix_k : one;
-        const FullMatrix<double> &node_value_matrix_comp =
-          Tensors::kronecker_product(N_2, Tensors::kronecker_product(N_1, N_0));
-
-        for (auto i = 0U; i < n_dofs_per_comp; ++i)
-          for (auto j = 0U; j < n_dofs_per_comp; ++j)
-            node_value_matrix(offset_comp + i, offset_comp + j) =
-              node_value_matrix_comp(i, j);
-      }
-
-    /// third vector component
-    if (dim > 2)
-      {
-        constexpr unsigned int comp        = 1;
-        const unsigned int     offset_comp = comp * n_dofs_per_comp;
+        const unsigned int offset_comp = comp * n_dofs_per_comp;
 
         const FullMatrix<double> &N_2 =
-          dim > 2 ? node_value_matrix_kplus1 : one;
-        const FullMatrix<double> &N_1 = dim > 1 ? node_value_matrix_k : one;
-        const FullMatrix<double> &N_0 = dim > 0 ? node_value_matrix_k : one;
-        const FullMatrix<double> &node_value_matrix_comp =
+          dim > 2 ?
+            (comp == 2 ? node_value_matrix_kplus1 : node_value_matrix_k) :
+            one;
+        const FullMatrix<double> &N_1 =
+          dim > 1 ?
+            (comp == 1 ? node_value_matrix_kplus1 : node_value_matrix_k) :
+            one;
+        const FullMatrix<double> &N_0 =
+          dim > 0 ?
+            (comp == 0 ? node_value_matrix_kplus1 : node_value_matrix_k) :
+            one;
+
+        const FullMatrix<double> &prod =
           Tensors::kronecker_product(N_2, Tensors::kronecker_product(N_1, N_0));
 
         for (auto i = 0U; i < n_dofs_per_comp; ++i)
           for (auto j = 0U; j < n_dofs_per_comp; ++j)
-            node_value_matrix(offset_comp + i, offset_comp + j) =
-              node_value_matrix_comp(i, j);
+            node_value_matrix(l2h[offset_comp + i], offset_comp + j) =
+              prod(i, j);
       }
-
-    // /// first vector component
-    // if (dim > 0)
-    //   {
-    //     /// extended (i.e. three-dimensional) index set where all dimensions
-    //     /// exceeding the template parameter dim are set to 1
-    //     std::array<unsigned int, 3> n_node_functionals;
-    //     n_node_functionals.fill(deg + 1);
-    //     n_node_functionals[0] = deg + 2;
-    //     for (auto d = dim; d < 3; ++d)
-    //       n_node_functionals[d] = 1;
-    //     Tensors::TensorHelper<3, unsigned int> th_node(n_node_functionals);
-
-    //     /// node functionals and shape functions have the same tensor
-    //     structure AssertDimension(th_node.n_flat() * dim,
-    //     this->n_dofs_per_cell());
-
-    //     double node_value = 0.;
-    //     for (auto i2 = 0U; i2 < th_node.size(2); ++i2)
-    //       for (auto i1 = 0U; i1 < th_node.size(1); ++i1)
-    //         for (auto i0 = 0U; i0 < th_node.size(0); ++i0)
-    //           for (auto j2 = 0U; j2 < th_node.size(2); ++j2)
-    //             for (auto j1 = 0U; j1 < th_node.size(1); ++j1)
-    //               for (auto j0 = 0U; j0 < th_node.size(0); ++j0)
-    //                 {
-    //                   const auto i = th_node.uni_index({i0, i1, i2});
-    //                   const auto j = th_node.uni_index({j0, j1, j2});
-    //                   node_value   = node_value_matrix_kplus1(i0, j0);
-    //                   if (dim > 1)
-    //                     node_value *= node_value_matrix_k(i1, j1);
-    //                   if (dim > 2)
-    //                     node_value *= node_value_matrix_k(i2, j2);
-    //                   node_value_matrix(i, j) = node_value;
-    //                 }
-    //   }
-
-    // /// second vector component (if needed)
-    // if (dim > 1)
-    //   {
-    //     constexpr unsigned int comp = 1;
-
-    //     /// extended (i.e. three-dimensional) index set where all dimensions
-    //     /// exceeding the template parameter dim are set to 1
-    //     std::array<unsigned int, 3> n_node_functionals;
-    //     n_node_functionals.fill(deg + 1);
-    //     n_node_functionals[comp] = deg + 2;
-    //     for (auto d = dim; d < 3; ++d)
-    //       n_node_functionals[d] = 1;
-    //     Tensors::TensorHelper<3, unsigned int> th_node(n_node_functionals);
-
-    //     /// node functionals and shape functions have the same tensor
-    //     structure AssertDimension(th_node.n_flat() * dim,
-    //     this->n_dofs_per_cell());
-
-    //     const unsigned int offset_comp = comp * th_node.n_flat();
-
-    //     double node_value = 0.;
-    //     for (auto i2 = 0U; i2 < th_node.size(2); ++i2)
-    //       for (auto i1 = 0U; i1 < th_node.size(1); ++i1)
-    //         for (auto i0 = 0U; i0 < th_node.size(0); ++i0)
-    //           for (auto j2 = 0U; j2 < th_node.size(2); ++j2)
-    //             for (auto j1 = 0U; j1 < th_node.size(1); ++j1)
-    //               for (auto j0 = 0U; j0 < th_node.size(0); ++j0)
-    //                 {
-    //                   const auto i =
-    //                     offset_comp + th_node.uni_index({i0, i1, i2});
-    //                   const auto j =
-    //                     offset_comp + th_node.uni_index({j0, j1, j2});
-    //                   node_value = node_value_matrix_k(i0, j0) *
-    //                                node_value_matrix_kplus1(i1, j1);
-    //                   if (dim > 2)
-    //                     node_value *= node_value_matrix_k(i2, j2);
-    //                   node_value_matrix(i, j) = node_value;
-    //                 }
-    //   }
-
-    // /// third vector component (if needed)
-    // if (dim > 2)
-    //   {
-    //     constexpr unsigned int comp = 2;
-
-    //     /// extended (i.e. three-dimensional) index set where all dimensions
-    //     /// exceeding the template parameter dim are set to 1
-    //     std::array<unsigned int, 3> n_node_functionals;
-    //     n_node_functionals.fill(deg + 1);
-    //     n_node_functionals[comp] = deg + 2;
-    //     for (auto d = dim; d < 3; ++d)
-    //       n_node_functionals[d] = 1;
-    //     Tensors::TensorHelper<3, unsigned int> th_node(n_node_functionals);
-
-    //     /// node functionals and shape functions have the same tensor
-    //     structure AssertDimension(th_node.n_flat() * dim,
-    //     this->n_dofs_per_cell());
-
-    //     const unsigned int offset_comp = comp * th_node.n_flat();
-
-    //     double node_value = 0.;
-    //     for (auto i2 = 0U; i2 < th_node.size(2); ++i2)
-    //       for (auto i1 = 0U; i1 < th_node.size(1); ++i1)
-    //         for (auto i0 = 0U; i0 < th_node.size(0); ++i0)
-    //           for (auto j2 = 0U; j2 < th_node.size(2); ++j2)
-    //             for (auto j1 = 0U; j1 < th_node.size(1); ++j1)
-    //               for (auto j0 = 0U; j0 < th_node.size(0); ++j0)
-    //                 {
-    //                   const auto i =
-    //                     offset_comp + th_node.uni_index({i0, i1, i2});
-    //                   const auto j =
-    //                     offset_comp + th_node.uni_index({j0, j1, j2});
-    //                   node_value = node_value_matrix_k(i0, j0) *
-    //                                node_value_matrix_k(i1, j1) *
-    //                                node_value_matrix_kplus1(i2, j2);
-    //                   node_value_matrix(i, j) = node_value;
-    //                 }
-    //   }
   }
 
-  /// DEBUG
-  // std::cout << "node_value_matrix: " << std::endl;
-  // node_value_matrix.print_formatted(std::cout, 3, true, 0, " ", 1., 1.e-10);
-
-  FullMatrix<double> node_value_matrix_hierarchical(node_value_matrix.m(),
-                                                    node_value_matrix.n());
-  for (auto i = 0U; i < node_value_matrix.m(); ++i)
-    for (auto j = 0U; j < node_value_matrix.n(); ++j)
-      node_value_matrix_hierarchical(l2h[i], j) = node_value_matrix(i, j);
+  // FullMatrix<double> node_value_matrix_hierarchical(node_value_matrix.m(),
+  //                                                   node_value_matrix.n());
+  // for (auto i = 0U; i < node_value_matrix.m(); ++i)
+  //   for (auto j = 0U; j < node_value_matrix.n(); ++j)
+  //     node_value_matrix_hierarchical(l2h[i], j) = node_value_matrix(i, j);
 
   this->inverse_node_matrix.reinit(n_dofs, n_dofs);
-  this->inverse_node_matrix.invert(node_value_matrix_hierarchical);
+  this->inverse_node_matrix.invert(node_value_matrix);
 
   // From now on, the shape functions provided by FiniteElement::shape_value
   // and similar functions will be the correct ones, not
@@ -724,7 +526,7 @@ std::vector<unsigned int>
 FE_RaviartThomas_new<dim>::make_hierarchical_to_lexicographic_index_map(
   const unsigned int fe_degree) const
 {
-  const unsigned int n_dofs_per_comp = this->dofs_per_cell / dim;
+  const unsigned int n_dofs_per_comp = this->n_dofs_per_cell() / dim;
 
   std::vector<unsigned int> h2l;
   h2l.reserve(n_dofs_per_comp * dim);
@@ -944,11 +746,12 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
 {
   using namespace internal::MatrixFreeFunctions;
 
-  Assert(dim > 1, ExcMessage("For dim == 1 treated as special case."));
+  Assert(dim > 1, ExcMessage("dim == 1 needs to be treated as special case."));
 
   const unsigned int iso = RefinementCase<dim>::isotropic_refinement - 1;
+  AssertIndexRange(iso, this->restriction.size());
 
-  const unsigned int k = this->degree - 1;
+  const unsigned int k = this->degree - 1; // RT_k
 
   const unsigned n_q_points_1d = k + 1;
 
@@ -966,9 +769,8 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
                                       FiniteElementData<1>::H1);
 
   std::vector<FullMatrix<double>> restriction_matrices_kplus1;
-  std::vector<FullMatrix<double>> restriction_matrices_k;
 
-  /// assembling univariate restriction matrices for degree (k+1)
+  /// Assembling univariate restriction matrices for degree (k+1)
   {
     const auto &shape_data_kplus1 = shape_info.get_shape_data(0, 0);
 
@@ -979,31 +781,30 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
     const unsigned int n_dofs_fine    = shape_data_kplus1.fe_degree + 1;
     const unsigned int n_nodes_coarse = n_dofs_fine;
 
-    const auto evaluate_node_functional_kplus1 = [&](
-                                                   const unsigned int   i,
-                                                   const unsigned int   j,
-                                                   const Quadrature<1> &quad) {
-      AssertIndexRange(j, n_dofs_fine);
-      ArrayView<const double> view_shape_values;
-      /// nodal at endpoints 0 and 1
-      if (i == 0U || i == (k + 1))
-        {
-          const unsigned int face_no = i == 0U ? 0 : 1;
-          view_shape_values.reinit(
-            shape_data_kplus1.shape_data_on_face[face_no].begin() + j, 1U);
-          return 0.; // !!!
-                     // return evaluate_node_functional_kplus1_impl<true>(i,
-                     //                                                   view_shape_values,
-                     //                                                   quad);
-        }
-      /// moment-based for all remaining dofs
-      view_shape_values.reinit(shape_data_kplus1.shape_values.begin() +
-                                 j * n_q_points_1d,
-                               n_q_points_1d);
-      return evaluate_node_functional_kplus1_impl<false>(i,
-                                                         view_shape_values,
-                                                         quad);
-    };
+    const auto evaluate_node_functional_kplus1 =
+      [&](const unsigned int   i,
+          const unsigned int   j,
+          const Quadrature<1> &quad) {
+        AssertIndexRange(j, n_dofs_fine);
+        ArrayView<const double> view_shape_values;
+        /// nodal at endpoints 0 and 1 ...
+        if (i == 0U || i == (k + 1))
+          {
+            const unsigned int face_no = i == 0U ? 0 : 1;
+            view_shape_values.reinit(
+              shape_data_kplus1.shape_data_on_face[face_no].begin() + j, 1U);
+            return evaluate_node_functional_kplus1_impl<true>(i,
+                                                              view_shape_values,
+                                                              quad);
+          }
+        /// ... moment-based for all remaining dofs
+        view_shape_values.reinit(shape_data_kplus1.shape_values.begin() +
+                                   j * n_q_points_1d,
+                                 n_q_points_1d);
+        return evaluate_node_functional_kplus1_impl<false>(i,
+                                                           view_shape_values,
+                                                           quad);
+      };
 
     for (auto child = 0U; child < GeometryInfo<1>::max_children_per_cell;
          ++child)
@@ -1016,31 +817,22 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
                                           unit_quad,
                                           child);
 
-        /// DEBUG
-        std::cout << "q points on child " << child << std::endl;
-        for (auto x_q : child_quad.get_points())
-          std::cout << x_q << " ";
-        std::cout << std::endl;
-
         for (unsigned int j = 0; j < n_dofs_fine; ++j)
           for (unsigned int i = 0; i < n_nodes_coarse; ++i)
             restriction_matrix_kplus1(i, j) =
               evaluate_node_functional_kplus1(i, j, child_quad);
-
-        // this->restriction[iso][child](ii, j) +=
-        //   child_quad.weight(k) * cached_values_on_cell(j, k, comp) *
-        //   polynomials[comp]->compute_value(i, child_quad.point(k));
       }
   }
 
-  /// assembling univariate restriction matrices for degree
+  std::vector<FullMatrix<double>> restriction_matrices_k;
+
+  /// Assembling univariate restriction matrices for degree k
   {
     Assert(dim > 1, ExcInternalError());
-    const auto &shape_data_k = shape_info.get_shape_data(0, 1);
+    const auto &shape_data_k = shape_info.get_shape_data(1, 0);
 
-    AssertDimension(shape_data_k.fe_degree, k); // double-check
-    AssertDimension(shape_data_k.n_q_points_1d,
-                    n_q_points_1d); // double-check
+    AssertDimension(shape_data_k.fe_degree, k);
+    AssertDimension(shape_data_k.n_q_points_1d, n_q_points_1d);
 
     const unsigned int n_dofs_fine    = shape_data_k.fe_degree + 1;
     const unsigned int n_nodes_coarse = n_dofs_fine;
@@ -1074,267 +866,74 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
       }
   }
 
-  /// DEBUG
-  for (auto child = 0U; child < GeometryInfo<1>::max_children_per_cell; ++child)
-    {
-      std::cout << "restriction_matrix_kplus1 for child " << child << std::endl;
-      restriction_matrices_kplus1[child].print_formatted(
-        std::cout, 3, true, 0, " ", 1., 1.e-10);
-      std::cout << "restriction_matrix_k for child " << child << std::endl;
-      restriction_matrices_k[child].print_formatted(
-        std::cout, 3, true, 0, " ", 1., 1.e-10);
-    }
-
-  std::vector<FullMatrix<double>> my_restriction_matrices;
-
   Tensors::TensorHelper<dim, unsigned int> th_children(
     GeometryInfo<1>::max_children_per_cell);
 
   AssertDimension(this->restriction[iso].size(), th_children.n_flat());
 
-  const unsigned int n_dofs_per_comp = this->dofs_per_cell / dim;
+  const unsigned int n_dofs_per_comp = this->n_dofs_per_cell() / dim;
 
   /// dummy used to mimick a restriction matrix for artificial dimensions
   FullMatrix<double> one(IdentityMatrix(1U));
 
+  /// NOTE we want to evaluate the part of the node functionals belonging to
+  /// this child cell in all fine-grid shape functions. node functionals are
+  /// defined on the parent cell (i.e. the once refined unit cell), which
+  /// includes functionals associated with all parent facets. if we
+  /// now loop over all children to evaluate the moment-based functionals
+  /// restricted to each child, we have to take care that we do not add
+  /// contributions of child facets that are in the interior of the parent cell:
+  /// we prevent this by determing the univariate node function index associated
+  /// with these facets and zero them out ("purge").
+
+  /// TODO treat non-standard face orientations ?!
+  const auto purged_restriction_matrix_kplus1 =
+    [&](const unsigned int child_1d) {
+      const auto &       src = restriction_matrices_kplus1[child_1d];
+      FullMatrix<double> dst = src;
+      const unsigned int nonparent_face_no_1d = child_1d == 0 ? 1 : 0;
+      const unsigned int node_index_1d = nonparent_face_no_1d == 0 ? 0 : k + 1;
+      for (auto j = 0U; j < dst.n(); ++j)
+        dst(node_index_1d, j) = 0.;
+      return dst;
+    };
+
   for (auto child = 0U; child < GeometryInfo<dim>::max_children_per_cell;
        ++child)
     {
-      auto &restriction_matrix_child =
-        my_restriction_matrices.emplace_back(this->restriction[iso][child].m(),
-                                             this->restriction[iso][child].n());
+      auto &restriction_matrix_child = this->restriction[iso][child];
 
-      const auto multi_child = th_children.multi_index(child);
+      AssertDimension(restriction_matrix_child.m(), this->n_dofs_per_cell());
+      AssertDimension(restriction_matrix_child.n(), this->n_dofs_per_cell());
 
-      /// first vector component
-      if (dim > 0)
+      const auto mchild = th_children.multi_index(child);
+
+      for (auto comp = 0U; comp < dim; ++comp)
         {
-          constexpr unsigned int comp        = 0;
-          const unsigned int     offset_comp = comp * n_dofs_per_comp;
+          const unsigned int offset_comp = comp * n_dofs_per_comp;
 
           const FullMatrix<double> &R_2 =
-            dim > 2 ? restriction_matrices_k[multi_child[2]] : one;
+            dim > 2 ? comp == 2 ? purged_restriction_matrix_kplus1(mchild[2]) :
+                                  restriction_matrices_k[mchild[2]] :
+                      one;
           const FullMatrix<double> &R_1 =
-            dim > 1 ? restriction_matrices_k[multi_child[1]] : one;
+            dim > 1 ? comp == 1 ? purged_restriction_matrix_kplus1(mchild[1]) :
+                                  restriction_matrices_k[mchild[1]] :
+                      one;
           const FullMatrix<double> &R_0 =
-            dim > 0 ? restriction_matrices_kplus1[multi_child[0]] : one;
-          const FullMatrix<double> &restriction_matrix_child_comp =
+            dim > 0 ? comp == 0 ? purged_restriction_matrix_kplus1(mchild[0]) :
+                                  restriction_matrices_k[mchild[0]] :
+                      one;
+
+          const FullMatrix<double> &prod =
             Tensors::kronecker_product(R_2,
                                        Tensors::kronecker_product(R_1, R_0));
 
           for (auto i = 0U; i < n_dofs_per_comp; ++i)
             for (auto j = 0U; j < n_dofs_per_comp; ++j)
-              restriction_matrix_child(offset_comp + i, offset_comp + j) =
-                restriction_matrix_child_comp(i, j);
+              restriction_matrix_child(l2h[offset_comp + i],
+                                       l2h[offset_comp + j]) = prod(i, j);
         }
-
-      /// second vector component
-      if (dim > 1)
-        {
-          constexpr unsigned int comp        = 1;
-          const unsigned int     offset_comp = comp * n_dofs_per_comp;
-
-          const FullMatrix<double> &R_2 =
-            dim > 2 ? restriction_matrices_k[multi_child[2]] : one;
-          const FullMatrix<double> &R_1 =
-            dim > 1 ? restriction_matrices_kplus1[multi_child[1]] : one;
-          const FullMatrix<double> &R_0 =
-            dim > 0 ? restriction_matrices_k[multi_child[0]] : one;
-          const FullMatrix<double> &restriction_matrix_child_comp =
-            Tensors::kronecker_product(R_2,
-                                       Tensors::kronecker_product(R_1, R_0));
-
-          for (auto i = 0U; i < n_dofs_per_comp; ++i)
-            for (auto j = 0U; j < n_dofs_per_comp; ++j)
-              restriction_matrix_child(offset_comp + i, offset_comp + j) =
-                restriction_matrix_child_comp(i, j);
-        }
-
-      /// third vector component
-      if (dim > 2)
-        {
-          constexpr unsigned int comp        = 1;
-          const unsigned int     offset_comp = comp * n_dofs_per_comp;
-
-          const FullMatrix<double> &R_2 =
-            dim > 2 ? restriction_matrices_kplus1[multi_child[2]] : one;
-          const FullMatrix<double> &R_1 =
-            dim > 1 ? restriction_matrices_k[multi_child[1]] : one;
-          const FullMatrix<double> &R_0 =
-            dim > 0 ? restriction_matrices_k[multi_child[0]] : one;
-          const FullMatrix<double> &restriction_matrix_child_comp =
-            Tensors::kronecker_product(R_2,
-                                       Tensors::kronecker_product(R_1, R_0));
-
-          for (auto i = 0U; i < n_dofs_per_comp; ++i)
-            for (auto j = 0U; j < n_dofs_per_comp; ++j)
-              restriction_matrix_child(offset_comp + i, offset_comp + j) =
-                restriction_matrix_child_comp(i, j);
-        }
-    }
-
-
-
-  {
-    QGauss<dim - 1>    q_base(this->degree);
-    const unsigned int n_face_points = q_base.size();
-    // First, compute interpolation on
-    // subfaces
-    for (unsigned int face : GeometryInfo<dim>::face_indices())
-      {
-        // The shape functions of the
-        // child cell are evaluated
-        // in the quadrature points
-        // of a full face.
-        Quadrature<dim> q_face =
-          QProjector<dim>::project_to_face(this->reference_cell_type(),
-                                           q_base,
-                                           face);
-        // Store shape values, since the
-        // evaluation suffers if not
-        // ordered by point
-        Table<2, double> cached_values_on_face(this->n_dofs_per_cell(),
-                                               q_face.size());
-        for (unsigned int k = 0; k < q_face.size(); ++k)
-          for (unsigned int i = 0; i < this->n_dofs_per_cell(); ++i)
-            cached_values_on_face(i, k) = this->shape_value_component(
-              i,
-              q_face.point(k),
-              GeometryInfo<dim>::unit_normal_direction[face]);
-
-        for (unsigned int sub = 0;
-             sub < GeometryInfo<dim>::max_children_per_face;
-             ++sub)
-          {
-            // The weight functions for
-            // the coarse face are
-            // evaluated on the subface
-            // only.
-            Quadrature<dim> q_sub = QProjector<dim>::project_to_subface(
-              this->reference_cell_type(), q_base, face, sub);
-            const unsigned int child = GeometryInfo<dim>::child_cell_on_face(
-              RefinementCase<dim>::isotropic_refinement, face, sub);
-
-            // On a certain face, we must
-            // compute the moments of ALL
-            // fine level functions with
-            // the coarse level weight
-            // functions belonging to
-            // that face. Due to the
-            // orthogonalization process
-            // when building the shape
-            // functions, these weights
-            // are equal to the
-            // corresponding shape
-            // functions.
-            for (unsigned int k = 0; k < n_face_points; ++k)
-              for (unsigned int i_child = 0; i_child < this->n_dofs_per_cell();
-                   ++i_child)
-                for (unsigned int i_face = 0;
-                     i_face < this->n_dofs_per_face(face);
-                     ++i_face)
-                  {
-                    // The quadrature
-                    // weights on the
-                    // subcell are NOT
-                    // transformed, so we
-                    // have to do it here.
-                    this->restriction[iso][child](
-                      face * this->n_dofs_per_face(face) + i_face, i_child) +=
-                      Utilities::fixed_power<dim - 1>(.5) * q_sub.weight(k) *
-                      cached_values_on_face(i_child, k) *
-                      this->shape_value_component(
-                        face * this->n_dofs_per_face(face) + i_face,
-                        q_sub.point(k),
-                        GeometryInfo<dim>::unit_normal_direction[face]);
-                  }
-          }
-      }
-
-    if (this->degree == 1)
-      return;
-
-    // Create Legendre basis for the space D_xi Q_k. Here, we cannot
-    // use the shape functions
-    std::unique_ptr<AnisotropicPolynomials<dim>> polynomials[dim];
-    for (unsigned int dd = 0; dd < dim; ++dd)
-      {
-        std::vector<std::vector<Polynomials::Polynomial<double>>> poly(dim);
-        for (unsigned int d = 0; d < dim; ++d)
-          poly[d] =
-            Polynomials::Legendre::generate_complete_basis(this->degree - 1);
-        poly[dd] =
-          Polynomials::Legendre::generate_complete_basis(this->degree - 2);
-
-        polynomials[dd] = std::make_unique<AnisotropicPolynomials<dim>>(poly);
-      }
-
-    // TODO: the implementation makes the assumption that all faces have the
-    // same number of dofs
-    AssertDimension(this->n_unique_faces(), 1);
-    const unsigned int face_no = 0;
-
-    QGauss<dim>        q_cell(this->degree);
-    const unsigned int start_cell_dofs =
-      GeometryInfo<dim>::faces_per_cell * this->n_dofs_per_face(face_no);
-
-    // Store shape values, since the
-    // evaluation suffers if not
-    // ordered by point
-    Table<3, double> cached_values_on_cell(this->n_dofs_per_cell(),
-                                           q_cell.size(),
-                                           dim);
-    for (unsigned int k = 0; k < q_cell.size(); ++k)
-      for (unsigned int i = 0; i < this->n_dofs_per_cell(); ++i)
-        for (unsigned int d = 0; d < dim; ++d)
-          cached_values_on_cell(i, k, d) =
-            this->shape_value_component(i, q_cell.point(k), d);
-
-    const unsigned int n_interior_nodes_per_component = polynomials[0]->n();
-    /// double-checking isotropy among components
-    for (auto comp = 1; comp < dim; ++comp)
-      AssertDimension(n_interior_nodes_per_component, polynomials[comp]->n());
-
-    for (unsigned int child = 0;
-         child < GeometryInfo<dim>::max_children_per_cell;
-         ++child)
-      {
-        Quadrature<dim> q_sub =
-          QProjector<dim>::project_to_child(this->reference_cell_type(),
-                                            q_cell,
-                                            child);
-
-        for (unsigned int k = 0; k < q_sub.size(); ++k)
-          for (unsigned int j = 0; j < this->n_dofs_per_cell(); ++j)
-            for (unsigned int comp = 0; comp < dim; ++comp)
-              for (unsigned int i = 0; i < polynomials[comp]->n(); ++i)
-                {
-                  const unsigned int ii =
-                    start_cell_dofs + comp * n_interior_nodes_per_component + i;
-                  this->restriction[iso][child](ii, j) +=
-                    q_sub.weight(k) * cached_values_on_cell(j, k, comp) *
-                    polynomials[comp]->compute_value(i, q_sub.point(k));
-                }
-      }
-  }
-
-  /// DEBUG
-  for (auto child = 0U; child < GeometryInfo<dim>::max_children_per_cell;
-       ++child)
-    {
-      std::cout << "my_restriction_matrix: " << std::endl;
-      FullMatrix<double> this_restriction_matrix_hierarchical(
-        my_restriction_matrices[child].m(), my_restriction_matrices[child].n());
-      for (auto i = 0U; i < my_restriction_matrices[child].m(); ++i)
-        for (auto j = 0U; j < my_restriction_matrices[child].n(); ++j)
-          this_restriction_matrix_hierarchical(l2h[i], j) =
-            my_restriction_matrices[child](i, j);
-      this_restriction_matrix_hierarchical.print_formatted(
-        std::cout, 3, true, 0, " ", 1., 1.e-10);
-
-      std::cout << "this->restriction[iso][child]: " << std::endl;
-      this->restriction[iso][child].print_formatted(
-        std::cout, 3, true, 0, " ", 1., 1.e-10);
     }
 }
 
