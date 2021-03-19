@@ -370,8 +370,10 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
                              dim,
                              deg + 1,
                              FiniteElementData<dim>::Hdiv),
+      /// restriction_is_additive ?
       std::vector<bool>(PolynomialsRaviartThomas<dim>::n_polynomials(deg),
                         true),
+      /// non-zero component
       std::vector<ComponentMask>(PolynomialsRaviartThomas<dim>::n_polynomials(
                                    deg),
                                  std::vector<bool>(dim, true)))
@@ -396,12 +398,11 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
 
   // First, initialize the
   // generalized support points and
-  // quadrature weights, since they
+  // node functional weights, since they
   // are required for interpolation.
   initialize_support_points(deg, quad);
 
-  /// NEW compute node values from the tensor product of 1d node values and raw
-  /// tensor product polynomials
+  /// Compute univariate node values associated Q_k+1 and Q_k.
   FullMatrix<double> node_value_matrix_kplus1;
   FullMatrix<double> node_value_matrix_k;
   {
@@ -425,14 +426,8 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   AssertDimension(node_value_matrix_kplus1.m(), node_value_matrix_kplus1.n());
   AssertDimension(node_value_matrix_k.m(), node_value_matrix_k.n());
 
-  inverse_node_value_matrix_kplus1.reinit(node_value_matrix_kplus1.m(),
-                                          node_value_matrix_kplus1.n());
-  inverse_node_value_matrix_kplus1.invert(node_value_matrix_kplus1);
-
-  inverse_node_value_matrix_k.reinit(node_value_matrix_k.m(),
-                                     node_value_matrix_k.n());
-  inverse_node_value_matrix_k.invert(node_value_matrix_k);
-
+  /// Computing dim - dimensional node values as anisotropic tensor product of
+  /// univariate node values
   FullMatrix<double> node_value_matrix(n_dofs, n_dofs);
   {
     /// dummy used to mimick node values for "artificial" dimensions
@@ -441,7 +436,7 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
     AssertDimension(n_dofs % dim, 0U);
     const unsigned int n_dofs_per_comp = n_dofs / dim;
 
-    for (unsigned int comp = 0; comp < dim; ++comp)
+    for (int comp = 0; comp < dim; ++comp)
       {
         const unsigned int offset_comp = comp * n_dofs_per_comp;
 
@@ -468,12 +463,18 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
       }
   }
 
-  // FullMatrix<double> node_value_matrix_hierarchical(node_value_matrix.m(),
-  //                                                   node_value_matrix.n());
-  // for (auto i = 0U; i < node_value_matrix.m(); ++i)
-  //   for (auto j = 0U; j < node_value_matrix.n(); ++j)
-  //     node_value_matrix_hierarchical(l2h[i], j) = node_value_matrix(i, j);
+  /// Caching the univariate inverse node values associated with Q_k+1 and Q_k.
+  inverse_node_value_matrix_kplus1.reinit(node_value_matrix_kplus1.m(),
+                                          node_value_matrix_kplus1.n());
+  inverse_node_value_matrix_kplus1.invert(node_value_matrix_kplus1);
 
+  inverse_node_value_matrix_k.reinit(node_value_matrix_k.m(),
+                                     node_value_matrix_k.n());
+  inverse_node_value_matrix_k.invert(node_value_matrix_k);
+
+  /// TODO: instead of inverting the kronecker product of univariate node value
+  /// matrices one should compute the kronecker product of inverse univariate
+  /// node values ?!
   this->inverse_node_matrix.reinit(n_dofs, n_dofs);
   this->inverse_node_matrix.invert(node_value_matrix);
 
@@ -487,28 +488,31 @@ FE_RaviartThomas_new<dim>::FE_RaviartThomas_new(const unsigned int deg)
   // Restriction only for isotropic
   // refinement
   this->reinit_restriction_and_prolongation_matrices(true);
+
   // Fill prolongation matrices with embedding operators
   FETools::compute_embedding_matrices(*this, this->prolongation);
-  initialize_restriction();
+
+  /// Fill restriction matrices by means of interpolation.
+  initialize_restriction(quad);
 
   // TODO: the implementation makes the assumption that all faces have the
   // same number of dofs
   AssertDimension(this->n_unique_faces(), 1);
-  const unsigned int face_no = 0;
+  const unsigned int unique_face_no = 0;
 
   // TODO[TL]: for anisotropic refinement we will probably need a table of
   // submatrices with an array for each refine case
   FullMatrix<double> face_embeddings[GeometryInfo<dim>::max_children_per_face];
   for (unsigned int i = 0; i < GeometryInfo<dim>::max_children_per_face; ++i)
-    face_embeddings[i].reinit(this->n_dofs_per_face(face_no),
-                              this->n_dofs_per_face(face_no));
+    face_embeddings[i].reinit(this->n_dofs_per_face(unique_face_no),
+                              this->n_dofs_per_face(unique_face_no));
   FETools::compute_face_embedding_matrices<dim, double>(*this,
                                                         face_embeddings,
                                                         0,
                                                         0);
   this->interface_constraints.reinit((1 << (dim - 1)) *
-                                       this->n_dofs_per_face(face_no),
-                                     this->n_dofs_per_face(face_no));
+                                       this->n_dofs_per_face(unique_face_no),
+                                     this->n_dofs_per_face(unique_face_no));
   unsigned int target_row = 0;
   for (unsigned int d = 0; d < GeometryInfo<dim>::max_children_per_face; ++d)
     for (unsigned int i = 0; i < face_embeddings[d].m(); ++i)
@@ -595,8 +599,9 @@ FE_RaviartThomas_new<dim>::get_name() const
   // polynomial degree and is thus one higher
   // than the argument given to the
   // constructor
+  const auto         k = this->degree - 1;
   std::ostringstream namebuf;
-  namebuf << "FE_RaviartThomas_new<" << dim << ">(" << this->degree - 1 << ")";
+  namebuf << "FE_RaviartThomas_new<" << dim << ">(" << k << ")";
 
   return namebuf.str();
 }
@@ -627,7 +632,7 @@ FE_RaviartThomas_new<dim>::initialize_support_points(
   const unsigned int unique_face_no = 0;
 
   Quadrature<dim> cell_quad(quad_1d);
-  /// TODO special treatment if dim == 1 ?!
+  /// TODO: special treatment if dim == 1 ?!
   Quadrature<dim - 1> face_quad(quad_1d);
 
   /// single-point quadrature at endpoints 0 and 1
@@ -700,13 +705,11 @@ FE_RaviartThomas_new<dim>::initialize_support_points(
   AssertDimension(this->generalized_support_points.size(),
                   GeometryInfo<dim>::faces_per_cell * face_quad.size());
 
-  /// Leave here as there are no interior node functionals we have to cache
-  /// dim - dimensional quadrature points for...
   if (deg == 0)
+    /// Leave here as there are no interior node functionals...
     return;
 
-  /// Caching dim - dimensional quadrature points located in the unit cell's
-  /// interior
+  /// Caching dim - dimensional quadrature points located in the unit cell
   for (const auto &x_q : cell_quad.get_points())
     this->generalized_support_points.emplace_back(x_q);
 
@@ -753,7 +756,8 @@ FE_RaviartThomas_new<dim>::initialize_support_points(
 
 template <>
 void
-FE_RaviartThomas_new<1>::initialize_restriction()
+FE_RaviartThomas_new<1>::initialize_restriction(
+  const Quadrature<1> & /*quad_1d*/)
 {
   // there is only one refinement case in 1d,
   // which is the isotropic one (first index of
@@ -776,7 +780,8 @@ FE_RaviartThomas_new<1>::initialize_restriction()
 
 template <int dim>
 void
-FE_RaviartThomas_new<dim>::initialize_restriction()
+FE_RaviartThomas_new<dim>::initialize_restriction(
+  const Quadrature<1> &unit_quad)
 {
   using namespace internal::MatrixFreeFunctions;
 
@@ -787,9 +792,7 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
 
   const unsigned int k = this->degree - 1; // RT_k
 
-  const unsigned n_q_points_1d = k + 1;
-
-  QGauss<1> unit_quad(n_q_points_1d);
+  const unsigned int n_q_points_1d = unit_quad.size();
 
   ShapeInfo<double> shape_info;
   this->fill_shape_info(shape_info, unit_quad);
@@ -942,7 +945,7 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
 
       const auto mchild = th_children.multi_index(child);
 
-      for (auto comp = 0U; comp < dim; ++comp)
+      for (auto comp = 0; comp < dim; ++comp)
         {
           const unsigned int offset_comp = comp * n_dofs_per_comp;
 
@@ -975,16 +978,16 @@ FE_RaviartThomas_new<dim>::initialize_restriction()
 
 template <int dim>
 std::vector<unsigned int>
-FE_RaviartThomas_new<dim>::get_dpo_vector(const unsigned int deg)
+FE_RaviartThomas_new<dim>::get_dpo_vector(const unsigned int k)
 {
   // the element is face-based and we have
-  // (deg+1)^(dim-1) DoFs per face
+  // (k+1)^(dim-1) DoFs per face
   unsigned int dofs_per_face = 1;
   for (unsigned int d = 1; d < dim; ++d)
-    dofs_per_face *= deg + 1;
+    dofs_per_face *= k + 1;
 
   // and then there are interior dofs
-  const unsigned int interior_dofs = dim * deg * dofs_per_face;
+  const unsigned int interior_dofs = dim * k * dofs_per_face;
 
   std::vector<unsigned int> dpo(dim + 1);
   dpo[dim - 1] = dofs_per_face;

@@ -132,20 +132,43 @@ class FE_RaviartThomas_new : public FE_PolyTensor<dim>
 {
 public:
   /**
-   * Constructor for the Raviart-Thomas element of degree @p p.
+   * Constructor for the Raviart-Thomas element of degree @p k.
    */
-  FE_RaviartThomas_new(const unsigned int p);
+  FE_RaviartThomas_new(const unsigned int k);
 
-  /// NEW create h2l transformation
+  /**
+   * Return the dof index mapping from hierarchical numbering to a lexicographic
+   * order. The hierarchical numbering has the dofs associated with facets first
+   * (following the standard face numbering of GeometryInfo<dim>) and the dofs
+   * associated with the interior of the unit cell second (these dofs follow a
+   * sub-order between vector components: first all belonging to the first
+   * component, then those of the second component and so on). The
+   * lexicographical numbering starts with all dofs belonging to the first
+   * component, then those of the second component and so on. The subset for
+   * each vector component follows the anisotropic tensor structure of the node
+   * functionals (e.g. the node functionals matching Q_k+1,k x Q_k,k+1 in 2D)
+   * with a typical lexicographic ordering: unit x-direction runs fastest and
+   * unit y-direction runs faster than unit z-direction.
+   */
   std::vector<unsigned int>
-  make_hierarchical_to_lexicographic_index_map(
-    const unsigned int fe_degree) const;
+  make_hierarchical_to_lexicographic_index_map(const unsigned int k) const;
 
+  /**
+   * Generates the basis of univariate polynomials that define the moment-based
+   * node functionals matching either Q_k+1 or Q_k: the node polynomials needed
+   * are either Q_k-1 or Q_k, respectively. Yes Q_k-1 is correct as two nodal
+   * functionals at 0 and 1 are added to match Q_k+1. In case k is zero, @p
+   * degree is -1, thus an empty vector is returned.
+   */
   static std::vector<Polynomials::Polynomial<double>>
-  make_univariate_node_polynomials(int k);
+  make_univariate_node_polynomials(int degree);
 
-  /// NEW the data filled suffices to reflect the tensor structure of this
-  /// finite element
+  /**
+   * Fills a ShapeInfo object which reflects the anisotropic tensor structure of
+   * the Raviart-Thomas element (on the unit hypercube), in particular the
+   * univariate shape function evaluations (from Q_k+1 or Q_k) in all unit
+   * quadrature points given by @p quad.
+   */
   template <typename Number>
   void
   fill_shape_info(internal::MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
@@ -174,6 +197,7 @@ public:
   has_support_on_face(const unsigned int shape_index,
                       const unsigned int face_index) const override;
 
+  /// TODO: compute as a sum factorization of univariate node values
   // documentation inherited from the base class
   virtual void
   convert_generalized_support_point_values_to_dof_values(
@@ -193,31 +217,40 @@ public:
 private:
   /**
    * Only for internal use. Its full name is @p get_dofs_per_object_vector
-   * function and it creates the @p dofs_per_object vector that is needed
-   * within the constructor to be passed to the constructor of @p
-   * FiniteElementData.
+   * function and it creates based on the degree @p k the @p dofs_per_object
+   * vector that is needed within the constructor to be passed to the
+   * constructor of @p FiniteElementData.
    */
   static std::vector<unsigned int>
-  get_dpo_vector(const unsigned int degree);
+  get_dpo_vector(const unsigned int k);
 
   /**
-   * Initialize the @p generalized_support_points field of the FiniteElement
-   * class and fill the tables with interpolation weights (#boundary_weights
-   * and #interior_weights). Called from the constructor.
+   * Initialize the @p generalized_support_points and @p
+   * generalized_face_support_points fields of the FiniteElement base class. In
+   * addition, node functional weights (#node_functional_weights_face and
+   * #node_functional_weights_cell) are cached which are used by
+   * convert_generalized_support_point_values_to_dof_values() to compute node
+   * values. This enables computing the canonical interpolation.
    */
   void
   initialize_support_points(const unsigned int   rt_degree,
                             const Quadrature<1> &quad_1d);
 
   /**
-   * Initialize the interpolation from functions on refined mesh cells onto
-   * the father cell. According to the philosophy of the Raviart-Thomas
-   * element, this restriction operator preserves the divergence of a function
-   * weakly.
+   * Initialize the interpolation from fine-mesh functions on the children of
+   * the unit cell as parent (currently, only isotropic refinement is
+   * supported). According to the philosophy of the Raviart-Thomas element, this
+   * restriction operator preserves the divergence of a function weakly.
    */
   void
-  initialize_restriction();
+  initialize_restriction(const Quadrature<1> &quad_1d);
 
+  /**
+   * Evaluating the ith node functional (a basis functional for the dual space
+   * of Q_k+1) in polynomial function @poly. The first and last node functional
+   * is nodal at 0 and 1, respectively. All other are moment-based on the unit
+   * interval and evaluated by means of quadrature @p quad.
+   */
   double
   evaluate_node_functional_kplus1(const unsigned int                     i,
                                   const Polynomials::Polynomial<double> &poly,
@@ -230,6 +263,11 @@ private:
     const ArrayView<const double> &poly_values,
     const Quadrature<1> &          quad) const;
 
+  /**
+   * Evaluating the ith node functional (a basis functional for the dual space
+   * of Q_k) in polynomial function @poly. All functionals are moment-based on
+   * the unit interval and evaluated by means of quadrature @p quad.
+   */
   double
   evaluate_node_functional_k(const unsigned int                     i,
                              const Polynomials::Polynomial<double> &poly,
@@ -240,68 +278,98 @@ private:
                                   const ArrayView<const double> &poly_values,
                                   const Quadrature<1> &          quad) const;
 
-  /**
-   * These are the factors multiplied to a function in the
-   * #generalized_face_support_points when computing the integration. They are
-   * organized such that there is one row for each generalized face support
-   * point and one column for each degree of freedom on the face.
-   *
-   * See the
-   * @ref GlossGeneralizedSupport "glossary entry on generalized support points"
-   * for more information.
-   */
-  Table<2, double> boundary_weights;
+  // /**
+  //  * These are the factors multiplied to a function in the
+  //  * #generalized_face_support_points when computing the integration. They
+  //  are
+  //  * organized such that there is one row for each generalized face support
+  //  * point and one column for each degree of freedom on the face.
+  //  *
+  //  * See the
+  //  * @ref GlossGeneralizedSupport "glossary entry on generalized support points"
+  //  * for more information.
+  //  */
+  // Table<2, double> boundary_weights;
+
+  // /**
+  //  * Precomputed factors for interpolation of interior degrees of freedom.
+  //  The
+  //  * rationale for this Table is the same as for #boundary_weights. Only,
+  //  this
+  //  * table has a third coordinate for the space direction of the component
+  //  * evaluated.
+  //  */
+  // Table<3, double> interior_weights;
 
   /**
-   * Precomputed factors for interpolation of interior degrees of freedom. The
-   * rationale for this Table is the same as for #boundary_weights. Only, this
-   * table has a third coordinate for the space direction of the component
-   * evaluated.
+   * Caching the hierarchical-to-lexicographic index mapping returned by
+   * make_hierarchical_to_lexicographic_index_map().
    */
-  Table<3, double> interior_weights;
-
-  /// NEW hierarchical-to-lexicographic index mapping
   std::vector<unsigned int> h2l;
 
-  /// NEW lexicographic-to-hierarchical index mapping
+  /**
+   * Caching the inverse mapping of @p h2l.
+   */
   std::vector<unsigned int> l2h;
 
-  /// NEW univariate raw polynomial basis of degree up to (k+1)
+  /**
+   * Caching the raw univariate polynomials that define a basis of Q_k+1 and are
+   * used to define shape functions.
+   */
   const std::vector<Polynomials::Polynomial<double>> raw_polynomials_kplus1;
 
-  /// NEW univariate raw polynomial basis of degree up to k
+  /**
+   * Caching the raw univariate polynomials that define a basis of Q_k and are
+   * used to define shape functions.
+   */
   const std::vector<Polynomials::Polynomial<double>> raw_polynomials_k;
 
-  /// NEW univariate polynomial basis of degree up to k generating moment-based
-  /// node functionals
+  /**
+   * Caching the univariate polynomials that define a basis of Q_k and are
+   * used to define a dual basis to Q_k through moment-based functionals.
+   */
   const std::vector<Polynomials::Polynomial<double>> node_polynomials_k;
 
-  /// NEW univariate polynomial basis of degree up to (k-1) generating
-  /// moment-based node functionals
+  /**
+   * Caching the univariate polynomials that define a basis of Q_k-1 and are
+   * used to define moment-based functionals for Q_k+1. If augmented with nodal
+   * functionals at 0 and 1, a dual basis to Q_k+1 is well-defined.
+   */
   const std::vector<Polynomials::Polynomial<double>> node_polynomials_kminus1;
 
-  /// NEW The inverse node values that determine the transpose of the
-  /// transformation matrix from raw polynomials to the univariate shape
-  /// function basis of degree up to (k+1). The first and last node functional
-  /// is nodal in 0 and 1, resp.. Remaining functionals are moments on the
-  /// unit interval.
+  /**
+   * The inverse node values that determine the transpose of the transformation
+   * matrix from the raw polynomial basis @p raw_polynomials_kplus1 to the
+   * univariate shape function basis for Q_k+1.
+   */
   FullMatrix<double> inverse_node_value_matrix_kplus1;
 
-  /// NEW The inverse node values that determine the transpose of the
-  /// transformation matrix from raw polynomials to the univariate shape
-  /// function basis of degree up to k. All node functionals are moments on the
-  /// unit interval.
+  /**
+   * The inverse node values that determine the transpose of the transformation
+   * matrix from the raw polynomial basis @p raw_polynomials_k to the univariate
+   * shape function basis.
+   */
   FullMatrix<double> inverse_node_value_matrix_k;
 
-  /// NEW
-  /// rows <-> node functions per face
-  /// columns <-> generalized support points per face
+  /// TODO: replace by univariate weights
+  /**
+   * Cached weights needed to compute node values from function values at
+   * (generalized) face support points, see
+   * convert_generalized_support_point_values_to_dof_values(). Rows match node
+   * functional weights at the unit face and columns match generalized face
+   * support points.
+   */
   Table<2, double> node_functional_weights_face;
 
-  /// NEW
-  /// 0th dimension <-> dim
-  /// 1st dimension <-> node functions associated with cell (interior)
-  /// 2nd dimension <-> generalized support points on cell
+  /// TODO: replace by univariate weights
+  /**
+   * Cached weights needed to compute node values from function values at
+   * (generalized) support points, see
+   * convert_generalized_support_point_values_to_dof_values(). The zeroth table
+   * dimension matches the spatial dimension @p dim, the first dimension matches
+   * node functional weights at the unit cell per component and the second
+   * dimension matches generalized support points in the unit cell.
+   */
   Table<3, double> node_functional_weights_cell;
 
   // Allow access from other dimensions.
@@ -876,7 +944,7 @@ FE_RaviartThomas_new<dim>::evaluate_node_functional_k_impl(
 
 template <>
 void
-FE_RaviartThomas_new<1>::initialize_restriction();
+FE_RaviartThomas_new<1>::initialize_restriction(const Quadrature<1> &);
 
 #endif // DOXYGEN
 
