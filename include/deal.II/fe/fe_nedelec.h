@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2002 - 2019 by the deal.II authors
+// Copyright (C) 2002 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -177,11 +177,11 @@ public:
 
   /**
    * Return whether this element implements its hanging node constraints in
-   * the new way, which has to be used to make elements "hp compatible".
+   * the new way, which has to be used to make elements "hp-compatible".
    *
    * For the <tt>FE_Nedelec</tt> class the result is always true (independent
    * of the degree of the element), as it implements the complete set of
-   * functions necessary for hp capability.
+   * functions necessary for hp-capability.
    */
   virtual bool
   hp_constraints_are_implemented() const override;
@@ -194,7 +194,7 @@ public:
                          const unsigned int codim = 0) const override final;
 
   /**
-   * If, on a vertex, several finite elements are active, the hp code first
+   * If, on a vertex, several finite elements are active, the hp-code first
    * assigns the degrees of freedom of each of these FEs different global
    * indices. It then calls this function to find out which of them should get
    * identical values, and consequently can receive the same global DoF index.
@@ -368,6 +368,16 @@ private:
    * Mutex for protecting initialization of restriction and embedding matrix.
    */
   mutable Threads::Mutex mutex;
+
+  /**
+   * Initialize the permutation pattern and the pattern of sign change.
+   *
+   * @note This function is not fully filled with the correct implementation
+   * yet. It needs to be consistently implemented in a future release to work
+   * on meshes that contain cells with flipped faces.
+   */
+  void
+  initialize_quad_dof_index_permutation_and_sign_change();
 
   // Allow access from other dimensions.
   template <int dim1>

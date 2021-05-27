@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2010 - 2020 by the deal.II authors
+// Copyright (C) 2010 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -371,7 +371,7 @@ LaplaceProblem<dim>::test()
   MGCoarseGridHouseholder<double, Vector<double>> mg_coarse_renumbered;
   mg_coarse_renumbered.initialize(coarse_matrix_renumbered);
 
-  typedef PreconditionIdentity RELAXATION;
+  using RELAXATION = PreconditionIdentity;
   MGSmootherPrecondition<SparseMatrix<double>, RELAXATION, Vector<double>>
     mg_smoother;
 

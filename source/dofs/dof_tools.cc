@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -634,11 +634,25 @@ namespace DoFTools
   }
 
 
+
   template <int dim, int spacedim>
   void
   extract_boundary_dofs(const DoFHandler<dim, spacedim> &   dof_handler,
                         const ComponentMask &               component_mask,
                         IndexSet &                          selected_dofs,
+                        const std::set<types::boundary_id> &boundary_ids)
+  {
+    // Simply forward to the other function
+    selected_dofs =
+      extract_boundary_dofs(dof_handler, component_mask, boundary_ids);
+  }
+
+
+
+  template <int dim, int spacedim>
+  IndexSet
+  extract_boundary_dofs(const DoFHandler<dim, spacedim> &   dof_handler,
+                        const ComponentMask &               component_mask,
                         const std::set<types::boundary_id> &boundary_ids)
   {
     Assert(component_mask.represents_n_components(
@@ -648,9 +662,7 @@ namespace DoFTools
              boundary_ids.end(),
            ExcInvalidBoundaryIndicator());
 
-    // first reset output argument
-    selected_dofs.clear();
-    selected_dofs.set_size(dof_handler.n_dofs());
+    IndexSet selected_dofs(dof_handler.n_dofs());
 
     // let's see whether we have to check for certain boundary indicators
     // or whether we can accept all
@@ -675,7 +687,6 @@ namespace DoFTools
     // boundary line is also part of a boundary face which we will be
     // visiting sooner or later
     for (const auto &cell : dof_handler.active_cell_iterators())
-
       // only work on cells that are either locally owned or at least ghost
       // cells
       if (cell->is_artificial() == false)
@@ -686,6 +697,16 @@ namespace DoFTools
                  boundary_ids.end()))
               {
                 const FiniteElement<dim, spacedim> &fe = cell->get_fe();
+
+                const auto reference_cell = cell->reference_cell();
+
+                const unsigned int n_vertices_per_cell =
+                  reference_cell.n_vertices();
+                const unsigned int n_lines_per_cell = reference_cell.n_lines();
+                const unsigned int n_vertices_per_face =
+                  reference_cell.face_reference_cell(face).n_vertices();
+                const unsigned int n_lines_per_face =
+                  reference_cell.face_reference_cell(face).n_lines();
 
                 const unsigned int dofs_per_face = fe.n_dofs_per_face(face);
                 face_dof_indices.resize(dofs_per_face);
@@ -701,7 +722,7 @@ namespace DoFTools
                     // non-primitive, but use usual convention (see docs)
                     {
                       // first get at the cell-global number of a face dof,
-                      // to ask the fe certain questions
+                      // to ask the FE certain questions
                       const unsigned int cell_index =
                         (dim == 1 ?
                            i :
@@ -709,13 +730,26 @@ namespace DoFTools
                               (i < 2 * fe.n_dofs_per_vertex() ?
                                  i :
                                  i + 2 * fe.n_dofs_per_vertex()) :
-                              (dim == 3 ? (i < 4 * fe.n_dofs_per_vertex() ?
+                              (dim == 3 ? (i < n_vertices_per_face *
+                                                 fe.n_dofs_per_vertex() ?
                                              i :
-                                             (i < 4 * fe.n_dofs_per_vertex() +
-                                                    4 * fe.n_dofs_per_line() ?
-                                                i + 4 * fe.n_dofs_per_vertex() :
-                                                i + 4 * fe.n_dofs_per_vertex() +
-                                                  8 * fe.n_dofs_per_line())) :
+                                             (i < n_vertices_per_face *
+                                                      fe.n_dofs_per_vertex() +
+                                                    n_lines_per_face *
+                                                      fe.n_dofs_per_line() ?
+                                                (i - n_vertices_per_face *
+                                                       fe.n_dofs_per_vertex()) +
+                                                  n_vertices_per_cell *
+                                                    fe.n_dofs_per_vertex() :
+                                                (i -
+                                                 n_vertices_per_face *
+                                                   fe.n_dofs_per_vertex() -
+                                                 n_lines_per_face *
+                                                   fe.n_dofs_per_line()) +
+                                                  n_vertices_per_cell *
+                                                    fe.n_dofs_per_vertex() +
+                                                  n_lines_per_cell *
+                                                    fe.n_dofs_per_line())) :
                                           numbers::invalid_unsigned_int)));
                       if (fe.is_primitive(cell_index))
                         {
@@ -737,6 +771,8 @@ namespace DoFTools
                         }
                     }
               }
+
+    return selected_dofs;
   }
 
 
@@ -1125,6 +1161,42 @@ namespace DoFTools
             if (!dof_set.is_element(dof_index))
               global_dof_indices.insert(dof_index);
         }
+
+    dof_set.add_indices(global_dof_indices.begin(), global_dof_indices.end());
+
+    dof_set.compress();
+  }
+
+
+
+  template <int dim, int spacedim>
+  void
+  extract_locally_active_level_dofs(
+    const DoFHandler<dim, spacedim> &dof_handler,
+    IndexSet &                       dof_set,
+    const unsigned int               level)
+  {
+    // collect all the locally owned dofs
+    dof_set = dof_handler.locally_owned_mg_dofs(level);
+
+    // add the DoF on the adjacent ghost cells to the IndexSet, cache them
+    // in a set. need to check each dof manually because we can't be sure
+    // that the dof range of locally_owned_dofs is really contiguous.
+    std::vector<types::global_dof_index> dof_indices;
+    std::set<types::global_dof_index>    global_dof_indices;
+
+    const auto filtered_iterators_range =
+      filter_iterators(dof_handler.cell_iterators_on_level(level),
+                       dealii::IteratorFilters::LocallyOwnedLevelCell());
+    for (const auto &cell : filtered_iterators_range)
+      {
+        dof_indices.resize(cell->get_fe().n_dofs_per_cell());
+        cell->get_mg_dof_indices(dof_indices);
+
+        for (const types::global_dof_index dof_index : dof_indices)
+          if (!dof_set.is_element(dof_index))
+            global_dof_indices.insert(dof_index);
+      }
 
     dof_set.add_indices(global_dof_indices.begin(), global_dof_indices.end());
 
@@ -2165,7 +2237,7 @@ namespace DoFTools
         for (unsigned int fe_index = 0; fe_index < fe_collection.size();
              ++fe_index)
           {
-            // check whether every fe in the collection has support points
+            // check whether every FE in the collection has support points
             Assert(fe_collection[fe_index].has_support_points(),
                    typename FiniteElement<dim>::ExcFEHasNoSupportPoints());
             q_coll_dummy.push_back(Quadrature<dim>(

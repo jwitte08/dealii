@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2020 by the deal.II authors
+// Copyright (C) 2016 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1191,8 +1191,8 @@ namespace Step44
     Assert(n_dependent_variables == n_independent_variables,
            ExcMessage("Expect square system."));
 
-    typedef AD::ResidualLinearization<ad_type_code, number_t> ADHelper;
-    typedef typename ADHelper::ad_type                        ADNumberType;
+    using ADHelper     = AD::ResidualLinearization<ad_type_code, number_t>;
+    using ADNumberType = typename ADHelper::ad_type;
     ADHelper ad_helper(n_independent_variables, n_dependent_variables);
     ad_helper.set_tape_buffer_sizes(); // Increase the buffer size from the
                                        // default values

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -324,7 +324,7 @@ namespace DataOutBase
     /**
      * Reference-cell type of the underlying cell of this patch.
      */
-    ReferenceCell::Type reference_cell_type;
+    ReferenceCell reference_cell;
 
     /**
      * Default constructor. Sets #n_subdivisions to one, #points_are_available
@@ -474,7 +474,7 @@ namespace DataOutBase
     /**
      * Reference-cell type of the underlying cell of this patch.
      */
-    ReferenceCell::Type reference_cell_type;
+    ReferenceCell reference_cell;
 
     /**
      * Default constructor. Sets #points_are_available
@@ -1777,15 +1777,14 @@ namespace DataOutBase
    * therefore 12 lines for each subcells of a patch.
    *
    * Given the lines as described above, a cut through this data in Gnuplot
-   * can then be achieved like this (& stands for the dollar sign in the
-   * following):
+   * can then be achieved like this:
    * @verbatim
    *   set data style lines
-   *   splot [:][:][0:] "T" using 1:2:(&3==.5 ? &4 : -1)
+   *   splot [:][:][0:] "T" using 1:2:(\$3==.5 ? \$4 : -1)
    * @endverbatim
    *
-   * This command plots data in x- and y-direction unbounded, but in
-   * z-direction only those data points which are above the x-y-plane (we
+   * This command plots data in $x$- and $y$-direction unbounded, but in
+   * $z$-direction only those data points which are above the $x$-$y$-plane (we
    * assume here a positive solution, if it has negative values, you might
    * want to decrease the lower bound). Furthermore, it only takes the data
    * points with z-values (<tt>&3</tt>) equal to 0.5, i.e. a cut through the
@@ -2311,7 +2310,7 @@ namespace DataOutBase
   write_hdf5_parallel(const std::vector<Patch<dim, spacedim>> &patches,
                       const DataOutFilter &                    data_filter,
                       const std::string &                      filename,
-                      MPI_Comm                                 comm);
+                      const MPI_Comm &                         comm);
 
   /**
    * Write the data in @p data_filter to HDF5 file(s). If @p write_mesh_file is
@@ -2327,7 +2326,7 @@ namespace DataOutBase
                       const bool                               write_mesh_file,
                       const std::string &                      mesh_filename,
                       const std::string &solution_filename,
-                      MPI_Comm           comm);
+                      const MPI_Comm &   comm);
 
   /**
    * DataOutFilter is an intermediate data format that reduces the amount of
@@ -2658,7 +2657,8 @@ public:
    * DataOutInterface::write_vtu().
    */
   void
-  write_vtu_in_parallel(const std::string &filename, MPI_Comm comm) const;
+  write_vtu_in_parallel(const std::string &filename,
+                        const MPI_Comm &   comm) const;
 
   /**
    * Some visualization programs, such as ParaView, can read several separate
@@ -2793,7 +2793,7 @@ public:
   create_xdmf_entry(const DataOutBase::DataOutFilter &data_filter,
                     const std::string &               h5_filename,
                     const double                      cur_time,
-                    MPI_Comm                          comm) const;
+                    const MPI_Comm &                  comm) const;
 
   /**
    * Create an XDMFEntry based on the data in the data_filter. This assumes
@@ -2805,7 +2805,7 @@ public:
                     const std::string &               h5_mesh_filename,
                     const std::string &               h5_solution_filename,
                     const double                      cur_time,
-                    MPI_Comm                          comm) const;
+                    const MPI_Comm &                  comm) const;
 
   /**
    * Write an XDMF file based on the provided vector of XDMFEntry objects.
@@ -2834,7 +2834,7 @@ public:
   void
   write_xdmf_file(const std::vector<XDMFEntry> &entries,
                   const std::string &           filename,
-                  MPI_Comm                      comm) const;
+                  const MPI_Comm &              comm) const;
 
   /**
    * Write the data in @p data_filter to a single HDF5 file containing both the
@@ -2853,7 +2853,7 @@ public:
   void
   write_hdf5_parallel(const DataOutBase::DataOutFilter &data_filter,
                       const std::string &               filename,
-                      MPI_Comm                          comm) const;
+                      const MPI_Comm &                  comm) const;
 
   /**
    * Write the data in data_filter to HDF5 file(s). If write_mesh_file is
@@ -2867,7 +2867,7 @@ public:
                       const bool                        write_mesh_file,
                       const std::string &               mesh_filename,
                       const std::string &               solution_filename,
-                      MPI_Comm                          comm) const;
+                      const MPI_Comm &                  comm) const;
 
   /**
    * DataOutFilter is an intermediate data format that reduces the amount of
@@ -3315,7 +3315,9 @@ public:
   add_attribute(const std::string &attr_name, const unsigned int dimension);
 
   /**
-   * Read or write the data of this object for serialization
+   * Read or write the data of this object for serialization using the
+   * [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -3330,7 +3332,7 @@ public:
    * If the entry is not valid, this returns an empty string.
    *
    * @deprecated Use the overload taking an `unsigned int` and a
-   * `const ReferenceCell::Type &` instead.
+   * `const ReferenceCell &` instead.
    */
   DEAL_II_DEPRECATED
   std::string
@@ -3341,8 +3343,8 @@ public:
    * If the entry is not valid, this returns an empty string.
    */
   std::string
-  get_xdmf_content(const unsigned int         indent_level,
-                   const ReferenceCell::Type &reference_cell_type) const;
+  get_xdmf_content(const unsigned int   indent_level,
+                   const ReferenceCell &reference_cell) const;
 
 private:
   /**

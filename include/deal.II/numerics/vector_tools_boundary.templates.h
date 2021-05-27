@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -367,7 +367,7 @@ namespace VectorTools
                             }
                         }
                       else
-                        // fe has only one component, so save some computations
+                        // FE has only one component, so save some computations
                         {
                           // get only the one component that this function has
                           dof_values_scalar.resize(fe.n_dofs_per_face(face_no));
@@ -417,8 +417,7 @@ namespace VectorTools
     const ComponentMask &                      component_mask)
   {
     std::map<types::boundary_id, const Function<spacedim, number> *>
-      function_map;
-    function_map[boundary_component] = &boundary_function;
+      function_map = {{boundary_component, &boundary_function}};
     interpolate_boundary_values(
       mapping, dof, function_map, boundary_values, component_mask);
   }
@@ -443,13 +442,32 @@ namespace VectorTools
   template <int dim, int spacedim, typename number>
   void
   interpolate_boundary_values(
+    const hp::MappingCollection<dim, spacedim> &mapping,
+    const DoFHandler<dim, spacedim> &           dof,
+    const types::boundary_id                    boundary_component,
+    const Function<spacedim, number> &          boundary_function,
+    std::map<types::global_dof_index, number> & boundary_values,
+    const ComponentMask &                       component_mask)
+  {
+    std::map<types::boundary_id, const Function<spacedim, number> *>
+      function_map = {{boundary_component, &boundary_function}};
+    interpolate_boundary_values(
+      mapping, dof, function_map, boundary_values, component_mask);
+  }
+
+
+
+  template <int dim, int spacedim, typename number>
+  void
+  interpolate_boundary_values(
     const DoFHandler<dim, spacedim> &          dof,
     const types::boundary_id                   boundary_component,
     const Function<spacedim, number> &         boundary_function,
     std::map<types::global_dof_index, number> &boundary_values,
     const ComponentMask &                      component_mask)
   {
-    interpolate_boundary_values(StaticMappingQ1<dim, spacedim>::mapping,
+    interpolate_boundary_values(get_default_linear_mapping(
+                                  dof.get_triangulation()),
                                 dof,
                                 boundary_component,
                                 boundary_function,
@@ -468,7 +486,8 @@ namespace VectorTools
     std::map<types::global_dof_index, number> &boundary_values,
     const ComponentMask &                      component_mask)
   {
-    interpolate_boundary_values(StaticMappingQ1<dim, spacedim>::mapping,
+    interpolate_boundary_values(get_default_linear_mapping(
+                                  dof.get_triangulation()),
                                 dof,
                                 function_map,
                                 boundary_values,
@@ -495,16 +514,14 @@ namespace VectorTools
     std::map<types::global_dof_index, number> boundary_values;
     interpolate_boundary_values(
       mapping, dof, function_map, boundary_values, component_mask_);
-    typename std::map<types::global_dof_index, number>::const_iterator
-      boundary_value = boundary_values.begin();
-    for (; boundary_value != boundary_values.end(); ++boundary_value)
+    for (const auto &boundary_value : boundary_values)
       {
-        if (constraints.can_store_line(boundary_value->first) &&
-            !constraints.is_constrained(boundary_value->first))
+        if (constraints.can_store_line(boundary_value.first) &&
+            !constraints.is_constrained(boundary_value.first))
           {
-            constraints.add_line(boundary_value->first);
-            constraints.set_inhomogeneity(boundary_value->first,
-                                          boundary_value->second);
+            constraints.add_line(boundary_value.first);
+            constraints.set_inhomogeneity(boundary_value.first,
+                                          boundary_value.second);
           }
       }
   }
@@ -522,8 +539,52 @@ namespace VectorTools
     const ComponentMask &             component_mask)
   {
     std::map<types::boundary_id, const Function<spacedim, number> *>
-      function_map;
-    function_map[boundary_component] = &boundary_function;
+      function_map = {{boundary_component, &boundary_function}};
+    interpolate_boundary_values(
+      mapping, dof, function_map, constraints, component_mask);
+  }
+
+
+
+  template <int dim, int spacedim, typename number>
+  void
+  interpolate_boundary_values(
+    const hp::MappingCollection<dim, spacedim> &mapping,
+    const DoFHandler<dim, spacedim> &           dof,
+    const std::map<types::boundary_id, const Function<spacedim, number> *>
+      &                        function_map,
+    AffineConstraints<number> &constraints,
+    const ComponentMask &      component_mask_)
+  {
+    std::map<types::global_dof_index, number> boundary_values;
+    interpolate_boundary_values(
+      mapping, dof, function_map, boundary_values, component_mask_);
+    for (const auto &boundary_value : boundary_values)
+      {
+        if (constraints.can_store_line(boundary_value.first) &&
+            !constraints.is_constrained(boundary_value.first))
+          {
+            constraints.add_line(boundary_value.first);
+            constraints.set_inhomogeneity(boundary_value.first,
+                                          boundary_value.second);
+          }
+      }
+  }
+
+
+
+  template <int dim, int spacedim, typename number>
+  void
+  interpolate_boundary_values(
+    const hp::MappingCollection<dim, spacedim> &mapping,
+    const DoFHandler<dim, spacedim> &           dof,
+    const types::boundary_id                    boundary_component,
+    const Function<spacedim, number> &          boundary_function,
+    AffineConstraints<number> &                 constraints,
+    const ComponentMask &                       component_mask)
+  {
+    std::map<types::boundary_id, const Function<spacedim, number> *>
+      function_map = {{boundary_component, &boundary_function}};
     interpolate_boundary_values(
       mapping, dof, function_map, constraints, component_mask);
   }
@@ -539,7 +600,8 @@ namespace VectorTools
     AffineConstraints<number> &       constraints,
     const ComponentMask &             component_mask)
   {
-    interpolate_boundary_values(StaticMappingQ1<dim, spacedim>::mapping,
+    interpolate_boundary_values(get_default_linear_mapping(
+                                  dof.get_triangulation()),
                                 dof,
                                 boundary_component,
                                 boundary_function,
@@ -558,7 +620,8 @@ namespace VectorTools
     AffineConstraints<number> &constraints,
     const ComponentMask &      component_mask)
   {
-    interpolate_boundary_values(StaticMappingQ1<dim, spacedim>::mapping,
+    interpolate_boundary_values(get_default_linear_mapping(
+                                  dof.get_triangulation()),
                                 dof,
                                 function_map,
                                 constraints,
@@ -824,7 +887,7 @@ namespace VectorTools
     std::map<types::global_dof_index, number> &boundary_values,
     std::vector<unsigned int>                  component_mapping)
   {
-    project_boundary_values(StaticMappingQ1<dim, spacedim>::mapping,
+    project_boundary_values(get_default_linear_mapping(dof.get_triangulation()),
                             dof,
                             boundary_functions,
                             q,
@@ -914,7 +977,7 @@ namespace VectorTools
     AffineConstraints<number> &constraints,
     std::vector<unsigned int>  component_mapping)
   {
-    project_boundary_values(StaticMappingQ1<dim, spacedim>::mapping,
+    project_boundary_values(get_default_linear_mapping(dof.get_triangulation()),
                             dof,
                             boundary_functions,
                             q,
@@ -964,6 +1027,7 @@ namespace VectorTools
 
       // Get boundary function values
       // at quadrature points.
+      AssertDimension(boundary_function.n_components, fe.n_components());
       boundary_function.vector_value_list(quadrature_points, values);
 
       const std::vector<Point<dim>> &reference_quadrature_points =
@@ -1156,6 +1220,7 @@ namespace VectorTools
       // Get boundary function
       // values at quadrature
       // points.
+      AssertDimension(boundary_function.n_components, fe.n_components());
       boundary_function.vector_value_list(quadrature_points, values);
 
       switch (dim)
@@ -2070,6 +2135,7 @@ namespace VectorTools
 
       // Get boundary function values
       // at quadrature points.
+      AssertDimension(boundary_function.n_components, fe.n_components());
       boundary_function.vector_value_list(quadrature_points, values);
 
       // Find the group of vector components we want to project onto
@@ -2377,6 +2443,7 @@ namespace VectorTools
                                          Vector<number>(fe.n_components()));
 
       // Get boundary function values at quadrature points.
+      AssertDimension(boundary_function.n_components, fe.n_components());
       boundary_function.vector_value_list(quadrature_points, values);
 
       // Find where the group of vector components (dim of them,
@@ -2765,7 +2832,7 @@ namespace VectorTools
                     }
 
                   // Tensor of normal vector on the face at q_point;
-                  const Tensor<1, dim> normal_vector =
+                  const Tensor<1, dim> &normal_vector =
                     fe_face_values.normal_vector(q_point);
 
                   // Now compute the linear system:
@@ -2869,13 +2936,13 @@ namespace VectorTools
       // compute_face_projection_curl_conforming_l2
       //
       // For details see (for example) section 4.2:
-      // Electromagnetic scattering simulation using an H (curl) conforming hp
+      // Electromagnetic scattering simulation using an H (curl) conforming hp-
       // finite element method in three dimensions, PD Ledger, K Morgan, O
       // Hassan, Int. J.  Num. Meth. Fluids, Volume 53, Issue 8, pages
       // 1267-1296, 20 March 2007:
       // http://onlinelibrary.wiley.com/doi/10.1002/fld.1223/abstract
 
-      // Create hp FEcollection, dof_handler can be either hp or standard type.
+      // Create hp-FEcollection, dof_handler can be either hp- or standard type.
       // From here on we can treat it like a hp-namespace object.
       const hp::FECollection<dim> &fe_collection(
         dof_handler.get_fe_collection());
@@ -2898,17 +2965,15 @@ namespace VectorTools
                                              update_JxW_values);
 
       // Storage for dof values found and whether they have been processed:
-      std::vector<bool>                                        dofs_processed;
-      std::vector<number>                                      dof_values;
-      std::vector<types::global_dof_index>                     face_dof_indices;
-      typename DoFHandler<dim, spacedim>::active_cell_iterator cell =
-        dof_handler.begin_active();
+      std::vector<bool>                    dofs_processed;
+      std::vector<number>                  dof_values;
+      std::vector<types::global_dof_index> face_dof_indices;
 
       switch (dim)
         {
           case 2:
             {
-              for (; cell != dof_handler.end(); ++cell)
+              for (const auto &cell : dof_handler.active_cell_iterators())
                 {
                   if (cell->at_boundary() && cell->is_locally_owned())
                     {
@@ -3031,7 +3096,7 @@ namespace VectorTools
                                                  update_quadrature_points |
                                                  update_values);
 
-              for (; cell != dof_handler.end(); ++cell)
+              for (const auto &cell : dof_handler.active_cell_iterators())
                 {
                   if (cell->at_boundary() && cell->is_locally_owned())
                     {
@@ -3080,7 +3145,7 @@ namespace VectorTools
 
                               // First compute the projection on the edges.
                               for (unsigned int line = 0;
-                                   line < GeometryInfo<3>::lines_per_face;
+                                   line < cell->face(face)->n_lines();
                                    ++line)
                                 {
                                   compute_edge_projection_l2(
@@ -3157,7 +3222,7 @@ namespace VectorTools
     AffineConstraints<number> &  constraints,
     const Mapping<dim> &         mapping)
   {
-    // non-hp version - calls the internal
+    // non-hp-version - calls the internal
     // compute_project_boundary_values_curl_conforming_l2() function
     // above after recasting the mapping.
 
@@ -3181,7 +3246,7 @@ namespace VectorTools
     AffineConstraints<number> &            constraints,
     const hp::MappingCollection<dim, dim> &mapping_collection)
   {
-    // hp version - calls the internal
+    // hp-version - calls the internal
     // compute_project_boundary_values_curl_conforming_l2() function above.
     internals::compute_project_boundary_values_curl_conforming_l2(
       dof_handler,

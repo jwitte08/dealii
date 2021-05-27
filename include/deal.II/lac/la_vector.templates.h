@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2015 - 2020 by the deal.II authors
+// Copyright (C) 2015 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -250,9 +250,10 @@ namespace LinearAlgebra
 
   template <typename Number>
   void
-  Vector<Number>::import(const ReadWriteVector<Number> &,
-                         VectorOperation::values,
-                         std::shared_ptr<const CommunicationPatternBase>)
+  Vector<Number>::import(
+    const ReadWriteVector<Number> &,
+    VectorOperation::values,
+    std::shared_ptr<const Utilities::MPI::CommunicationPatternBase>)
   {
     AssertThrow(false, ExcMessage("This function is not implemented."));
   }

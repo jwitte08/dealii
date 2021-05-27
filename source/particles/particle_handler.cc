@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2020 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -15,6 +15,8 @@
 
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/grid_tools_cache.h>
+
+#include <deal.II/numerics/vector_tools.h>
 
 #include <deal.II/particles/particle_handler.h>
 
@@ -42,18 +44,20 @@ namespace Particles
 
       for (const auto &particle : particles)
         {
-          particle.write_data(current_data);
+          current_data = particle.write_particle_data_to_memory(current_data);
         }
 
       return buffer;
     }
 
+
+
     template <int dim, int spacedim>
     std::vector<Particle<dim, spacedim>>
     unpack_particles(
       const boost::iterator_range<std::vector<char>::const_iterator>
-        &           data_range,
-      PropertyPool &property_pool)
+        &                          data_range,
+      PropertyPool<dim, spacedim> &property_pool)
     {
       std::vector<Particle<dim, spacedim>> particles;
 
@@ -87,10 +91,10 @@ namespace Particles
   template <int dim, int spacedim>
   ParticleHandler<dim, spacedim>::ParticleHandler()
     : triangulation()
-    , property_pool(std::make_unique<PropertyPool>(0))
+    , mapping()
+    , property_pool(std::make_unique<PropertyPool<dim, spacedim>>(0))
     , particles()
     , ghost_particles()
-    , ghost_particles_by_domain()
     , global_number_of_particles(0)
     , global_max_particles_per_cell(0)
     , next_free_particle_index(0)
@@ -109,10 +113,9 @@ namespace Particles
     const unsigned int                  n_properties)
     : triangulation(&triangulation, typeid(*this).name())
     , mapping(&mapping, typeid(*this).name())
-    , property_pool(std::make_unique<PropertyPool>(n_properties))
+    , property_pool(std::make_unique<PropertyPool<dim, spacedim>>(n_properties))
     , particles()
     , ghost_particles()
-    , ghost_particles_by_domain()
     , global_number_of_particles(0)
     , global_max_particles_per_cell(0)
     , next_free_particle_index(0)
@@ -138,7 +141,7 @@ namespace Particles
     mapping       = &new_mapping;
 
     // Create the memory pool that will store all particle properties
-    property_pool = std::make_unique<PropertyPool>(n_properties);
+    property_pool = std::make_unique<PropertyPool<dim, spacedim>>(n_properties);
 
     // Create the grid cache to cache the information about the triangulation
     // that is used to locate the particles into subdomains and cells
@@ -161,23 +164,26 @@ namespace Particles
     initialize(*particle_handler.triangulation,
                *particle_handler.mapping,
                n_properties);
+    property_pool->reserve(particle_handler.particles.size() +
+                           particle_handler.ghost_particles.size());
 
     // copy static members
     global_number_of_particles = particle_handler.global_number_of_particles;
     global_max_particles_per_cell =
       particle_handler.global_max_particles_per_cell;
-    next_free_particle_index  = particle_handler.next_free_particle_index;
-    particles                 = particle_handler.particles;
-    ghost_particles           = particle_handler.ghost_particles;
-    ghost_particles_by_domain = particle_handler.ghost_particles_by_domain;
-    handle                    = particle_handler.handle;
+    next_free_particle_index = particle_handler.next_free_particle_index;
+    particles                = particle_handler.particles;
+    ghost_particles          = particle_handler.ghost_particles;
+
+    ghost_particles_cache.ghost_particles_by_domain =
+      particle_handler.ghost_particles_cache.ghost_particles_by_domain;
+    handle = particle_handler.handle;
 
     // copy dynamic properties
     auto from_particle = particle_handler.begin();
     for (auto &particle : *this)
       {
         particle.set_property_pool(*property_pool);
-        particle.set_properties(from_particle->get_properties());
         ++from_particle;
       }
 
@@ -186,7 +192,6 @@ namespace Particles
          ++ghost, ++from_ghost)
       {
         ghost->set_property_pool(*property_pool);
-        ghost->set_properties(from_ghost->get_properties());
       }
   }
 
@@ -209,6 +214,11 @@ namespace Particles
   ParticleHandler<dim, spacedim>::clear_particles()
   {
     particles.clear();
+    ghost_particles.clear();
+
+    // the particle properties have already been deleted by their destructor,
+    // but the memory is still allocated. Return the memory as well.
+    property_pool->clear();
   }
 
 
@@ -429,11 +439,19 @@ namespace Particles
     local_start_index += local_next_particle_index;
 
     auto point_locations =
-      GridTools::compute_point_locations(*triangulation_cache, positions);
+      GridTools::compute_point_locations_try_all(*triangulation_cache,
+                                                 positions);
 
     auto &cells           = std::get<0>(point_locations);
     auto &local_positions = std::get<1>(point_locations);
     auto &index_map       = std::get<2>(point_locations);
+    auto &missing_points  = std::get<3>(point_locations);
+    // If a point was not found, throwing an error, as the old
+    // implementation of compute_point_locations would have done
+    AssertThrow(missing_points.size() == 0,
+                VectorTools::ExcPointNotAvailableHere());
+
+    (void)missing_points;
 
     if (cells.size() == 0)
       return;
@@ -483,11 +501,7 @@ namespace Particles
     if (!ids.empty())
       AssertDimension(ids.size(), positions.size());
 
-    const auto tria =
-      dynamic_cast<const parallel::distributed::Triangulation<dim, spacedim> *>(
-        &(*triangulation));
-    const auto comm =
-      (tria != nullptr ? tria->get_communicator() : MPI_COMM_WORLD);
+    const auto comm = triangulation->get_communicator();
 
     const auto n_mpi_processes = Utilities::MPI::n_mpi_processes(comm);
 
@@ -790,7 +804,7 @@ namespace Particles
 
   template <int dim, int spacedim>
   IndexSet
-  ParticleHandler<dim, spacedim>::locally_relevant_ids() const
+  ParticleHandler<dim, spacedim>::locally_owned_particle_ids() const
   {
     IndexSet set(get_next_free_particle_index());
     for (const auto &p : *this)
@@ -873,7 +887,7 @@ namespace Particles
 
 
   template <int dim, int spacedim>
-  PropertyPool &
+  PropertyPool<dim, spacedim> &
   ParticleHandler<dim, spacedim>::get_property_pool() const
   {
     return *property_pool;
@@ -1027,7 +1041,7 @@ namespace Particles
 
           const unsigned int closest_vertex =
             GridTools::find_closest_vertex_of_cell<dim, spacedim>(
-              current_cell, out_particle->get_location());
+              current_cell, out_particle->get_location(), *mapping);
           Tensor<1, spacedim> vertex_to_particle =
             out_particle->get_location() - current_cell->vertex(closest_vertex);
           vertex_to_particle /= vertex_to_particle.norm();
@@ -1052,6 +1066,11 @@ namespace Particles
                                                           vertex_to_particle,
                                                           cell_centers);
                     });
+
+          // make a copy of the current cell, since we will modify the variable
+          // current_cell in the following but we need a backup in the case
+          // the particle is not found
+          const auto previous_cell_of_particle = current_cell;
 
           // Search all of the cells adjacent to the closest vertex of the
           // previous cell Most likely we will find the particle in them.
@@ -1084,23 +1103,22 @@ namespace Particles
               // The particle is not in a neighbor of the old cell.
               // Look for the new cell in the whole local domain.
               // This case is rare.
-              try
-                {
-                  const std::pair<const typename Triangulation<dim, spacedim>::
-                                    active_cell_iterator,
-                                  Point<dim>>
-                    current_cell_and_position =
-                      GridTools::find_active_cell_around_point<>(
-                        *mapping, *triangulation, out_particle->get_location());
-                  current_cell               = current_cell_and_position.first;
-                  current_reference_position = current_cell_and_position.second;
-                }
-              catch (GridTools::ExcPointNotFound<spacedim> &)
+              const std::pair<const typename Triangulation<dim, spacedim>::
+                                active_cell_iterator,
+                              Point<dim>>
+                current_cell_and_position =
+                  GridTools::find_active_cell_around_point<>(
+                    *triangulation_cache, out_particle->get_location());
+              current_cell               = current_cell_and_position.first;
+              current_reference_position = current_cell_and_position.second;
+
+              if (current_cell.state() != IteratorState::valid)
                 {
                   // We can find no cell for this particle. It has left the
                   // domain due to an integration error or an open boundary.
                   // Signal the loss and move on.
-                  signals.particle_lost(out_particle, current_cell);
+                  signals.particle_lost(out_particle,
+                                        previous_cell_of_particle);
                   continue;
                 }
             }
@@ -1160,7 +1178,8 @@ namespace Particles
 
   template <int dim, int spacedim>
   void
-  ParticleHandler<dim, spacedim>::exchange_ghost_particles()
+  ParticleHandler<dim, spacedim>::exchange_ghost_particles(
+    const bool enable_cache)
   {
     // Nothing to do in serial computations
     const auto parallel_triangulation =
@@ -1175,17 +1194,21 @@ namespace Particles
     else
       return;
 
-#ifdef DEAL_II_WITH_MPI
+#ifndef DEAL_II_WITH_MPI
+    (void)enable_cache;
+#else
     // First clear the current ghost_particle information
     ghost_particles.clear();
 
-    ghost_particles_by_domain.clear();
+    // Clear ghost particles data structures and invalidate cache
+    ghost_particles_cache.ghost_particles_by_domain.clear();
+    ghost_particles_cache.valid = false;
 
 
     const std::set<types::subdomain_id> ghost_owners =
       parallel_triangulation->ghost_owners();
     for (const auto ghost_owner : ghost_owners)
-      ghost_particles_by_domain[ghost_owner].reserve(
+      ghost_particles_cache.ghost_particles_by_domain[ghost_owner].reserve(
         static_cast<typename std::vector<particle_iterator>::size_type>(
           particles.size() * 0.25));
 
@@ -1197,7 +1220,7 @@ namespace Particles
         if (cell->is_locally_owned())
           {
             std::set<unsigned int> cell_to_neighbor_subdomain;
-            for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+            for (const unsigned int v : cell->vertex_indices())
               {
                 cell_to_neighbor_subdomain.insert(
                   vertex_to_neighbor_subdomain[cell->vertex_index(v)].begin(),
@@ -1215,13 +1238,21 @@ namespace Particles
                            particle_range.begin();
                          particle != particle_range.end();
                          ++particle)
-                      ghost_particles_by_domain[domain].push_back(particle);
+                      ghost_particles_cache.ghost_particles_by_domain[domain]
+                        .push_back(particle);
                   }
               }
           }
       }
 
-    send_recv_particles(ghost_particles_by_domain, ghost_particles);
+    send_recv_particles(
+      ghost_particles_cache.ghost_particles_by_domain,
+      ghost_particles,
+      std::map<
+        types::subdomain_id,
+        std::vector<
+          typename Triangulation<dim, spacedim>::active_cell_iterator>>(),
+      enable_cache);
 #endif
   }
 
@@ -1240,11 +1271,18 @@ namespace Particles
         return;
       }
 
+
 #ifdef DEAL_II_WITH_MPI
     // First clear the current ghost_particle information
-    ghost_particles.clear();
+    // ghost_particles.clear();
+    Assert(
+      ghost_particles_cache.valid,
+      ExcMessage(
+        "Ghost particles cannot be updated if they first have not been exchanged at least once with the cache enabled"));
 
-    send_recv_particles(ghost_particles_by_domain, ghost_particles);
+
+    send_recv_particles_properties_and_location(
+      ghost_particles_cache.ghost_particles_by_domain, ghost_particles);
 #endif
   }
 
@@ -1261,8 +1299,11 @@ namespace Particles
     const std::map<
       types::subdomain_id,
       std::vector<typename Triangulation<dim, spacedim>::active_cell_iterator>>
-      &send_cells)
+      &        send_cells,
+    const bool build_cache)
   {
+    ghost_particles_cache.valid = build_cache;
+
     const auto parallel_triangulation =
       dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
         &*triangulation);
@@ -1295,7 +1336,7 @@ namespace Particles
       Assert(ghost_owners.find(send_particles->first) != ghost_owners.end(),
              ExcNotImplemented());
 
-    unsigned int n_send_particles = 0;
+    std::size_t n_send_particles = 0;
     for (auto send_particles = particles_to_send.begin();
          send_particles != particles_to_send.end();
          ++send_particles)
@@ -1309,16 +1350,25 @@ namespace Particles
     std::vector<unsigned int> send_offsets(n_neighbors, 0);
     std::vector<char>         send_data;
 
+    const unsigned int individual_particle_data_size =
+      Utilities::MPI::max(n_send_particles > 0 ?
+                            ((begin()->serialized_size_in_bytes() +
+                              (size_callback ? size_callback() : 0))) :
+                            0,
+                          parallel_triangulation->get_communicator());
+
+    const unsigned int individual_total_particle_data_size =
+      individual_particle_data_size + cellid_size;
+
     // Only serialize things if there are particles to be send.
     // We can not return early even if no particles
     // are send, because we might receive particles from other processes
     if (n_send_particles > 0)
       {
         // Allocate space for sending particle data
-        const unsigned int particle_size =
-          begin()->serialized_size_in_bytes() + cellid_size +
-          (size_callback ? size_callback() : 0);
-        send_data.resize(n_send_particles * particle_size);
+        send_data.resize(n_send_particles *
+                         individual_total_particle_data_size);
+
         void *data = static_cast<void *>(&send_data.front());
 
         // Serialize the data sorted by receiving process
@@ -1327,9 +1377,17 @@ namespace Particles
             send_offsets[i] = reinterpret_cast<std::size_t>(data) -
                               reinterpret_cast<std::size_t>(&send_data.front());
 
-            for (unsigned int j = 0;
-                 j < particles_to_send.at(neighbors[i]).size();
-                 ++j)
+            const unsigned int n_particles_to_send =
+              particles_to_send.at(neighbors[i]).size();
+
+            Assert(static_cast<std::size_t>(n_particles_to_send) *
+                       individual_total_particle_data_size ==
+                     static_cast<std::size_t>(
+                       n_particles_to_send *
+                       individual_total_particle_data_size),
+                   ExcMessage("Overflow when trying to send particle data"));
+
+            for (unsigned int j = 0; j < n_particles_to_send; ++j)
               {
                 // If no target cells are given, use the iterator information
                 typename Triangulation<dim, spacedim>::active_cell_iterator
@@ -1346,14 +1404,13 @@ namespace Particles
                 memcpy(data, &cellid, cellid_size);
                 data = static_cast<char *>(data) + cellid_size;
 
-                particles_to_send.at(neighbors[i])[j]->write_data(data);
+                data = particles_to_send.at(neighbors[i])[j]
+                         ->write_particle_data_to_memory(data);
                 if (store_callback)
                   data =
                     store_callback(particles_to_send.at(neighbors[i])[j], data);
               }
-            n_send_data[i] = reinterpret_cast<std::size_t>(data) -
-                             send_offsets[i] -
-                             reinterpret_cast<std::size_t>(&send_data.front());
+            n_send_data[i] = n_particles_to_send;
           }
       }
 
@@ -1361,7 +1418,6 @@ namespace Particles
     std::vector<unsigned int> n_recv_data(n_neighbors);
     std::vector<unsigned int> recv_offsets(n_neighbors);
 
-    // Notify other processors how many particles we will send
     {
       const int mpi_tag = Utilities::MPI::internal::Tags::
         particle_handler_send_recv_particles_setup;
@@ -1399,7 +1455,8 @@ namespace Particles
     for (unsigned int neighbor_id = 0; neighbor_id < n_neighbors; ++neighbor_id)
       {
         recv_offsets[neighbor_id] = total_recv_data;
-        total_recv_data += n_recv_data[neighbor_id];
+        total_recv_data +=
+          n_recv_data[neighbor_id] * individual_total_particle_data_size;
       }
 
     // Set up the space for the received particle data
@@ -1419,7 +1476,7 @@ namespace Particles
           {
             const int ierr =
               MPI_Irecv(&(recv_data[recv_offsets[i]]),
-                        n_recv_data[i],
+                        n_recv_data[i] * individual_total_particle_data_size,
                         MPI_CHAR,
                         neighbors[i],
                         mpi_tag,
@@ -1434,7 +1491,7 @@ namespace Particles
           {
             const int ierr =
               MPI_Isend(&(send_data[send_offsets[i]]),
-                        n_send_data[i],
+                        n_send_data[i] * individual_total_particle_data_size,
                         MPI_CHAR,
                         neighbors[i],
                         mpi_tag,
@@ -1452,6 +1509,38 @@ namespace Particles
     // triangulation
     const void *recv_data_it = static_cast<const void *>(recv_data.data());
 
+    // Store the particle iterators in the cache
+    auto &ghost_particles_iterators =
+      ghost_particles_cache.ghost_particles_iterators;
+
+    if (build_cache)
+      {
+        ghost_particles_iterators.clear();
+
+        auto &send_pointers_particles = ghost_particles_cache.send_pointers;
+        send_pointers_particles.assign(n_neighbors + 1, 0);
+
+        for (unsigned int i = 0; i < n_neighbors; ++i)
+          send_pointers_particles[i + 1] =
+            send_pointers_particles[i] +
+            n_send_data[i] * individual_particle_data_size;
+
+        auto &recv_pointers_particles = ghost_particles_cache.recv_pointers;
+        recv_pointers_particles.assign(n_neighbors + 1, 0);
+
+        for (unsigned int i = 0; i < n_neighbors; ++i)
+          recv_pointers_particles[i + 1] =
+            recv_pointers_particles[i] +
+            n_recv_data[i] * individual_particle_data_size;
+
+        ghost_particles_cache.neighbors = neighbors;
+
+        ghost_particles_cache.send_data.resize(
+          ghost_particles_cache.send_pointers.back());
+        ghost_particles_cache.recv_data.resize(
+          ghost_particles_cache.recv_pointers.back());
+      }
+
     while (reinterpret_cast<std::size_t>(recv_data_it) -
              reinterpret_cast<std::size_t>(recv_data.data()) <
            total_recv_data)
@@ -1462,7 +1551,7 @@ namespace Particles
         recv_data_it = static_cast<const char *>(recv_data_it) + cellid_size;
 
         const typename Triangulation<dim, spacedim>::active_cell_iterator cell =
-          id.to_cell(*triangulation);
+          triangulation->create_cell_iterator(id);
 
         typename std::multimap<internal::LevelInd,
                                Particle<dim, spacedim>>::iterator
@@ -1474,6 +1563,9 @@ namespace Particles
           recv_data_it =
             load_callback(particle_iterator(received_particles, recv_particle),
                           recv_data_it);
+
+        if (build_cache) // TODO: is this safe?
+          ghost_particles_iterators.push_back(recv_particle);
       }
 
     AssertThrow(recv_data_it == recv_data.data() + recv_data.size(),
@@ -1484,6 +1576,117 @@ namespace Particles
 #endif
 
 
+
+#ifdef DEAL_II_WITH_MPI
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::send_recv_particles_properties_and_location(
+    const std::map<types::subdomain_id, std::vector<particle_iterator>>
+      &particles_to_send,
+    std::multimap<internal::LevelInd, Particle<dim, spacedim>>
+      &updated_particles)
+  {
+    const auto &neighbors     = ghost_particles_cache.neighbors;
+    const auto &send_pointers = ghost_particles_cache.send_pointers;
+    const auto &recv_pointers = ghost_particles_cache.recv_pointers;
+
+    const auto parallel_triangulation =
+      dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
+        &*triangulation);
+    Assert(
+      parallel_triangulation,
+      ExcMessage(
+        "This function is only implemented for parallel::TriangulationBase objects."));
+
+    std::vector<char> &send_data = ghost_particles_cache.send_data;
+
+    // Fill data to send
+    if (send_pointers.back() > 0)
+      {
+        void *data = static_cast<void *>(&send_data.front());
+
+        // Serialize the data sorted by receiving process
+        for (const auto i : neighbors)
+          for (const auto &p : particles_to_send.at(i))
+            {
+              data = p->write_particle_data_to_memory(data);
+              if (store_callback)
+                data = store_callback(p, data);
+            }
+      }
+
+    std::vector<char> &recv_data = ghost_particles_cache.recv_data;
+
+    // Exchange the particle data between domains
+    {
+      std::vector<MPI_Request> requests(2 * neighbors.size());
+      unsigned int             send_ops = 0;
+      unsigned int             recv_ops = 0;
+
+      const int mpi_tag = Utilities::MPI::internal::Tags::
+        particle_handler_send_recv_particles_send;
+
+      for (unsigned int i = 0; i < neighbors.size(); ++i)
+        if ((recv_pointers[i + 1] - recv_pointers[i]) > 0)
+          {
+            const int ierr =
+              MPI_Irecv(recv_data.data() + recv_pointers[i],
+                        recv_pointers[i + 1] - recv_pointers[i],
+                        MPI_CHAR,
+                        neighbors[i],
+                        mpi_tag,
+                        parallel_triangulation->get_communicator(),
+                        &(requests[send_ops]));
+            AssertThrowMPI(ierr);
+            send_ops++;
+          }
+
+      for (unsigned int i = 0; i < neighbors.size(); ++i)
+        if ((send_pointers[i + 1] - send_pointers[i]) > 0)
+          {
+            const int ierr =
+              MPI_Isend(send_data.data() + send_pointers[i],
+                        send_pointers[i + 1] - send_pointers[i],
+                        MPI_CHAR,
+                        neighbors[i],
+                        mpi_tag,
+                        parallel_triangulation->get_communicator(),
+                        &(requests[send_ops + recv_ops]));
+            AssertThrowMPI(ierr);
+            recv_ops++;
+          }
+      const int ierr =
+        MPI_Waitall(send_ops + recv_ops, requests.data(), MPI_STATUSES_IGNORE);
+      AssertThrowMPI(ierr);
+    }
+
+    // Put the received particles into the domain if they are in the
+    // triangulation
+    const void *recv_data_it = static_cast<const void *>(recv_data.data());
+
+    // Gather ghost particle iterators from the cache
+    auto &ghost_particles_iterators =
+      ghost_particles_cache.ghost_particles_iterators;
+
+    for (auto &recv_particle : ghost_particles_iterators)
+      {
+        // Update particle data using previously allocated memory space
+        // for efficiency reasons
+        recv_data_it =
+          recv_particle->second.read_particle_data_from_memory(recv_data_it);
+
+        if (load_callback)
+          recv_data_it =
+            load_callback(particle_iterator(updated_particles, recv_particle),
+                          recv_data_it);
+      }
+
+    AssertThrow(recv_data_it == recv_data.data() + recv_data.size(),
+                ExcMessage(
+                  "The amount of data that was read into new particles "
+                  "does not match the amount of data sent around."));
+  }
+#endif
 
   template <int dim, int spacedim>
   void
@@ -1612,8 +1815,8 @@ namespace Particles
 
     switch (status)
       {
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_PERSIST:
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_REFINE:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_PERSIST:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_REFINE:
           // If the cell persist or is refined store all particles of the
           // current cell.
           {
@@ -1641,7 +1844,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_COARSEN:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_COARSEN:
           // If this cell is the parent of children that will be coarsened,
           // collect the particles of all children.
           {
@@ -1685,6 +1888,8 @@ namespace Particles
     return pack_particles(stored_particles_on_cell);
   }
 
+
+
   template <int dim, int spacedim>
   void
   ParticleHandler<dim, spacedim>::load_particles(
@@ -1705,7 +1910,7 @@ namespace Particles
 
     switch (status)
       {
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_PERSIST:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_PERSIST:
           {
             auto position_hint = particles.end();
             for (const auto &particle : loaded_particles_on_cell)
@@ -1725,7 +1930,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_COARSEN:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_COARSEN:
           {
             typename std::multimap<internal::LevelInd,
                                    Particle<dim, spacedim>>::iterator
@@ -1751,7 +1956,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_REFINE:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_REFINE:
           {
             std::vector<
               typename std::multimap<internal::LevelInd,

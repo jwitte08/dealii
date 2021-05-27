@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2020 by the deal.II authors
+// Copyright (C) 2003 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -374,8 +374,8 @@ LaplaceProblem<dim>::solve()
   MGCoarseGridHouseholder<> coarse_grid_solver;
   coarse_grid_solver.initialize(coarse_matrix);
 
-  typedef PreconditionSOR<SparseMatrix<double>> Smoother;
-  GrowingVectorMemory<>                         vector_memory;
+  using Smoother = PreconditionSOR<SparseMatrix<double>>;
+  GrowingVectorMemory<> vector_memory;
   MGSmootherRelaxation<SparseMatrix<double>, Smoother, Vector<double>>
     mg_smoother;
   mg_smoother.initialize(mg_matrices);

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2013 - 2020 by the deal.II authors
+ * Copyright (C) 2013 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -35,10 +35,7 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
 #include <deal.II/grid/grid_out.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
@@ -205,9 +202,7 @@ namespace Step26
   HeatEquation<dim>::HeatEquation()
     : fe(1)
     , dof_handler(triangulation)
-    , time(0.0)
     , time_step(1. / 500)
-    , timestep_number(0)
     , theta(0.5)
   {}
 
@@ -401,7 +396,7 @@ namespace Step26
     // solution vector, i.e., to make sure that the values of degrees of
     // freedom located on hanging nodes are so that the solution is
     // continuous. This is necessary since SolutionTransfer only operates on
-    // cells locally, without regard to the neighborhoof.
+    // cells locally, without regard to the neighborhood.
     triangulation.execute_coarsening_and_refinement();
     setup_system();
 
@@ -456,6 +451,9 @@ namespace Step26
     Vector<double> forcing_terms;
 
   start_time_iteration:
+
+    time            = 0.0;
+    timestep_number = 0;
 
     tmp.reinit(solution.size());
     forcing_terms.reinit(solution.size());

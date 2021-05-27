@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -137,7 +137,7 @@ public:
    * communicator occurs; the extra cost of the synchronization is not
    * measured.
    */
-  Timer(MPI_Comm mpi_communicator, const bool sync_lap_times = false);
+  Timer(const MPI_Comm &mpi_communicator, const bool sync_lap_times = false);
 
   /**
    * Return a reference to the data structure containing basic statistics on
@@ -361,7 +361,13 @@ private:
  * entered several times. By changing the options in OutputFrequency and
  * OutputType, the user can choose whether output should be generated every
  * time a section is joined or just in the end of the program. Moreover, it is
- * possible to show CPU times, wall times or both.
+ * possible to show CPU times, wall times, or both.
+ *
+ * The class is used in a substantial number of tutorial programs that collect
+ * timing data. step-77 is an example of a relatively simple sequential program
+ * that uses it. step-40 and several others mentioned below use it for parallel
+ * computations.
+ *
  *
  * <h3>Usage</h3>
  *
@@ -706,7 +712,7 @@ public:
    * <code>MPI_Barrier</code> call before starting and stopping the timer for
    * each section.
    */
-  TimerOutput(MPI_Comm              mpi_comm,
+  TimerOutput(const MPI_Comm &      mpi_comm,
               std::ostream &        stream,
               const OutputFrequency output_frequency,
               const OutputType      output_type);
@@ -734,7 +740,7 @@ public:
    * <code>MPI_Barrier</code> call before starting and stopping the timer for
    * each section.)
    */
-  TimerOutput(MPI_Comm              mpi_comm,
+  TimerOutput(const MPI_Comm &      mpi_comm,
               ConditionalOStream &  stream,
               const OutputFrequency output_frequency,
               const OutputType      output_type);
@@ -806,8 +812,8 @@ public:
    * median is given).
    */
   void
-  print_wall_time_statistics(const MPI_Comm mpi_comm,
-                             const double   print_quantile = 0.) const;
+  print_wall_time_statistics(const MPI_Comm &mpi_comm,
+                             const double    print_quantile = 0.) const;
 
   /**
    * By calling this function, all output can be disabled. This function

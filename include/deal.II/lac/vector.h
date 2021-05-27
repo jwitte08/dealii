@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -881,7 +881,8 @@ public:
 
   /**
    * Write the data of this object to a stream for the purpose of
-   * serialization.
+   * serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -889,7 +890,8 @@ public:
 
   /**
    * Read the data of this object from a stream for the purpose of
-   * serialization.
+   * serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -898,7 +900,8 @@ public:
 #ifdef DOXYGEN
   /**
    * Write and read the data of this object from a stream for the purpose
-   * of serialization.
+   * of serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -949,6 +952,16 @@ public:
    */
   size_type
   size() const;
+
+  /**
+   * Return local dimension of the vector. Since this vector does not support
+   * distributed data this is always the same value as size().
+   *
+   * @note This function exists for compatibility with
+   * LinearAlgebra::ReadWriteVector.
+   */
+  size_type
+  locally_owned_size() const;
 
   /**
    * Return whether the vector contains only elements with value zero. This
@@ -1083,6 +1096,16 @@ Vector<Number>::size() const
 {
   return values.size();
 }
+
+
+
+template <typename Number>
+inline typename Vector<Number>::size_type
+Vector<Number>::locally_owned_size() const
+{
+  return values.size();
+}
+
 
 
 template <typename Number>

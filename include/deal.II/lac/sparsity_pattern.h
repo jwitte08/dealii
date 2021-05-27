@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2020 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -661,7 +661,8 @@ public:
 
   /**
    * Write the data of this object to a stream for the purpose of
-   * serialization
+   * serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -669,7 +670,8 @@ public:
 
   /**
    * Read the data of this object from a stream for the purpose of
-   * serialization
+   * serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -678,7 +680,8 @@ public:
 #ifdef DOXYGEN
   /**
    * Write and read the data of this object from a stream for the purpose
-   * of serialization.
+   * of serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -1135,6 +1138,13 @@ public:
    *
    * Previous content of this object is lost, and the sparsity pattern is in
    * compressed mode afterwards.
+   *
+   * Once you have built a sparsity pattern with this function, you
+   * probably want to attach a SparseMatrix object to it. The original
+   * `matrix` object can then be copied into this SparseMatrix object
+   * using the version of SparseMatrix::copy_from() that takes a
+   * FullMatrix object as argument. Through this procedure, you can
+   * convert a FullMatrix into a SparseMatrix.
    */
   template <typename number>
   void

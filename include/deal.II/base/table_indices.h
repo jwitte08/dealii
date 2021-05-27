@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2020 by the deal.II authors
+// Copyright (C) 2005 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -66,12 +66,12 @@ public:
   /**
    * Read-only access the value of the <tt>i</tt>th index.
    */
-  DEAL_II_CONSTEXPR std::size_t operator[](const unsigned int i) const;
+  constexpr std::size_t operator[](const unsigned int i) const;
 
   /**
    * Write access the value of the <tt>i</tt>th index.
    */
-  DEAL_II_CONSTEXPR std::size_t &operator[](const unsigned int i);
+  constexpr std::size_t &operator[](const unsigned int i);
 
   /**
    * Compare two index fields for equality.
@@ -94,7 +94,8 @@ public:
 
   /**
    * Write or read the data of this object to or from a stream for the purpose
-   * of serialization.
+   * of serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void
@@ -124,8 +125,8 @@ constexpr TableIndices<N>::TableIndices(const T... args)
 
 
 template <int N>
-DEAL_II_CONSTEXPR inline std::size_t TableIndices<N>::
-                                     operator[](const unsigned int i) const
+constexpr inline std::size_t TableIndices<N>::
+                             operator[](const unsigned int i) const
 {
   AssertIndexRange(i, N);
   return indices[i];
@@ -133,8 +134,7 @@ DEAL_II_CONSTEXPR inline std::size_t TableIndices<N>::
 
 
 template <int N>
-DEAL_II_CONSTEXPR inline std::size_t &TableIndices<N>::
-                                      operator[](const unsigned int i)
+constexpr inline std::size_t &TableIndices<N>::operator[](const unsigned int i)
 {
   AssertIndexRange(i, N);
   return indices[i];

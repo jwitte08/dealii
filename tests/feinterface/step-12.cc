@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2009 - 2020 by the deal.II authors
+ * Copyright (C) 2009 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -265,8 +265,8 @@ namespace Step12
   void
   AdvectionProblem<dim>::assemble_system()
   {
-    typedef decltype(dof_handler.begin_active()) Iterator;
-    BoundaryValues<dim>                          boundary_function;
+    using Iterator = decltype(dof_handler.begin_active());
+    BoundaryValues<dim> boundary_function;
 
     auto cell_worker = [&](const Iterator &  cell,
                            ScratchData<dim> &scratch_data,

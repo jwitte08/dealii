@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2018 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -233,7 +233,8 @@ public:
 
   /**
    * Write or read the data of this object to or from a stream for the purpose
-   * of serialization.
+   * of serialization using the [BOOST serialization
+   * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
    */
   template <class Archive>
   void

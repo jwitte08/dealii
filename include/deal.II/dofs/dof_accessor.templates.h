@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -88,9 +88,7 @@ inline DoFAccessor<structdim, dim, spacedim, level_dof_access>::DoFAccessor(
   Assert(false,
          ExcMessage(
            "You are trying to assign iterators that are incompatible. "
-           "Reasons for incompatibility are that they point to different "
-           "types of DoFHandlers (e.g., dealii::DoFHandler and "
-           "dealii::hp::DoFHandler) or that they refer to objects of "
+           "The reason for incompatibility is that they refer to objects of "
            "different dimensionality (e.g., assigning a line iterator "
            "to a quad iterator)."));
 }
@@ -250,18 +248,11 @@ namespace internal
             AssertDimension(fe_index,
                             (DoFHandler<dim, spacedim>::default_fe_index));
 
-            if (d == 0)
-              process(
-                dof_handler.object_dof_indices
-                  [0][0][obj_index * dof_handler.get_fe().n_dofs_per_vertex() +
-                         local_index],
-                global_index);
-            else
-              process(dof_handler.object_dof_indices
-                        [obj_level][d]
-                        [dof_handler.object_dof_ptr[obj_level][d][obj_index] +
-                         local_index],
-                      global_index);
+            process(dof_handler.object_dof_indices
+                      [obj_level][d]
+                      [dof_handler.object_dof_ptr[obj_level][d][obj_index] +
+                       local_index],
+                    global_index);
 
             return;
           }
@@ -362,25 +353,12 @@ namespace internal
             AssertDimension(fe_index,
                             (DoFHandler<dim, spacedim>::default_fe_index));
 
-            // vertex -> no pointers are saved
-            if (d == 0)
-              {
-                const unsigned int ptr_0 =
-                  obj_index * dof_handler.get_fe().n_dofs_per_vertex();
-                const unsigned int ptr_1 =
-                  ptr_0 + dof_handler.get_fe().n_dofs_per_vertex();
+            const unsigned int ptr_0 =
+              dof_handler.object_dof_ptr[obj_level][d][obj_index];
+            const unsigned int ptr_1 =
+              dof_handler.object_dof_ptr[obj_level][d][obj_index + 1];
 
-                return {ptr_0, ptr_1};
-              }
-            else // line or quad
-              {
-                const unsigned int ptr_0 =
-                  dof_handler.object_dof_ptr[obj_level][d][obj_index];
-                const unsigned int ptr_1 =
-                  dof_handler.object_dof_ptr[obj_level][d][obj_index + 1];
-
-                return {ptr_0, ptr_1};
-              }
+            return {ptr_0, ptr_1};
           }
 
         // 3) hp is used
@@ -548,7 +526,7 @@ namespace internal
       {
         Assert(dof_handler.hp_capability_enabled == false,
                ExcMessage(
-                 "hp::DoFHandler does not implement multilevel DoFs."));
+                 "DoFHandler in hp-mode does not implement multilevel DoFs."));
 
         return dof_handler.mg_vertex_dofs[vertex_index].get_index(
           level, i, dof_handler.get_fe().n_dofs_per_vertex());
@@ -566,7 +544,7 @@ namespace internal
       {
         Assert(dof_handler.hp_capability_enabled == false,
                ExcMessage(
-                 "hp::DoFHandler does not implement multilevel DoFs."));
+                 "DoFHandler in hp-mode does not implement multilevel DoFs."));
 
         return dof_handler.mg_vertex_dofs[vertex_index].set_index(
           level, i, dof_handler.get_fe().n_dofs_per_vertex(), index);
@@ -607,7 +585,7 @@ namespace internal
 
 
       /**
-       * Return the fe index of the n-th finite element active on a given
+       * Return the FE index of the n-th finite element active on a given
        * vertex.
        */
       template <int dim, int spacedim, int d>
@@ -620,7 +598,7 @@ namespace internal
       {
         Assert(d == dim || obj_level == 0, ExcNotImplemented());
 
-        // for cells only one active fe index available
+        // for cells only one active FE index available
         Assert(((d == dim) &&
                 (local_index != DoFHandler<dim, spacedim>::default_fe_index)) ==
                  false,
@@ -650,7 +628,7 @@ namespace internal
 
 
       /**
-       * Returns all active fe indices on a given vertex.
+       * Returns all active FE indices on a given vertex.
        *
        * The size of the returned set equals the number of finite elements that
        * are active on this vertex.
@@ -813,9 +791,13 @@ namespace internal
       n_dof_indices(
         const dealii::DoFAccessor<structdim, dim, spacedim, level_dof_access>
           &                accessor,
-        const unsigned int fe_index_)
+        const unsigned int fe_index_,
+        const bool         count_level_dofs)
       {
-        if (level_dof_access)
+        // note: we cannot rely on the template parameter level_dof_access here,
+        // since the function get_mg_dof_indices()/set_mg_dof_indices() can be
+        // called even if level_dof_access==false.
+        if (count_level_dofs)
           {
             const auto &fe = accessor.get_fe(fe_index_);
 
@@ -906,9 +888,16 @@ namespace internal
           &                 accessor,
         DoFIndicesType &    dof_indices,
         const unsigned int  fe_index,
-        const DoFOperation &dof_operation)
+        const DoFOperation &dof_operation,
+        const bool          count_level_dofs)
       {
-        AssertDimension(dof_indices.size(), n_dof_indices(accessor, fe_index));
+        // we cannot rely on the template parameter level_dof_access here, since
+        // the function get_mg_dof_indices()/set_mg_dof_indices() can be called
+        // even if level_dof_access==false.
+        (void)count_level_dofs;
+
+        AssertIndexRange(n_dof_indices(accessor, fe_index, count_level_dofs),
+                         dof_indices.size() + 1);
 
         const auto &fe = accessor.get_fe(fe_index);
 
@@ -969,7 +958,17 @@ namespace internal
                                    dof_indices,
                                    fe_index);
 
-        AssertDimension(dof_indices.size(), index);
+        AssertDimension(n_dof_indices(accessor, fe_index, count_level_dofs),
+                        index);
+
+        // PM: This is a part that should not be reached since it indicates that
+        // an object (and/or its subobjects) is not active. However,
+        // unfortunately this function is called by
+        // DoFTools::set_periodicity_constraints() indirectly by
+        // get_dof_indices() also for artificial faces to determine if a face
+        // is artificial.
+        for (; index < dof_indices.size(); ++index)
+          dof_operation.process_non_active_dof(dof_indices, index);
       }
 
 
@@ -1056,6 +1055,17 @@ namespace internal
           const unsigned int) const
         {
           Assert(false, ExcInternalError());
+        }
+
+        /**
+         * Process non-active DoF.
+         */
+        DEAL_II_ALWAYS_INLINE void
+        process_non_active_dof(
+          std::vector<types::global_dof_index> &dof_indices,
+          const unsigned int                    index) const
+        {
+          dof_indices[index] = numbers::invalid_dof_index;
         }
       };
 
@@ -1144,6 +1154,16 @@ namespace internal
         {
           Assert(false, ExcInternalError());
         }
+
+        /**
+         * Process non-active DoF.
+         */
+        DEAL_II_ALWAYS_INLINE void
+        process_non_active_dof(const std::vector<types::global_dof_index> &,
+                               const unsigned int) const
+        {
+          Assert(false, ExcInternalError());
+        }
       };
 
 
@@ -1215,6 +1235,16 @@ namespace internal
           unsigned int &,
           std::vector<types::global_dof_index> &,
           const unsigned int) const
+        {
+          Assert(false, ExcInternalError());
+        }
+
+        /**
+         * Process non-active DoF.
+         */
+        DEAL_II_ALWAYS_INLINE void
+        process_non_active_dof(std::vector<types::global_dof_index> &,
+                               const unsigned int) const
         {
           Assert(false, ExcInternalError());
         }
@@ -1299,6 +1329,16 @@ namespace internal
           Assert(false, ExcInternalError());
         }
 
+        /**
+         * Process non-active DoF.
+         */
+        DEAL_II_ALWAYS_INLINE void
+        process_non_active_dof(const std::vector<types::global_dof_index> &,
+                               const unsigned int) const
+        {
+          Assert(false, ExcInternalError());
+        }
+
       private:
         const FiniteElement<dim, spacedim> &fe;
         const unsigned int                  level;
@@ -1318,7 +1358,8 @@ namespace internal
           accessor,
           dof_indices,
           fe_index,
-          DoFIndexGetter<dim, spacedim, level_dof_access, structdim>());
+          DoFIndexGetter<dim, spacedim, level_dof_access, structdim>(),
+          false);
       }
 
 
@@ -1339,13 +1380,15 @@ namespace internal
         Assert(
           dim == structdim,
           ExcMessage(
-            "This function is intended to be used for DoFCellAccessor, i.e., dimension == structdim."));
+            "This function is intended to be used for DoFCellAccessor, i.e., "
+            "dimension == structdim."));
 
         process_dof_indices(
           accessor,
           dof_indices,
           fe_index,
-          DoFIndexSetter<dim, spacedim, level_dof_access, structdim>());
+          DoFIndexSetter<dim, spacedim, level_dof_access, structdim>(),
+          false);
       }
 
 
@@ -1364,7 +1407,8 @@ namespace internal
           dof_indices,
           fe_index,
           MGDoFIndexGetter<dim, spacedim, level_dof_access, structdim>(
-            accessor.get_fe(fe_index), level));
+            accessor.get_fe(fe_index), level),
+          true);
       }
 
 
@@ -1393,7 +1437,8 @@ namespace internal
           dof_indices,
           fe_index,
           MGDoFIndexSetter<dim, spacedim, level_dof_access, structdim>(
-            accessor.get_fe(fe_index), level));
+            accessor.get_fe(fe_index), level),
+          true);
       }
     };
   } // namespace DoFAccessorImplementation
@@ -1563,7 +1608,8 @@ DoFAccessor<structdim, dim, spacedim, level_dof_access>::mg_vertex_dof_index(
   AssertIndexRange(i, this->dof_handler->get_fe(fe_index).n_dofs_per_vertex());
 
   Assert(dof_handler->hp_capability_enabled == false,
-         ExcMessage("hp::DoFHandler does not implement multilevel DoFs."));
+         ExcMessage(
+           "DoFHandler in hp-mode does not implement multilevel DoFs."));
 
   return this->dof_handler->mg_vertex_dofs[this->vertex_index(vertex)]
     .get_index(level, i, this->dof_handler->get_fe().n_dofs_per_vertex());
@@ -1615,7 +1661,8 @@ DoFAccessor<structdim, dim, spacedim, level_dof_access>::
   AssertIndexRange(i, this->dof_handler->get_fe(fe_index).n_dofs_per_vertex());
 
   Assert(dof_handler->hp_capability_enabled == false,
-         ExcMessage("hp::DoFHandler does not implement multilevel DoFs."));
+         ExcMessage(
+           "DoFHandler in hp-mode does not implement multilevel DoFs."));
 
   this->dof_handler->mg_vertex_dofs[this->vertex_index(vertex)].set_index(
     level, i, this->dof_handler->get_fe().n_dofs_per_vertex(), index);
@@ -1641,7 +1688,7 @@ DoFAccessor<structdim, dim, spacedim, level_dof_access>::get_fe(
   const unsigned int fe_index) const
 {
   Assert(fe_index_is_active(fe_index) == true,
-         ExcMessage("This function can only be called for active fe indices"));
+         ExcMessage("This function can only be called for active FE indices"));
 
   return this->dof_handler->get_fe(fe_index);
 }
@@ -2201,7 +2248,7 @@ namespace internal
         const DoFCellAccessor<dim, spacedim, level_dof_access> &accessor)
       {
         if (accessor.dof_handler->hp_capability_enabled == false)
-          return 0; // ::DoFHandler only supports a single active fe with index
+          return 0; // ::DoFHandler only supports a single active FE with index
                     // zero
 
         Assert(
@@ -2229,7 +2276,7 @@ namespace internal
       {
         if (accessor.dof_handler->hp_capability_enabled == false)
           {
-            // ::DoFHandler only supports a single active fe with index zero
+            // ::DoFHandler only supports a single active FE with index zero
             AssertDimension(i, (DoFHandler<dim, spacedim>::default_fe_index));
             return;
           }
@@ -2260,7 +2307,7 @@ namespace internal
         if (accessor.dof_handler->hp_capability_enabled == false)
           return DoFHandler<dim, spacedim>::
             default_fe_index; // ::DoFHandler only supports
-                              // a single active fe with
+                              // a single active FE with
                               // index zero
 
         Assert(
@@ -2293,7 +2340,7 @@ namespace internal
       {
         if (accessor.dof_handler->hp_capability_enabled == false)
           {
-            // ::DoFHandler only supports a single active fe with index zero
+            // ::DoFHandler only supports a single active FE with index zero
             AssertDimension(i, (DoFHandler<dim, spacedim>::default_fe_index));
             return;
           }
@@ -2322,7 +2369,7 @@ namespace internal
         const DoFCellAccessor<dim, spacedim, level_dof_access> &accessor)
       {
         if (accessor.dof_handler->hp_capability_enabled == false)
-          return false; // ::DoFHandler only supports a single active fe with
+          return false; // ::DoFHandler only supports a single active FE with
                         // index zero
 
         Assert(
@@ -2350,7 +2397,7 @@ namespace internal
         const DoFCellAccessor<dim, spacedim, level_dof_access> &accessor)
       {
         if (accessor.dof_handler->hp_capability_enabled == false)
-          return; // ::DoFHandler only supports a single active fe with index
+          return; // ::DoFHandler only supports a single active FE with index
                   // zero
 
         Assert(
@@ -2600,6 +2647,9 @@ inline void
 DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
   get_mg_dof_indices(std::vector<types::global_dof_index> &dof_indices) const
 {
+  Assert(this->dof_handler->mg_vertex_dofs.size() > 0,
+         ExcMessage("Multigrid DoF indices can only be accessed after "
+                    "DoFHandler::distribute_mg_dofs() has been called!"));
   DoFAccessor<dimension_, dimension_, space_dimension_, level_dof_access>::
     get_mg_dof_indices(this->level(), dof_indices);
 }
@@ -2611,6 +2661,9 @@ inline void
 DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
   set_mg_dof_indices(const std::vector<types::global_dof_index> &dof_indices)
 {
+  Assert(this->dof_handler->mg_vertex_dofs.size() > 0,
+         ExcMessage("Multigrid DoF indices can only be accessed after "
+                    "DoFHandler::distribute_mg_dofs() has been called!"));
   DoFAccessor<dimension_, dimension_, space_dimension_, level_dof_access>::
     set_mg_dof_indices(this->level(), dof_indices);
 }
@@ -2753,11 +2806,18 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::get_fe() const
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            this->is_active(),
          ExcMessage(
-           "In hp::DoFHandler objects, finite elements are only associated "
-           "with active cells. Consequently, you can not ask for the "
-           "active finite element on cells with children."));
+           "For DoFHandler objects in hp-mode, finite elements are only "
+           "associated with active cells. Consequently, you can not ask "
+           "for the active finite element on cells with children."));
 
-  return this->dof_handler->get_fe(active_fe_index());
+  const auto &fe = this->dof_handler->get_fe(active_fe_index());
+
+  Assert(this->reference_cell() == fe.reference_cell(),
+         ExcMessage(
+           "The reference-cell type of the cell does not match the one of the "
+           "finite element!"));
+
+  return fe;
 }
 
 
@@ -2770,13 +2830,13 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            this->is_active(),
          ExcMessage(
-           "You can not ask for the active_fe_index on a cell that has "
+           "You can not ask for the active FE index on a cell that has "
            "children because no degrees of freedom are assigned "
            "to this cell and, consequently, no finite element "
            "is associated with it."));
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->is_locally_owned() || this->is_ghost()),
-         ExcMessage("You can only query active_fe_index information on cells "
+         ExcMessage("You can only query active FE index information on cells "
                     "that are either locally owned or (after distributing "
                     "degrees of freedom) are ghost cells."));
 
@@ -2793,13 +2853,13 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
 {
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            this->is_active(),
-         ExcMessage("You can not set the active_fe_index on a cell that has "
+         ExcMessage("You can not set the active FE index on a cell that has "
                     "children because no degrees of freedom will be assigned "
                     "to this cell."));
 
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            this->is_locally_owned(),
-         ExcMessage("You can only set active_fe_index information on cells "
+         ExcMessage("You can only set active FE index information on cells "
                     "that are locally owned. On ghost cells, this information "
                     "will automatically be propagated from the owning process "
                     "of that cell, and there is no information at all on "
@@ -2820,9 +2880,9 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::get_future_fe()
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            this->is_active(),
          ExcMessage(
-           "In hp::DoFHandler objects, finite elements are only associated "
-           "with active cells. Consequently, you can not ask for the "
-           "future finite element on cells with children."));
+           "For DoFHandler objects in hp-mode, finite elements are only "
+           "associated with active cells. Consequently, you can not ask "
+           "for the future finite element on cells with children."));
 
   return this->dof_handler->get_fe(future_fe_index());
 }
@@ -2837,13 +2897,13 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->has_children() == false),
          ExcMessage(
-           "You can not ask for the future_fe_index on a cell that has "
+           "You can not ask for the future FE index on a cell that has "
            "children because no degrees of freedom are assigned "
            "to this cell and, consequently, no finite element "
            "is associated with it."));
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->is_locally_owned()),
-         ExcMessage("You can only query future_fe_index information on cells "
+         ExcMessage("You can only query future FE index information on cells "
                     "that are locally owned."));
 
   return dealii::internal::DoFCellAccessorImplementation::Implementation::
@@ -2859,13 +2919,13 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
 {
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->has_children() == false),
-         ExcMessage("You can not set the future_fe_index on a cell that has "
+         ExcMessage("You can not set the future FE index on a cell that has "
                     "children because no degrees of freedom will be assigned "
                     "to this cell."));
 
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            this->is_locally_owned(),
-         ExcMessage("You can only set future_fe_index information on cells "
+         ExcMessage("You can only set future FE index information on cells "
                     "that are locally owned."));
 
   dealii::internal::DoFCellAccessorImplementation::Implementation::
@@ -2882,13 +2942,13 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->has_children() == false),
          ExcMessage(
-           "You can not ask for the future_fe_index on a cell that has "
+           "You can not ask for the future FE index on a cell that has "
            "children because no degrees of freedom are assigned "
            "to this cell and, consequently, no finite element "
            "is associated with it."));
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->is_locally_owned()),
-         ExcMessage("You can only query future_fe_index information on cells "
+         ExcMessage("You can only query future FE index information on cells "
                     "that are locally owned."));
 
   return dealii::internal::DoFCellAccessorImplementation::Implementation::
@@ -2905,51 +2965,17 @@ DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->has_children() == false),
          ExcMessage(
-           "You can not ask for the future_fe_index on a cell that has "
+           "You can not ask for the future FE index on a cell that has "
            "children because no degrees of freedom are assigned "
            "to this cell and, consequently, no finite element "
            "is associated with it."));
   Assert((this->dof_handler->hp_capability_enabled == false) ||
            (this->is_locally_owned()),
-         ExcMessage("You can only query future_fe_index information on cells "
+         ExcMessage("You can only query future FE index information on cells "
                     "that are locally owned."));
 
   dealii::internal::DoFCellAccessorImplementation::Implementation::
     clear_future_fe_index(*this);
-}
-
-
-
-template <int dimension_, int space_dimension_, bool level_dof_access>
-inline unsigned int
-DoFCellAccessor<dimension_, space_dimension_, level_dof_access>::
-  dominated_future_fe_on_children() const
-{
-  Assert(!this->is_active(),
-         ExcMessage(
-           "You ask for information on children of this cell which is only "
-           "available for active cells. This cell has no children."));
-
-  std::set<unsigned int> future_fe_indices_children;
-  for (const auto &child : this->child_iterators())
-    {
-      Assert(
-        child->is_active(),
-        ExcMessage(
-          "You ask for information on children of this cell which is only "
-          "available for active cells. One of its children is not active."));
-      future_fe_indices_children.insert(child->future_fe_index());
-    }
-  Assert(!future_fe_indices_children.empty(), ExcInternalError());
-
-  const unsigned int future_fe_index =
-    this->dof_handler->get_fe_collection().find_dominated_fe_extended(
-      future_fe_indices_children, /*codim=*/0);
-
-  Assert(future_fe_index != numbers::invalid_unsigned_int,
-         ExcNoDominatedFiniteElementOnChildren());
-
-  return future_fe_index;
 }
 
 

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2009 - 2018 by the deal.II authors
+ * Copyright (C) 2009 - 2020 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -56,9 +56,9 @@ const unsigned int dim = 2; // run in 2d to save time
 
 const double eps = 1e-10;
 
-template <typename DoFHandlerType>
+template <int dim>
 std::vector<dealii::IndexSet>
-locally_owned_dofs_per_subdomain(const DoFHandlerType &dof_handler)
+locally_owned_dofs_per_subdomain(const DoFHandler<dim> &dof_handler)
 {
   std::vector<dealii::types::subdomain_id> subdomain_association(
     dof_handler.n_dofs());

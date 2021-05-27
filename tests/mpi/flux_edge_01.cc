@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2020 by the deal.II authors
+// Copyright (C) 2013 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -66,7 +66,7 @@ namespace Step39
   class InteriorPenaltyProblem
   {
   public:
-    typedef MeshWorker::IntegrationInfo<dim> CellInfo;
+    using CellInfo = MeshWorker::IntegrationInfo<dim>;
 
     InteriorPenaltyProblem(const FiniteElement<dim> &fe);
 

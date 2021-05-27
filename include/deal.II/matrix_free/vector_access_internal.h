@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 - 2020 by the deal.II authors
+// Copyright (C) 2019 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -201,8 +201,11 @@ namespace internal
            ExcMessage(
              "The parallel layout of the given vector is not "
              "compatible with the parallel partitioning in MatrixFree. "
-             "Use MatrixFree::initialize_dof_vector to get a "
-             "compatible vector."));
+             "A potential reason is that you did not use "
+             "MatrixFree::initialize_dof_vector() to get a "
+             "compatible vector. If you did, the dof_handler_index "
+             "used there and the one passed to the constructor of "
+             "FEEvaluation do not match."));
   }
 
 

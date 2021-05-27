@@ -137,7 +137,8 @@ pipeline
                  cd /home/dealii/build
                  cmake -G "Ninja" \
                    -D DEAL_II_CXX_FLAGS='-Werror' \
-                   -D DEAL_II_CXX_FLAGS_DEBUG='-O1' \
+                   -D DEAL_II_CXX_FLAGS_DEBUG='-Og' \
+                   -D DEAL_II_EARLY_DEPRECATIONS=ON \
                    -D CMAKE_BUILD_TYPE=Debug \
                    -D DEAL_II_WITH_MPI=OFF \
                    -D DEAL_II_UNITY_BUILD=ON \
@@ -192,7 +193,8 @@ pipeline
                   cd /home/dealii/build
                   cmake -G "Ninja" \
                     -D DEAL_II_CXX_FLAGS='-Werror' \
-                    -D DEAL_II_CXX_FLAGS_DEBUG='-O1' \
+                    -D DEAL_II_CXX_FLAGS_DEBUG='-Og' \
+                    -D DEAL_II_EARLY_DEPRECATIONS=ON \
                     -D CMAKE_BUILD_TYPE=Debug \
                     -D DEAL_II_WITH_MPI=ON \
                     -D DEAL_II_UNITY_BUILD=OFF \

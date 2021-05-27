@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -165,7 +165,7 @@ namespace MGTools
         // TODO: This assumes that the dofs per face on all faces coincide!
         const unsigned int face_no = 0;
 
-        Assert(fe.reference_cell_type() == ReferenceCell::get_hypercube(dim),
+        Assert(fe.reference_cell() == ReferenceCells::get_hypercube<dim>(),
                ExcNotImplemented());
 
         unsigned int increment =
@@ -345,7 +345,7 @@ namespace MGTools
 
         // TODO: This assumes that the dofs per face on all faces coincide!
         const unsigned int face_no = 0;
-        Assert(fe.reference_cell_type() == ReferenceCell::get_hypercube(dim),
+        Assert(fe.reference_cell() == ReferenceCells::get_hypercube<dim>(),
                ExcNotImplemented());
 
         Assert(couplings.n_rows() == fe.n_components(),

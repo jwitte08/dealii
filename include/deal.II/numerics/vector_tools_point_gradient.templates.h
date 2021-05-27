@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -49,7 +49,7 @@ namespace VectorTools
       &gradients)
   {
     if (dof.has_hp_capabilities() == false)
-      point_gradient(StaticMappingQ1<dim, spacedim>::mapping,
+      point_gradient(get_default_linear_mapping(dof.get_triangulation()),
                      dof,
                      fe_function,
                      point,
@@ -70,7 +70,7 @@ namespace VectorTools
                  const Point<spacedim> &          point)
   {
     if (dof.has_hp_capabilities() == false)
-      return point_gradient(StaticMappingQ1<dim, spacedim>::mapping,
+      return point_gradient(get_default_linear_mapping(dof.get_triangulation()),
                             dof,
                             fe_function,
                             point);
@@ -105,7 +105,8 @@ namespace VectorTools
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof, point);
 
-    AssertThrow(cell_point.first->is_locally_owned(),
+    AssertThrow(cell_point.first.state() == IteratorState::valid &&
+                  cell_point.first->is_locally_owned(),
                 ExcPointNotAvailableHere());
     Assert(GeometryInfo<dim>::distance_to_unit_cell(cell_point.second) < 1e-10,
            ExcInternalError());
@@ -150,7 +151,8 @@ namespace VectorTools
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof, point);
 
-    AssertThrow(cell_point.first->is_locally_owned(),
+    AssertThrow(cell_point.first.state() == IteratorState::valid &&
+                  cell_point.first->is_locally_owned(),
                 ExcPointNotAvailableHere());
     Assert(GeometryInfo<dim>::distance_to_unit_cell(cell_point.second) < 1e-10,
            ExcInternalError());

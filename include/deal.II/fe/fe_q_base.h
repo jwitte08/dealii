@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2019 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -34,18 +34,16 @@ DEAL_II_NAMESPACE_OPEN
  * functional as a stand-alone. The completion of definitions is left to the
  * derived classes.
  */
-template <class PolynomialType,
-          int dim      = PolynomialType::dimension,
-          int spacedim = dim>
+template <int dim, int spacedim = dim>
 class FE_Q_Base : public FE_Poly<dim, spacedim>
 {
 public:
   /**
    * Constructor.
    */
-  FE_Q_Base(const PolynomialType &        poly_space,
-            const FiniteElementData<dim> &fe_data,
-            const std::vector<bool> &     restriction_is_additive_flags);
+  FE_Q_Base(const ScalarPolynomialsBase<dim> &poly_space,
+            const FiniteElementData<dim> &    fe_data,
+            const std::vector<bool> &         restriction_is_additive_flags);
 
   /**
    * Return the matrix interpolating from the given finite element to the
@@ -218,17 +216,17 @@ public:
 
   /**
    * Return whether this element implements its hanging node constraints in
-   * the new way, which has to be used to make elements "hp compatible".
+   * the new way, which has to be used to make elements "hp-compatible".
    *
    * For the FE_Q class the result is always true (independent of the degree
    * of the element), as it implements the complete set of functions necessary
-   * for hp capability.
+   * for hp-capability.
    */
   virtual bool
   hp_constraints_are_implemented() const override;
 
   /**
-   * If, on a vertex, several finite elements are active, the hp code first
+   * If, on a vertex, several finite elements are active, the hp-code first
    * assigns the degrees of freedom of each of these FEs different global
    * indices. It then calls this function to find out which of them should get
    * identical values, and consequently can receive the same global DoF index.
@@ -330,7 +328,7 @@ protected:
   struct Implementation;
 
   // Declare implementation friend.
-  friend struct FE_Q_Base<PolynomialType, dim, spacedim>::Implementation;
+  friend struct FE_Q_Base<dim, spacedim>::Implementation;
 
 private:
   /**

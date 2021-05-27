@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2004 - 2019 by the deal.II authors
+// Copyright (C) 2004 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -130,6 +130,16 @@ private:
    */
   void
   initialize_support_points();
+
+  /**
+   * Initialize the permutation pattern and the pattern of sign change.
+   *
+   * @note This function is not fully filled with the correct implementation
+   * yet. It needs to be consistently implemented in a future release to work
+   * on meshes that contain cells with flipped faces.
+   */
+  void
+  initialize_quad_dof_index_permutation_and_sign_change();
 };
 
 DEAL_II_NAMESPACE_CLOSE

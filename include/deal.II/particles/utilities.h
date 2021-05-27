@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -233,7 +233,7 @@ namespace Particles
           Assert(pic.begin() == particle, ExcInternalError());
           for (unsigned int i = 0; particle != pic.end(); ++particle, ++i)
             {
-              const auto &reference_location =
+              const Point<dim> reference_location =
                 particle->get_reference_location();
 
               const auto id = particle->get_id();

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2018 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -122,8 +122,8 @@ test()
   sparse_rhs.reinit(locally_owned_set, locally_relevant_set, MPI_COMM_WORLD);
   rhs.reinit(locally_owned_set, locally_relevant_set, MPI_COMM_WORLD);
 
-  sparse_rhs.zero_out_ghosts();
-  rhs.zero_out_ghosts();
+  sparse_rhs.zero_out_ghost_values();
+  rhs.zero_out_ghost_values();
 
   // assemble RHS which has a local support:
   const std::function<double(const Point<dim> &)> rhs_func =

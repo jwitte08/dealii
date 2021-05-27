@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2006 - 2018 by the deal.II authors
+// Copyright (C) 2006 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -92,7 +92,9 @@ namespace internal
 
       /**
        * Read or write the data of this object to or from a stream for the
-       * purpose of serialization
+       * purpose of serialization using the [BOOST serialization
+       * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
+       *
        */
       template <class Archive>
       void
@@ -121,7 +123,8 @@ namespace internal
 
       /**
        * Read or write the data of this object to or from a stream for the
-       * purpose of serialization
+       * purpose of serialization using the [BOOST serialization
+       * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
        */
       template <class Archive>
       void
@@ -155,7 +158,8 @@ namespace internal
 
       /**
        * Read or write the data of this object to or from a stream for the
-       * purpose of serialization
+       * purpose of serialization using the [BOOST serialization
+       * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
        */
       template <class Archive>
       void

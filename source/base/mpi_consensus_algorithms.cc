@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2020 by the deal.II authors
+// Copyright (C) 2005 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -29,6 +29,8 @@ namespace Utilities
 
       template class PEX<unsigned int, unsigned int>;
 
+      template class Serial<unsigned int, unsigned int>;
+
       template class Selector<unsigned int, unsigned int>;
 
 
@@ -44,6 +46,10 @@ namespace Utilities
         std::pair<types::global_dof_index, types::global_dof_index>,
         unsigned int>;
 
+      template class Serial<
+        std::pair<types::global_dof_index, types::global_dof_index>,
+        unsigned int>;
+
       template class PEX<
         std::pair<types::global_dof_index, types::global_dof_index>,
         unsigned int>;
@@ -53,11 +59,22 @@ namespace Utilities
 
       template class NBX<types::global_dof_index, unsigned int>;
 
+      template class Serial<types::global_dof_index, unsigned int>;
+
       template class PEX<types::global_dof_index, unsigned int>;
 
       template class Selector<types::global_dof_index, unsigned int>;
 #endif
 
+      template class Process<char, char>;
+
+      template class NBX<char, char>;
+
+      template class PEX<char, char>;
+
+      template class Serial<char, char>;
+
+      template class Selector<char, char>;
 
     } // namespace ConsensusAlgorithms
   }   // end of namespace MPI

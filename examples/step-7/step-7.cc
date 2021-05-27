@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2000 - 2020 by the deal.II authors
+ * Copyright (C) 2000 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -35,10 +35,7 @@
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/numerics/matrix_tools.h>
@@ -171,9 +168,6 @@ namespace Step7
   // dimension <code>dim</code> guarantees that the tensor will have the right
   // shape (since it is built into the type of the object itself), so the
   // compiler can catch most size-related mistakes for us.
-  //
-  // Like in step-4, for compatibility with some compilers we explicitly
-  // declare the default constructor:
   template <int dim>
   class Solution : public Function<dim>, protected SolutionBase<dim>
   {
@@ -254,7 +248,7 @@ namespace Step7
         // add up multiples of this distance vector, where the factor is given
         // by the exponentials.
         return_value +=
-          (-2 / (this->width * this->width) *
+          (-2. / (this->width * this->width) *
            std::exp(-x_minus_xi.norm_square() / (this->width * this->width)) *
            x_minus_xi);
       }
@@ -293,8 +287,8 @@ namespace Step7
 
         // The first contribution is the Laplacian:
         return_value +=
-          ((2 * dim -
-            4 * x_minus_xi.norm_square() / (this->width * this->width)) /
+          ((2. * dim -
+            4. * x_minus_xi.norm_square() / (this->width * this->width)) /
            (this->width * this->width) *
            std::exp(-x_minus_xi.norm_square() / (this->width * this->width)));
         // And the second is the solution itself:
@@ -660,8 +654,8 @@ namespace Step7
 
                   for (unsigned int i = 0; i < dofs_per_cell; ++i)
                     cell_rhs(i) +=
-                      (neumann_value *                          // g(x_q)
-                       fe_face_values.shape_value(i, q_point) * // phi_i(x_q)
+                      (fe_face_values.shape_value(i, q_point) * // phi_i(x_q)
+                       neumann_value *                          // g(x_q)
                        fe_face_values.JxW(q_point));            // dx
                 }
             }
@@ -967,15 +961,15 @@ namespace Step7
       {
         if (cycle == 0)
           {
-            GridGenerator::hyper_cube(triangulation, -1, 1);
+            GridGenerator::hyper_cube(triangulation, -1., 1.);
             triangulation.refine_global(3);
 
             for (const auto &cell : triangulation.cell_iterators())
               for (const auto &face : cell->face_iterators())
                 {
                   const auto center = face->center();
-                  if ((std::fabs(center(0) - (-1)) < 1e-12) ||
-                      (std::fabs(center(1) - (-1)) < 1e-12))
+                  if ((std::fabs(center(0) - (-1.0)) < 1e-12) ||
+                      (std::fabs(center(1) - (-1.0)) < 1e-12))
                     face->set_boundary_id(1);
                 }
           }

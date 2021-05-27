@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2018 by the deal.II authors
+// Copyright (C) 2005 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -71,7 +71,7 @@ private:
 
   Triangulation<dim>         triangulation;
   hp::FECollection<dim>      fe;
-  hp::DoFHandler<dim>        dof_handler;
+  DoFHandler<dim>            dof_handler;
   hp::MappingCollection<dim> mapping;
 
   SparsityPattern           sparsity_pattern;

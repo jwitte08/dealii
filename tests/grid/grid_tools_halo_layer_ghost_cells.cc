@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2018 by the deal.II authors
+// Copyright (C) 2001 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -37,9 +37,8 @@ test()
   GridGenerator::hyper_cube(tria);
   tria.refine_global(2);
 
-  typedef
-    typename parallel::distributed::Triangulation<dim>::active_cell_iterator
-      cell_iterator;
+  using cell_iterator =
+    typename parallel::distributed::Triangulation<dim>::active_cell_iterator;
 
   // Mark a small block at the corner of the hypercube
   std::vector<cell_iterator> ghost_cells_tria;

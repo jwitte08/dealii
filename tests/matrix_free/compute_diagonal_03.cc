@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -63,6 +63,7 @@ test()
 
   Test<dim, fe_degree, n_points, n_components, Number, VectorizedArrayType>
     test(matrix_free,
+         constraint,
          [](FEEvaluation<dim,
                          fe_degree,
                          n_points,

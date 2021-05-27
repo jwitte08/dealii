@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2019 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -26,7 +26,9 @@
 
 #include <deal.II/hp/dof_handler.h>
 
+DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 #include <boost/container/small_vector.hpp>
+DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
 #include <vector>
 
@@ -399,7 +401,7 @@ public:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler object has hp capabilities enabled,
+   * However, when the relevant DoFHandler object has hp-capabilities enabled,
    * different finite element objects may be used on different cells. On faces
    * between two cells, as well as vertices, there may therefore be two sets
    * of degrees of freedom, one for each of the finite elements used on the
@@ -449,7 +451,7 @@ public:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when hp capabilities are enabled, different finite element
+   * However, when hp-capabilities are enabled, different finite element
    * objects may be used on different cells. On faces between two cells, as
    * well as vertices, there may therefore be two sets of degrees of freedom,
    * one for each of the finite elements used on the adjacent cells.  In order
@@ -483,7 +485,7 @@ public:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when hp capabilities are enabled, different finite element
+   * However, when hp-capabilities are enabled, different finite element
    * objects may be used on different cells. On faces between two cells, as
    * well as vertices, there may therefore be two sets of degrees of freedom,
    * one for each of the finite elements used on the adjacent cells.  In order
@@ -528,8 +530,8 @@ public:
   /**
    * Return the number of finite elements that are active on a given object.
    *
-   * When hp capabilities are disabled the answer is, of course, always one.
-   * However, when hp capabilities are enabled, this isn't the case: If this
+   * When hp-capabilities are disabled the answer is, of course, always one.
+   * However, when hp-capabilities are enabled, this isn't the case: If this
    * is a cell, the answer is of course one. If it is a face, the answer may
    * be one or two, depending on whether the two adjacent cells use the same
    * finite element or not. If it is an edge in 3d, the possible return value
@@ -539,9 +541,9 @@ public:
   n_active_fe_indices() const;
 
   /**
-   * Return the @p n-th active fe index on this object. For cells and all non-
-   * hp objects, there is only a single active fe index, so the argument must
-   * be equal to zero. For lower-dimensional hp objects, there are
+   * Return the @p n-th active FE index on this object. For cells and all non-
+   * hp-objects, there is only a single active FE index, so the argument must
+   * be equal to zero. For lower-dimensional hp-objects, there are
    * n_active_fe_indices() active finite elements, and this function can be
    * queried for their indices.
    */
@@ -549,7 +551,7 @@ public:
   nth_active_fe_index(const unsigned int n) const;
 
   /**
-   * Returns all active fe indices on this object.
+   * Returns all active FE indices on this object.
    *
    * The size of the returned set equals the number of finite elements that
    * are active on this object.
@@ -559,7 +561,7 @@ public:
 
   /**
    * Return true if the finite element with given index is active on the
-   * present object. When the current DoFHandler does not have hp
+   * present object. When the current DoFHandler does not have hp-
    * capabilities, this is of course the case only if @p fe_index equals
    * zero. For cells, it is the case if @p fe_index equals active_fe_index()
    * of this cell. For faces and other lower- dimensional objects, there may
@@ -670,7 +672,7 @@ protected:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler has hp capabilities, different
+   * However, when the relevant DoFHandler has hp-capabilities, different
    * finite element objects may be used on different cells. On faces between
    * two cells, as well as vertices, there may therefore be two sets of
    * degrees of freedom, one for each of the finite elements used on the
@@ -699,7 +701,7 @@ protected:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler has hp capabilities, different
+   * However, when the relevant DoFHandler has hp-capabilities, different
    * finite element objects may be used on different cells. On faces between
    * two cells, as well as vertices, there may therefore be two sets of
    * degrees of freedom, one for each of the finite elements used on the
@@ -736,8 +738,6 @@ private:
   // functions.
   template <int, int>
   friend class DoFHandler;
-  template <int, int>
-  friend class hp::DoFHandler;
 
   friend struct dealii::internal::DoFHandlerImplementation::Policy::
     Implementation;
@@ -949,7 +949,7 @@ public:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler has hp capabilities, different
+   * However, when the relevant DoFHandler has hp-capabilities, different
    * finite element objects may be used on different cells. On faces between
    * two cells, as well as vertices, there may therefore be two sets of
    * degrees of freedom, one for each of the finite elements used on the
@@ -990,7 +990,7 @@ public:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler has hp capabilities, different
+   * However, when the relevant DoFHandler has hp-capabilities, different
    * finite element objects may be used on different cells. On faces between
    * two cells, as well as vertices, there may therefore be two sets of
    * degrees of freedom, one for each of the finite elements used on the
@@ -1013,7 +1013,7 @@ public:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler has hp capabilities, different
+   * However, when the relevant DoFHandler has hp-capabilities, different
    * finite element objects may be used on different cells. On faces between
    * two cells, as well as vertices, there may therefore be two sets of
    * degrees of freedom, one for each of the finite elements used on the
@@ -1049,7 +1049,7 @@ public:
   n_active_fe_indices() const;
 
   /**
-   * Return the @p n-th active fe index on this object.
+   * Return the @p n-th active FE index on this object.
    *
    * Since vertices do not store the information necessary for this to be
    * calculated, this method just raises an exception and only exists to
@@ -1157,7 +1157,7 @@ protected:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler has hp capabilities, different
+   * However, when the relevant DoFHandler has hp-capabilities, different
    * finite element objects may be used on different cells. On faces between
    * two cells, as well as vertices, there may therefore be two sets of
    * degrees of freedom, one for each of the finite elements used on the
@@ -1181,7 +1181,7 @@ protected:
    * ::DoFHandler class, this value must be equal to its default value since
    * that class only supports the same finite element on all cells anyway.
    *
-   * However, when the relevant DoFHandler has hp capabilities, different
+   * However, when the relevant DoFHandler has hp-capabilities, different
    * finite element objects may be used on different cells. On faces between
    * two cells, as well as vertices, there may therefore be two sets of
    * degrees of freedom, one for each of the finite elements used on the
@@ -1208,8 +1208,6 @@ protected:
   // functions.
   template <int, int>
   friend class DoFHandler;
-  template <int, int>
-  friend class hp::DoFHandler;
 
   friend struct dealii::internal::DoFHandlerImplementation::Policy::
     Implementation;
@@ -1527,9 +1525,12 @@ public:
    */
 
   /**
-   * Return the values of the given vector restricted to the dofs of this cell
+   * Collect the values of the given vector restricted to the dofs of this cell
    * in the standard ordering: dofs on vertex 0, dofs on vertex 1, etc, dofs
-   * on line 0, dofs on line 1, etc, dofs on quad 0, etc.
+   * on line 0, dofs on line 1, etc, dofs on quad 0, etc. In other
+   * words, this function implements a
+   * [gather
+   * operation](https://en.wikipedia.org/wiki/Gather-scatter_(vector_addressing)).
    *
    * The vector has to have the right size before being passed to this
    * function. This function is only callable for active cells.
@@ -1545,9 +1546,12 @@ public:
   get_dof_values(const InputVector &values, Vector<number> &local_values) const;
 
   /**
-   * Return the values of the given vector restricted to the dofs of this cell
+   * Collect the values of the given vector restricted to the dofs of this cell
    * in the standard ordering: dofs on vertex 0, dofs on vertex 1, etc, dofs
-   * on line 0, dofs on line 1, etc, dofs on quad 0, etc.
+   * on line 0, dofs on line 1, etc, dofs on quad 0, etc. In other
+   * words, this function implements a
+   * [gather
+   * operation](https://en.wikipedia.org/wiki/Gather-scatter_(vector_addressing)).
    *
    * The vector has to have the right size before being passed to this
    * function. This function is only callable for active cells.
@@ -1565,9 +1569,12 @@ public:
                  ForwardIterator    local_values_end) const;
 
   /**
-   * Return the values of the given vector restricted to the dofs of this cell
+   * Collect the values of the given vector restricted to the dofs of this cell
    * in the standard ordering: dofs on vertex 0, dofs on vertex 1, etc, dofs
-   * on line 0, dofs on line 1, etc, dofs on quad 0, etc.
+   * on line 0, dofs on line 1, etc, dofs on quad 0, etc. In other
+   * words, this function implements a
+   * [gather
+   * operation](https://en.wikipedia.org/wiki/Gather-scatter_(vector_addressing)).
    *
    * The vector has to have the right size before being passed to this
    * function. This function is only callable for active cells.
@@ -1593,6 +1600,9 @@ public:
    * This function is the counterpart to get_dof_values(): it takes a vector
    * of values for the degrees of freedom of the cell pointed to by this
    * iterator and writes these values into the global data vector @p values.
+   * In other words, this function implements a
+   * [scatter
+   * operation](https://en.wikipedia.org/wiki/Gather-scatter_(vector_addressing)).
    * This function is only callable for active cells.
    *
    * Note that for continuous finite elements, calling this function affects
@@ -1624,11 +1634,11 @@ public:
    * we use the restriction matrices provided by the finite element class to
    * compute the interpolation from the children to the present cell.
    *
-   * If the cell is part of a DoFHandler with hp capabilities, cells only have
+   * If the cell is part of a DoFHandler with hp-capabilities, cells only have
    * an associated finite element space if they are active. However, this
    * function is supposed to also provide information on inactive cells with
    * children. Consequently, it carries a third argument that can be used in
-   * the hp context that denotes the finite element space we are supposed to
+   * the hp-context that denotes the finite element space we are supposed to
    * interpolate onto. If the cell is active, this function then obtains the
    * finite element function from the <code>values</code> vector on this cell
    * and interpolates it onto the space described by the
@@ -1677,10 +1687,10 @@ public:
    * the children of this cell. These requirements are not taken care of and
    * must be enforced by the user afterward.
    *
-   * If the cell is part of a DoFHandler with hp capabilities, cells only have
+   * If the cell is part of a DoFHandler with hp-capabilities, cells only have
    * an associated finite element space if they are active. However, this
    * function is supposed to also work on inactive cells with children.
-   * Consequently, it carries a third argument that can be used in the hp
+   * Consequently, it carries a third argument that can be used in the hp-
    * context that denotes the finite element space we are supposed to
    * interpret the input vector of this function in. If the cell is active,
    * this function then interpolates the input vector interpreted as an
@@ -1717,10 +1727,16 @@ public:
   /**
    * Distribute a local (cell based) vector to a global one by mapping the
    * local numbering of the degrees of freedom to the global one and entering
-   * the local values into the global vector.
+   * the local values into the global vector. In other words, this function
+   * implements a
+   * [scatter
+   * operation](https://en.wikipedia.org/wiki/Gather-scatter_(vector_addressing)).
    *
-   * The elements are <em>added</em> up to the elements in the global vector,
-   * rather than just set, since this is usually what one wants.
+   * The elements are <em>added</em> to the existing elements in the global
+   * vector, rather than just set, since this is usually what one wants. You may
+   * also want to take a look at the
+   * AffineConstraints::distribute_local_to_global() function if you need to
+   * deal with constraints.
    */
   template <typename number, typename OutputVector>
   void
@@ -1731,9 +1747,15 @@ public:
    * Distribute a local (cell based) vector in iterator format to a global one
    * by mapping the local numbering of the degrees of freedom to the global
    * one and entering the local values into the global vector.
+   * In other words, this function implements a
+   * [scatter
+   * operation](https://en.wikipedia.org/wiki/Gather-scatter_(vector_addressing)).
    *
-   * The elements are <em>added</em> up to the elements in the global vector,
-   * rather than just set, since this is usually what one wants.
+   * The elements are <em>added</em> to the existing elements in the global
+   * vector, rather than just set, since this is usually what one wants. You may
+   * also want to take a look at the
+   * AffineConstraints::distribute_local_to_global() function if you need to
+   * deal with constraints.
    */
   template <typename ForwardIterator, typename OutputVector>
   void
@@ -1745,6 +1767,9 @@ public:
    * Distribute a local (cell based) vector in iterator format to a global one
    * by mapping the local numbering of the degrees of freedom to the global
    * one and entering the local values into the global vector.
+   * In other words, this function implements a
+   * [scatter
+   * operation](https://en.wikipedia.org/wiki/Gather-scatter_(vector_addressing)).
    *
    * The elements are <em>added</em> up to the elements in the global vector,
    * rather than just set, since this is usually what one wants. Moreover, the
@@ -1839,10 +1864,6 @@ public:
    * <code>fe.n_dofs_per_cell()</code>) but instead that the returned values are
    * the <i>global</i> indices of those degrees of freedom that are located
    * locally on the current cell.
-   *
-   * @deprecated Currently, this function can also be called for non-active
-   * cells, if all degrees of freedom of the FiniteElement are located in
-   * vertices. This functionality will vanish in a future release.
    */
   void
   get_dof_indices(std::vector<types::global_dof_index> &dof_indices) const;
@@ -1867,12 +1888,12 @@ public:
 
   /**
    * Return the finite element that is used on the cell pointed to by this
-   * iterator. For DoFHandler objects without hp capabilities, this is of
+   * iterator. For DoFHandler objects without hp-capabilities, this is of
    * course always the same element, independent of the cell we are presently
-   * on, but for hp DoFHandler objects this may change from cell to cell.
+   * on, but for hp-DoFHandler objects this may change from cell to cell.
    *
    * @note Since degrees of freedom only exist on active cells for DoFHandler
-   * objects with hp capabilities (i.e., there is currently no implementation
+   * objects with hp-capabilities (i.e., there is currently no implementation
    * of multilevel such objects), it does not make sense to query the finite
    * element on non-active cells since they do not have finite element spaces
    * associated with them without having any degrees of freedom. Consequently,
@@ -1884,10 +1905,10 @@ public:
   /**
    * Return the index inside the hp::FECollection of the FiniteElement used
    * for this cell. This function is only useful if the DoFHandler object
-   * associated with the current cell has hp capabilities enabled.
+   * associated with the current cell has hp-capabilities enabled.
    *
    * @note Since degrees of freedom only exist on active cells for DoFHandler
-   * objects with hp capabilities (i.e., there is currently no implementation
+   * objects with hp-capabilities (i.e., there is currently no implementation
    * of multilevel such objects), it does not make sense to query the finite
    * element on non-active cells since they do not have finite element spaces
    * associated with them without having any degrees of freedom. Consequently,
@@ -1912,11 +1933,11 @@ public:
   /**
    * Set the index of the FiniteElement used for this cell. This determines
    * which element in an hp::FECollection to use. This function is only useful
-   * if the DoF handler object associated with the current cell has hp
+   * if the DoF handler object associated with the current cell has hp-
    * capabilities enabled.
    *
    * @note Since degrees of freedom only exist on active cells for DoFHandler
-   * objects with hp capabilities (i.e., there is currently no implementation
+   * objects with hp-capabilities (i.e., there is currently no implementation
    * of multilevel such objects), it does not make sense to query the finite
    * element on non-active cells since they do not have finite element spaces
    * associated with them without having any degrees of freedom. Consequently,
@@ -1974,12 +1995,12 @@ public:
    * active one will remain unchanged, in which case the active finite element
    * will be returned.
    *
-   * For DoFHandlers without hp capabilities enabled, this is of course always
-   * the same element, independent of the cell we are presently on, but for hp
+   * For DoFHandlers without hp-capabilities enabled, this is of course always
+   * the same element, independent of the cell we are presently on, but for hp-
    * DoFHandler objects this may change from cell to cell.
    *
    * @note Since degrees of freedom only exist on active cells for DoFHandler
-   * objects with hp capabilities (i.e., there is currently no implementation
+   * objects with hp-capabilities (i.e., there is currently no implementation
    * of multilevel such objects), it does not make sense to query the finite
    * element on non-active cells since they do not have finite element spaces
    * associated with them without having any degrees of freedom. Consequently,
@@ -1996,7 +2017,7 @@ public:
    * which case the fe_index of the active finite element will be returned.
    *
    * @note Since degrees of freedom only exist on active cells for DoFHandler
-   * objects with hp capabilities (i.e., there is currently no implementation
+   * objects with hp-capabilities (i.e., there is currently no implementation
    * of multilevel such objects), it does not make sense to query the finite
    * element on non-active cells since they do not have finite element spaces
    * associated with them without having any degrees of freedom. Consequently,
@@ -2039,48 +2060,6 @@ public:
    */
   void
   clear_future_fe_index() const;
-
-  /**
-   * Return the index of the finite element from the entire hp::FECollection
-   * that is dominated by those assigned as future finite elements to the
-   * children of this cell.
-   *
-   * We find the corresponding finite element among the future finite elements
-   * on the children of this cell. If none of them qualify, we extend our search
-   * on the whole hp::FECollection, which is the element that describes the
-   * smallest finite element space that includes all future finite elements
-   * assigned to the children. If the function is not able to find a finite
-   * element at all, an assertion will be triggered.
-   *
-   * In this way, we determine the finite element of the parent cell in case of
-   * h-coarsening in the hp-context.
-   *
-   * @note This function can only be called on direct parent cells, i.e.,
-   * non-active cells whose children are all active.
-   */
-  unsigned int
-  dominated_future_fe_on_children() const;
-  /**
-   * @}
-   */
-
-  /**
-   * @name Exceptions
-   */
-  /**
-   * @{
-   */
-
-  /**
-   * Exception
-   *
-   * @ingroup Exceptions
-   */
-  DeclExceptionMsg(
-    ExcNoDominatedFiniteElementOnChildren,
-    "No FiniteElement has been found in your FECollection that is "
-    "dominated by all children of a cell you are trying to coarsen!");
-
   /**
    * @}
    */

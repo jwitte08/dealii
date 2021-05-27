@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2020 by the deal.II authors
+// Copyright (C) 2003 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -266,20 +266,11 @@ MGTransferPrebuilt<VectorType>::build(
           // complete sparsity patterns on their own, the sparsity pattern must
           // be manually distributed.
 
-          // Retrieve communicator from triangulation if it is parallel
-          const parallel::TriangulationBase<dim, spacedim> *dist_tria =
-            dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
-              &(dof_handler.get_triangulation()));
-
-          MPI_Comm communicator = dist_tria != nullptr ?
-                                    dist_tria->get_communicator() :
-                                    MPI_COMM_SELF;
-
           // Distribute sparsity pattern
           ::dealii::SparsityTools::distribute_sparsity_pattern(
             dsp,
             dof_handler.locally_owned_mg_dofs(level + 1),
-            communicator,
+            dof_handler.get_communicator(),
             dsp.row_index_set());
         }
 #endif

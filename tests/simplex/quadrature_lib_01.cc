@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -14,10 +14,10 @@
 // ---------------------------------------------------------------------
 
 
-// Test Simplex::QGauss: output its quadrature points and weights.
+// Test QGaussSimplex: output its quadrature points and weights.
 
 
-#include <deal.II/simplex/quadrature_lib.h>
+#include <deal.II/base/quadrature_lib.h>
 
 #include "../tests.h"
 
@@ -27,7 +27,7 @@ template <int dim>
 void
 test(const unsigned int n_points)
 {
-  Simplex::QGauss<dim> quad(n_points);
+  QGaussSimplex<dim> quad(n_points);
 
   for (unsigned int q = 0; q < quad.size(); ++q)
     {

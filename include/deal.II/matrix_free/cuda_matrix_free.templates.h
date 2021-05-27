@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2020 by the deal.II authors
+// Copyright (C) 2016 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -30,8 +30,6 @@
 
 #  include <deal.II/fe/fe_dgq.h>
 #  include <deal.II/fe/fe_values.h>
-
-#  include <deal.II/grid/filtered_iterator.h>
 
 #  include <deal.II/matrix_free/cuda_hanging_nodes_internal.h>
 #  include <deal.II/matrix_free/shape_info.h>
@@ -626,12 +624,14 @@ namespace CUDAWrappers
 
 
   template <int dim, typename Number>
+  template <typename IteratorFiltersType>
   void
   MatrixFree<dim, Number>::reinit(const Mapping<dim> &             mapping,
                                   const DoFHandler<dim> &          dof_handler,
                                   const AffineConstraints<Number> &constraints,
                                   const Quadrature<1> &            quad,
-                                  const AdditionalData &additional_data)
+                                  const IteratorFiltersType &iterator_filter,
+                                  const AdditionalData &     additional_data)
   {
     const auto &triangulation = dof_handler.get_triangulation();
     if (const auto parallel_triangulation =
@@ -641,12 +641,37 @@ namespace CUDAWrappers
                       dof_handler,
                       constraints,
                       quad,
+                      iterator_filter,
                       std::make_shared<const MPI_Comm>(
                         parallel_triangulation->get_communicator()),
                       additional_data);
     else
-      internal_reinit(
-        mapping, dof_handler, constraints, quad, nullptr, additional_data);
+      internal_reinit(mapping,
+                      dof_handler,
+                      constraints,
+                      quad,
+                      iterator_filter,
+                      nullptr,
+                      additional_data);
+  }
+
+
+
+  template <int dim, typename Number>
+  void
+  MatrixFree<dim, Number>::reinit(const Mapping<dim> &             mapping,
+                                  const DoFHandler<dim> &          dof_handler,
+                                  const AffineConstraints<Number> &constraints,
+                                  const Quadrature<1> &            quad,
+                                  const AdditionalData &additional_data)
+  {
+    IteratorFilters::LocallyOwnedCell locally_owned_cell_filter;
+    reinit(mapping,
+           dof_handler,
+           constraints,
+           quad,
+           locally_owned_cell_filter,
+           additional_data);
   }
 
 
@@ -843,12 +868,14 @@ namespace CUDAWrappers
 
 
   template <int dim, typename Number>
+  template <typename IteratorFiltersType>
   void
   MatrixFree<dim, Number>::internal_reinit(
     const Mapping<dim> &             mapping,
     const DoFHandler<dim> &          dof_handler_,
     const AffineConstraints<Number> &constraints,
     const Quadrature<1> &            quad,
+    const IteratorFiltersType &      iterator_filter,
     std::shared_ptr<const MPI_Comm>  comm,
     const AdditionalData             additional_data)
   {
@@ -952,12 +979,8 @@ namespace CUDAWrappers
       this, mapping, fe, quad, shape_info, *dof_handler, update_flags);
 
     // Create a graph coloring
-    using CellFilter =
-      FilteredIterator<typename DoFHandler<dim>::active_cell_iterator>;
-    CellFilter begin(IteratorFilters::LocallyOwnedCell(),
-                     dof_handler->begin_active());
-    CellFilter end(IteratorFilters::LocallyOwnedCell(), dof_handler->end());
-    std::vector<std::vector<CellFilter>> graph;
+    CellFilter begin(iterator_filter, dof_handler->begin_active());
+    CellFilter end(iterator_filter, dof_handler->end());
 
     if (begin != end)
       {
@@ -971,6 +994,7 @@ namespace CUDAWrappers
           }
         else
           {
+            graph.clear();
             if (additional_data.overlap_communication_computation)
               {
                 // We create one color (1) with the cells on the boundary of the
@@ -1222,7 +1246,7 @@ namespace CUDAWrappers
                 }
             dst.compress(VectorOperation::add);
           }
-        src.zero_out_ghosts();
+        src.zero_out_ghost_values();
       }
     else
       {
@@ -1297,7 +1321,7 @@ namespace CUDAWrappers
     internal::copy_constrained_dofs<Number>
       <<<constraint_grid_dim, constraint_block_dim>>>(constrained_dofs,
                                                       n_constrained_dofs,
-                                                      src.local_size(),
+                                                      src.locally_owned_size(),
                                                       src.get_values(),
                                                       dst.get_values());
     AssertCudaKernel();
@@ -1342,7 +1366,7 @@ namespace CUDAWrappers
     internal::set_constrained_dofs<Number>
       <<<constraint_grid_dim, constraint_block_dim>>>(constrained_dofs,
                                                       n_constrained_dofs,
-                                                      dst.local_size(),
+                                                      dst.locally_owned_size(),
                                                       val,
                                                       dst.get_values());
     AssertCudaKernel();

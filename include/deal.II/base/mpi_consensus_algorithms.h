@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -174,9 +174,9 @@ namespace Utilities
         virtual ~Interface() = default;
 
         /**
-         * Run consensus algorithm.
+         * Run consensus algorithm and return the requesting processes.
          */
-        virtual void
+        virtual std::vector<unsigned int>
         run() = 0;
 
       protected:
@@ -189,6 +189,11 @@ namespace Utilities
          * MPI communicator.
          */
         const MPI_Comm &comm;
+
+        /**
+         * Cache if job supports MPI.
+         */
+        const bool job_supports_mpi;
 
         /**
          * Rank of this process.
@@ -207,13 +212,11 @@ namespace Utilities
        * ConsensusAlgorithms::Interface base class, using only point-to-point
        * communications and a single IBarrier.
        *
-       * @note This class closely follows the paper Hoefler, Siebert, Lumsdaine
-       *       "Scalable Communication Protocols for Dynamic Sparse Data
-       *       Exchange". Since the algorithm shown there is not considering
-       *       payloads, the algorithm has been modified here in such a way that
-       *       synchronous sends (Issend) have been replaced by equivalent
-       *       Isend/Irecv, where Irecv receives the answer to a request (with
-       *       payload).
+       * @note This class closely follows @cite hoefler2010scalable. Since the
+       *       algorithm shown there is not considering payloads, the algorithm
+       *       has been modified here in such a way that synchronous sends
+       *       (Issend) have been replaced by equivalent Isend/Irecv, where
+       *       Irecv receives the answer to a request (with payload).
        *
        * @tparam T1 The type of the elements of the vector to be sent.
        * @tparam T2 The type of the elements of the vector to be received.
@@ -238,7 +241,7 @@ namespace Utilities
         /**
          * @copydoc Interface::run()
          */
-        virtual void
+        virtual std::vector<unsigned int>
         run() override;
 
       private:
@@ -283,12 +286,10 @@ namespace Utilities
         MPI_Request barrier_request;
 #endif
 
-#ifdef DEBUG
         /**
          * List of processes who have made a request to this process.
          */
         std::set<unsigned int> requesting_processes;
-#endif
 
         /**
          * Check if all request answers have been received by this rank.
@@ -339,18 +340,17 @@ namespace Utilities
        * step a static sparse data exchange is performed.
        *
        * @note In contrast to NBX, this class splits the same
-       *       task into two distinct steps. In the first step, all processes
-       * are identified who want to send a request to this process. In the
-       *       second step, the data is exchanged. However, since - in the
-       * second step - now it is clear how many requests have to be answered,
-       * i.e. when this process can stop waiting for requests, no IBarrier is
-       *       needed.
+       *   task into two distinct steps. In the first step, all processes
+       *   are identified who want to send a request to this process. In the
+       *   second step, the data is exchanged. However, since - in the
+       *   second step - now it is clear how many requests have to be answered,
+       *   i.e. when this process can stop waiting for requests, no IBarrier is
+       *   needed.
        *
        * @note The function
-       *       Utilities::MPI::compute_point_to_point_communication_pattern() is
-       *       used to determine the source processes, which implements a
-       *       PEX-algorithm from Hoefner et al., "Scalable Communication
-       *       Protocols for Dynamic Sparse Data Exchange".
+       *   Utilities::MPI::compute_point_to_point_communication_pattern() is
+       *   used to determine the source processes, which implements a
+       *   PEX-algorithm from @cite hoefler2010scalable.
        *
        * @tparam T1 The type of the elements of the vector to be sent.
        * @tparam T2 The type of the elements of the vector to be received.
@@ -375,7 +375,7 @@ namespace Utilities
         /**
          * @copydoc Interface::run()
          */
-        virtual void
+        virtual std::vector<unsigned int>
         run() override;
 
       private:
@@ -417,6 +417,10 @@ namespace Utilities
          */
         std::vector<MPI_Request> requests_answers;
 #endif
+        /**
+         * List of processes who have made a request to this process.
+         */
+        std::set<unsigned int> requesting_processes;
 
         /**
          * The ith request message from another rank has been received: process
@@ -438,6 +442,29 @@ namespace Utilities
          */
         void
         clean_up_and_end_communication();
+      };
+
+      /**
+       * A serial fall back for the above classes to allow programming
+       * independently of whether MPI is used or not.
+       */
+      template <typename T1, typename T2>
+      class Serial : public Interface<T1, T2>
+      {
+      public:
+        /**
+         * Constructor.
+         *
+         * @param process Process to be run during consensus algorithm.
+         * @param comm MPI Communicator (ignored)
+         */
+        Serial(Process<T1, T2> &process, const MPI_Comm &comm);
+
+        /**
+         * @copydoc Interface::run()
+         */
+        virtual std::vector<unsigned int>
+        run() override;
       };
 
       /**
@@ -472,7 +499,7 @@ namespace Utilities
          *
          * @note The function call is delegated to another ConsensusAlgorithms::Interface implementation.
          */
-        virtual void
+        virtual std::vector<unsigned int>
         run() override;
 
       private:

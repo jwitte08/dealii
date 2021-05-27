@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2020 by the deal.II authors
+// Copyright (C) 2001 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -132,7 +132,19 @@ for (deal_II_dimension : DIMENSIONS; deal_II_space_dimension : SPACE_DIMENSIONS)
       distributed_compute_point_locations(
         const Cache<deal_II_dimension, deal_II_space_dimension> &,
         const std::vector<Point<deal_II_space_dimension>> &,
-        const std::vector<std::vector<BoundingBox<deal_II_space_dimension>>> &);
+        const std::vector<std::vector<BoundingBox<deal_II_space_dimension>>> &,
+        const double tolerance);
+
+      template internal::DistributedComputePointLocationsInternal<
+        deal_II_dimension,
+        deal_II_space_dimension>
+      internal::distributed_compute_point_locations(
+        const Cache<deal_II_dimension, deal_II_space_dimension> &,
+        const std::vector<Point<deal_II_space_dimension>> &,
+        const std::vector<std::vector<BoundingBox<deal_II_space_dimension>>> &,
+        const double,
+        const bool,
+        const bool);
     \}
 
 #endif
@@ -157,7 +169,8 @@ for (deal_II_space_dimension : SPACE_DIMENSIONS)
 
     template std::vector<std::vector<BoundingBox<deal_II_space_dimension>>>
     GridTools::exchange_local_bounding_boxes(
-      const std::vector<BoundingBox<deal_II_space_dimension>> &, MPI_Comm);
+      const std::vector<BoundingBox<deal_II_space_dimension>> &,
+      const MPI_Comm &);
 
     template std::tuple<std::vector<std::vector<unsigned int>>,
                         std::map<unsigned int, unsigned int>,
@@ -177,7 +190,8 @@ for (deal_II_space_dimension : SPACE_DIMENSIONS)
     template RTree<
       std::pair<BoundingBox<deal_II_space_dimension>, unsigned int>>
     GridTools::build_global_description_tree(
-      const std::vector<BoundingBox<deal_II_space_dimension>> &, MPI_Comm);
+      const std::vector<BoundingBox<deal_II_space_dimension>> &,
+      const MPI_Comm &);
 
     template Vector<double> GridTools::compute_aspect_ratio_of_cells(
       const Mapping<deal_II_space_dimension> &,
@@ -231,6 +245,16 @@ for (deal_II_dimension : DIMENSIONS; deal_II_space_dimension : SPACE_DIMENSIONS)
                                  SubCellData &,
                                  std::vector<unsigned int> &,
                                  double);
+
+      template void
+      invert_all_negative_measure_cells(
+        const std::vector<Point<deal_II_space_dimension>> &,
+        std::vector<CellData<deal_II_dimension>> &);
+
+#  if deal_II_dimension == deal_II_space_dimension
+      template void
+      consistently_order_cells(std::vector<CellData<deal_II_dimension>> &);
+#  endif
 
       template void
       shift<deal_II_dimension>(
@@ -313,6 +337,13 @@ for (deal_II_dimension : DIMENSIONS; deal_II_space_dimension : SPACE_DIMENSIONS)
       template void
       partition_multigrid_levels(
         Triangulation<deal_II_dimension, deal_II_space_dimension> &);
+
+#  if deal_II_dimension >= 2
+      template std::vector<types::subdomain_id>
+      get_subdomain_association(
+        const Triangulation<deal_II_dimension, deal_II_space_dimension> &,
+        const std::vector<CellId> &);
+#  endif
 
       template void
       get_subdomain_association(
@@ -461,5 +492,13 @@ for (deal_II_dimension : DIMENSIONS)
         Triangulation<deal_II_dimension, deal_II_dimension + 1> &,
         double,
         unsigned int);
+#endif
+  }
+
+for (deal_II_vec : REAL_NONBLOCK_VECTORS; deal_II_dimension : DIMENSIONS)
+  {
+#if deal_II_dimension > 1
+    template class GridTools::MarchingCubeAlgorithm<deal_II_dimension,
+                                                    deal_II_vec>;
 #endif
   }

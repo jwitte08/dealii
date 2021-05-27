@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -470,7 +470,8 @@ namespace VectorTools
     VectorType &                                               rhs_vector,
     const AffineConstraints<typename VectorType::value_type> & constraints)
   {
-    create_right_hand_side(StaticMappingQ1<dim, spacedim>::mapping,
+    create_right_hand_side(get_default_linear_mapping(
+                             dof_handler.get_triangulation()),
                            dof_handler,
                            quadrature,
                            rhs_function,

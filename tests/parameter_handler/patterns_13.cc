@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2018 by the deal.II authors
+// Copyright (C) 2005 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -29,7 +29,7 @@ main()
 {
   initlog();
 
-  typedef std::tuple<std::string, Point<3>, unsigned int> T;
+  using T = std::tuple<std::string, Point<3>, unsigned int>;
 
   T a;
   a = Convert<T>::to_value("Ciao : 1.0, 2.0, 3.0 : 33");

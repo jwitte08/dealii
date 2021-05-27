@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -188,7 +188,7 @@ namespace VectorTools
               for (unsigned int m = 0; m < multiplicity; ++m)
                 {
                   // recursively call apply_transform to make sure to
-                  // correctly handle nested fe systems.
+                  // correctly handle nested FE systems.
                   current_offset = apply_transform(base_fe,
                                                    current_offset,
                                                    fe_values_jacobians,
@@ -276,7 +276,7 @@ namespace VectorTools
       std::vector<types::global_dof_index> dofs_on_cell(fe.max_dofs_per_cell());
 
       // Temporary storage for cell-wise interpolation operation. We store a
-      // variant for every fe we encounter to speed up resizing operations.
+      // variant for every FE we encounter to speed up resizing operations.
       // The first vector is used for local function evaluation. The vector
       // dof_values is used to store intermediate cell-wise interpolation
       // results (see the detailed explanation in the for loop further down
@@ -531,7 +531,7 @@ namespace VectorTools
     VectorType &                                               vec,
     const ComponentMask &                                      component_mask)
   {
-    interpolate(StaticMappingQ1<dim, spacedim>::mapping,
+    interpolate(get_default_linear_mapping(dof.get_triangulation()),
                 dof,
                 function,
                 vec,
@@ -618,9 +618,28 @@ namespace VectorTools
   }
 
 
+
   template <int dim, int spacedim, typename VectorType>
   void
   get_position_vector(const DoFHandler<dim, spacedim> &dh,
+                      VectorType &                     vector,
+                      const ComponentMask &            mask)
+  {
+    const FiniteElement<dim, spacedim> &fe = dh.get_fe();
+    get_position_vector(
+      *fe.reference_cell().template get_default_mapping<dim, spacedim>(
+        fe.degree),
+      dh,
+      vector,
+      mask);
+  }
+
+
+
+  template <int dim, int spacedim, typename VectorType>
+  void
+  get_position_vector(const Mapping<dim, spacedim> &   map_q,
+                      const DoFHandler<dim, spacedim> &dh,
                       VectorType &                     vector,
                       const ComponentMask &            mask)
   {
@@ -652,7 +671,6 @@ namespace VectorTools
       {
         const Quadrature<dim> quad(fe.get_unit_support_points());
 
-        MappingQGeneric<dim, spacedim> map_q(fe.degree);
         FEValues<dim, spacedim> fe_v(map_q, fe, quad, update_quadrature_points);
         std::vector<types::global_dof_index> dofs(fe.n_dofs_per_cell());
 
@@ -714,7 +732,7 @@ namespace VectorTools
         dhq.distribute_dofs(feq);
         Vector<double>      eulerq(dhq.n_dofs());
         const ComponentMask maskq(spacedim, true);
-        get_position_vector(dhq, eulerq);
+        get_position_vector(map_q, dhq, eulerq);
 
         FullMatrix<double>             transfer(fe.n_dofs_per_cell(),
                                     feq.n_dofs_per_cell());

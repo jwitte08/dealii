@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 - 2020 by the deal.II authors
+// Copyright (C) 2019 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -74,7 +74,8 @@ namespace MeshWorker
     const UpdateFlags &                 update_flags,
     const Quadrature<dim - 1> &         face_quadrature,
     const UpdateFlags &                 face_update_flags)
-    : ScratchData(StaticMappingQ1<dim, spacedim>::mapping,
+    : ScratchData(fe.reference_cell()
+                    .template get_default_linear_mapping<dim, spacedim>(),
                   fe,
                   quadrature,
                   update_flags,
@@ -93,7 +94,8 @@ namespace MeshWorker
     const Quadrature<dim - 1> &         face_quadrature,
     const UpdateFlags &                 face_update_flags,
     const UpdateFlags &                 neighbor_face_update_flags)
-    : ScratchData(StaticMappingQ1<dim, spacedim>::mapping,
+    : ScratchData(fe.reference_cell()
+                    .template get_default_linear_mapping<dim, spacedim>(),
                   fe,
                   quadrature,
                   update_flags,
@@ -367,6 +369,15 @@ namespace MeshWorker
   template <int dim, int spacedim>
   GeneralDataStorage &
   ScratchData<dim, spacedim>::get_general_data_storage()
+  {
+    return user_data_storage;
+  }
+
+
+
+  template <int dim, int spacedim>
+  const GeneralDataStorage &
+  ScratchData<dim, spacedim>::get_general_data_storage() const
   {
     return user_data_storage;
   }

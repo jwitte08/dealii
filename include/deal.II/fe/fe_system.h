@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -210,12 +210,17 @@ class FE_Enriched;
  *
  * @ingroup febase fe vector_valued
  *
- * Hartmann 2001.
  */
 template <int dim, int spacedim = dim>
 class FESystem : public FiniteElement<dim, spacedim>
 {
 public:
+  /**
+   * Delete default constructor so that `FESystem(FEPairs &&... fe_pairs)` is
+   * not accidentally picked if no FiniteElement is provided.
+   */
+  FESystem() = delete;
+
   /**
    * Constructor. Take a finite element and the number of elements you want to
    * group together using this class.
@@ -805,9 +810,9 @@ public:
    * here.
    *
    * The matrix @p P is the concatenation or the sum of the cell matrices @p
-   * P_i, depending on the #restriction_is_additive_flags. This distinguishes
-   * interpolation (concatenation) and projection with respect to scalar
-   * products (summation).
+   * P_i, depending on the value of FiniteElement::restriction_is_additive().
+   * This distinguishes interpolation (concatenation) and projection with
+   * respect to scalar products (summation).
    *
    * Row and column indices are related to coarse grid and fine grid spaces,
    * respectively, consistent with the definition of the associated operator.
@@ -932,7 +937,7 @@ public:
 
   /**
    * Return whether this element implements its hanging node constraints in
-   * the new way, which has to be used to make elements "hp compatible".
+   * the new way, which has to be used to make elements "hp-compatible".
    *
    * This function returns @p true if and only if all its base elements return
    * @p true for this function.
@@ -978,7 +983,7 @@ public:
     const unsigned int                  face_no = 0) const override;
 
   /**
-   * If, on a vertex, several finite elements are active, the hp code first
+   * If, on a vertex, several finite elements are active, the hp-code first
    * assigns the degrees of freedom of each of these FEs different global
    * indices. It then calls this function to find out which of them should get
    * identical values, and consequently can receive the same global DoF index.
@@ -1062,12 +1067,14 @@ protected:
                                                                        spacedim>
       &output_data) const override;
 
+  using FiniteElement<dim, spacedim>::get_face_data;
+
   virtual std::unique_ptr<
     typename FiniteElement<dim, spacedim>::InternalDataBase>
   get_face_data(
-    const UpdateFlags             update_flags,
-    const Mapping<dim, spacedim> &mapping,
-    const Quadrature<dim - 1> &   quadrature,
+    const UpdateFlags               update_flags,
+    const Mapping<dim, spacedim> &  mapping,
+    const hp::QCollection<dim - 1> &quadrature,
     dealii::internal::FEValuesImplementation::FiniteElementRelatedData<dim,
                                                                        spacedim>
       &output_data) const override;
@@ -1097,11 +1104,13 @@ protected:
                                                                        spacedim>
       &output_data) const override;
 
+  using FiniteElement<dim, spacedim>::fill_fe_face_values;
+
   virtual void
   fill_fe_face_values(
     const typename Triangulation<dim, spacedim>::cell_iterator &cell,
     const unsigned int                                          face_no,
-    const Quadrature<dim - 1> &                                 quadrature,
+    const hp::QCollection<dim - 1> &                            quadrature,
     const Mapping<dim, spacedim> &                              mapping,
     const typename Mapping<dim, spacedim>::InternalDataBase &mapping_internal,
     const dealii::internal::FEValuesImplementation::MappingRelatedData<dim,
@@ -1145,7 +1154,7 @@ protected:
     const typename Triangulation<dim, spacedim>::cell_iterator &cell,
     const unsigned int                                          face_no,
     const unsigned int                                          sub_no,
-    const Quadrature<dim_1> &                                   quadrature,
+    const hp::QCollection<dim_1> &                              quadrature,
     const CellSimilarity::Similarity                            cell_similarity,
     const typename Mapping<dim, spacedim>::InternalDataBase &mapping_internal,
     const typename FiniteElement<dim, spacedim>::InternalDataBase &fe_data,

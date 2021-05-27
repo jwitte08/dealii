@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2018 by the deal.II authors
+// Copyright (C) 2003 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -25,7 +25,7 @@
 
 using namespace Polynomials;
 
-typedef std::vector<Polynomial<double>> PolVector;
+using PolVector = std::vector<Polynomial<double>>;
 
 
 void

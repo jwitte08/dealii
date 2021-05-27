@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2020 by the deal.II authors
+// Copyright (C) 2011 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -83,10 +83,9 @@ namespace Utilities
                                    const MPI_Comm & comm)
         : process(process)
         , comm(comm)
-        , my_rank(Utilities::MPI::job_supports_mpi() ? this_mpi_process(comm) :
-                                                       0)
-        , n_procs(Utilities::MPI::job_supports_mpi() ? n_mpi_processes(comm) :
-                                                       1)
+        , job_supports_mpi(Utilities::MPI::job_supports_mpi())
+        , my_rank(job_supports_mpi ? this_mpi_process(comm) : 0)
+        , n_procs(job_supports_mpi ? n_mpi_processes(comm) : 1)
       {}
 
 
@@ -99,7 +98,7 @@ namespace Utilities
 
 
       template <typename T1, typename T2>
-      void
+      std::vector<unsigned int>
       NBX<T1, T2>::run()
       {
         static CollectiveMutex      mutex;
@@ -109,14 +108,12 @@ namespace Utilities
         start_communication();
 
         // 2) answer requests and check if all requests of this process have
-        // been
-        //    answered
+        //    been answered
         while (!check_own_state())
           answer_requests();
 
         // 3) signal to all other processes that all requests of this process
-        // have
-        //    been answered
+        //    have been answered
         signal_finish();
 
         // 4) nevertheless, this process has to keep on answering (potential)
@@ -127,6 +124,10 @@ namespace Utilities
 
         // 5) process the answer to all requests
         clean_up_and_end_communication();
+
+        return std::vector<unsigned int>(requesting_processes.begin(),
+                                         requesting_processes.end());
+        ;
       }
 
 
@@ -214,12 +215,10 @@ namespace Utilities
             // get rank of requesting process
             const auto other_rank = status.MPI_SOURCE;
 
-#  ifdef DEBUG
             Assert(requesting_processes.find(other_rank) ==
                      requesting_processes.end(),
                    ExcMessage("Process is requesting a second time!"));
             requesting_processes.insert(other_rank);
-#  endif
 
             std::vector<T1> buffer_recv;
             // get size of incoming message
@@ -347,19 +346,20 @@ namespace Utilities
             }
 
 
-          const int ierr = MPI_Wait(&barrier_request, MPI_STATUS_IGNORE);
+          int ierr = MPI_Wait(&barrier_request, MPI_STATUS_IGNORE);
           AssertThrowMPI(ierr);
 
           for (auto &i : request_requests)
             {
-              const auto ierr = MPI_Wait(i.get(), MPI_STATUS_IGNORE);
+              ierr = MPI_Wait(i.get(), MPI_STATUS_IGNORE);
               AssertThrowMPI(ierr);
             }
 
 #  ifdef DEBUG
           // note: IBarrier seems to make problem during testing, this
           // additional Barrier seems to help
-          MPI_Barrier(this->comm);
+          ierr = MPI_Barrier(this->comm);
+          AssertThrowMPI(ierr);
 #  endif
         }
 
@@ -381,7 +381,7 @@ namespace Utilities
 
 
       template <typename T1, typename T2>
-      void
+      std::vector<unsigned int>
       PEX<T1, T2>::run()
       {
         static CollectiveMutex      mutex;
@@ -397,6 +397,9 @@ namespace Utilities
 
         // 3) process answers
         clean_up_and_end_communication();
+
+        return std::vector<unsigned int>(requesting_processes.begin(),
+                                         requesting_processes.end());
       }
 
 
@@ -417,6 +420,11 @@ namespace Utilities
 
         // get rank of incoming message
         const auto other_rank = status.MPI_SOURCE;
+
+        Assert(requesting_processes.find(other_rank) ==
+                 requesting_processes.end(),
+               ExcMessage("Process is requesting a second time!"));
+        requesting_processes.insert(other_rank);
 
         std::vector<T1> buffer_recv;
 
@@ -556,6 +564,39 @@ namespace Utilities
 
 
       template <typename T1, typename T2>
+      Serial<T1, T2>::Serial(Process<T1, T2> &process, const MPI_Comm &comm)
+        : Interface<T1, T2>(process, comm)
+      {}
+
+
+
+      template <typename T1, typename T2>
+      std::vector<unsigned int>
+      Serial<T1, T2>::run()
+      {
+        const auto targets = this->process.compute_targets();
+
+        if (targets.size() != 0)
+          {
+            AssertDimension(targets[0], 0);
+
+            std::vector<T1> send_buffer;
+            std::vector<T2> recv_buffer;
+            std::vector<T2> request_buffer;
+
+            this->process.create_request(0, send_buffer);
+            this->process.prepare_buffer_for_answer(0, recv_buffer);
+            this->process.answer_request(0, send_buffer, request_buffer);
+            recv_buffer = request_buffer;
+            this->process.read_answer(0, recv_buffer);
+          }
+
+        return targets; // nothing to do
+      }
+
+
+
+      template <typename T1, typename T2>
       Selector<T1, T2>::Selector(Process<T1, T2> &process, const MPI_Comm &comm)
         : Interface<T1, T2>(process, comm)
       {
@@ -563,11 +604,11 @@ namespace Utilities
         // implementations. We reduce the threshold for debug mode to be
         // able to test also the non-blocking implementation. This feature
         // is tested by:
-        // tests/multigrid/transfer_matrix_free_06.with_mpi=true.with_p4est=true.with_trilinos=true.mpirun=15.output
+        // tests/multigrid/transfer_matrix_free_06.with_mpi=true.with_p4est=true.with_trilinos=true.mpirun=10.output
 #ifdef DEAL_II_WITH_MPI
 #  if DEAL_II_MPI_VERSION_GTE(3, 0)
 #    ifdef DEBUG
-        if (this->n_procs > 14)
+        if (this->n_procs > 10)
 #    else
         if (this->n_procs > 99)
 #    endif
@@ -577,16 +618,17 @@ namespace Utilities
 #endif
           if (this->n_procs > 1)
           consensus_algo.reset(new PEX<T1, T2>(process, comm));
+        else
+          consensus_algo.reset(new Serial<T1, T2>(process, comm));
       }
 
 
 
       template <typename T1, typename T2>
-      void
+      std::vector<unsigned int>
       Selector<T1, T2>::run()
       {
-        if (consensus_algo)
-          consensus_algo->run();
+        return consensus_algo->run();
       }
 
 

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2020 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -36,13 +36,13 @@ DEAL_II_NAMESPACE_OPEN
 
 template <int dim, int spacedim>
 FE_Bernstein<dim, spacedim>::FE_Bernstein(const unsigned int degree)
-  : FE_Q_Base<TensorProductPolynomials<dim>, dim, spacedim>(
-      this->renumber_bases(degree),
-      FiniteElementData<dim>(this->get_dpo_vector(degree),
-                             1,
-                             degree,
-                             FiniteElementData<dim>::H1),
-      std::vector<bool>(1, false))
+  : FE_Q_Base<dim, spacedim>(this->renumber_bases(degree),
+                             FiniteElementData<dim>(this->get_dpo_vector(
+                                                      degree),
+                                                    1,
+                                                    degree,
+                                                    FiniteElementData<dim>::H1),
+                             std::vector<bool>(1, false))
 {}
 
 
@@ -131,7 +131,7 @@ FE_Bernstein<dim, spacedim>::get_subface_interpolation_matrix(
       // Make sure that the element for which the DoFs should be constrained
       // is the one with the higher polynomial degree.  Actually the procedure
       // will work also if this assertion is not satisfied. But the matrices
-      // produced in that case might lead to problems in the hp procedures,
+      // produced in that case might lead to problems in the hp-procedures,
       // which use this method.
       Assert(
         this->n_dofs_per_face(face_no) <= source_fe->n_dofs_per_face(face_no),
@@ -155,10 +155,10 @@ FE_Bernstein<dim, spacedim>::get_subface_interpolation_matrix(
       // be done for the face orientation flag in 3D.
       const Quadrature<dim> subface_quadrature =
         subface == numbers::invalid_unsigned_int ?
-          QProjector<dim>::project_to_face(this->reference_cell_type(),
+          QProjector<dim>::project_to_face(this->reference_cell(),
                                            quad_face_support,
                                            0) :
-          QProjector<dim>::project_to_subface(this->reference_cell_type(),
+          QProjector<dim>::project_to_subface(this->reference_cell(),
                                               quad_face_support,
                                               0,
                                               subface);
@@ -260,7 +260,7 @@ std::vector<std::pair<unsigned int, unsigned int>>
 FE_Bernstein<dim, spacedim>::hp_line_dof_identities(
   const FiniteElement<dim, spacedim> &) const
 {
-  // Since this fe is not interpolatory but on the vertices, we can
+  // Since this FE is not interpolatory but on the vertices, we can
   // not identify dofs on lines and on quads even if there are dofs
   // on lines and on quads.
   //
@@ -276,7 +276,7 @@ FE_Bernstein<dim, spacedim>::hp_quad_dof_identities(
   const FiniteElement<dim, spacedim> &,
   const unsigned int) const
 {
-  // Since this fe is not interpolatory but on the vertices, we can
+  // Since this FE is not interpolatory but on the vertices, we can
   // not identify dofs on lines and on quads even if there are dofs
   // on lines and on quads.
   //

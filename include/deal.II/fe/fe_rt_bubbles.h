@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 - 2019 by the deal.II authors
+// Copyright (C) 2018 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -138,6 +138,12 @@ private:
    */
   void
   initialize_support_points(const unsigned int rt_degree);
+
+  /**
+   * Initialize the permutation pattern and the pattern of sign change.
+   */
+  void
+  initialize_quad_dof_index_permutation_and_sign_change();
 };
 
 

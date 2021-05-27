@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2020 by the deal.II authors
+## Copyright (C) 2020 - 2021 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -14,7 +14,7 @@
 ## ---------------------------------------------------------------------
 
 #
-# Try to find the Threading Building Blocks library
+# Try to find the Taskflow library
 #
 # This module exports
 #

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2018 - 2020 by the deal.II authors
+ * Copyright (C) 2018 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -38,13 +38,10 @@
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/grid/manifold_lib.h>
 #include <deal.II/grid/grid_out.h>
 
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/dofs/dof_tools.h>
 

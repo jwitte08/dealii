@@ -850,7 +850,7 @@ FE_RaviartThomas_new<dim>::initialize_restriction(
           restriction_matrices_kplus1.emplace_back(n_nodes_coarse, n_dofs_fine);
 
         Quadrature<1> child_quad =
-          QProjector<1>::project_to_child(fe_data_kplus1.reference_cell_type(),
+          QProjector<1>::project_to_child(fe_data_kplus1.reference_cell(),
                                           unit_quad,
                                           child);
 
@@ -892,7 +892,7 @@ FE_RaviartThomas_new<dim>::initialize_restriction(
           restriction_matrices_k.emplace_back(n_nodes_coarse, n_dofs_fine);
 
         Quadrature<1> child_quad =
-          QProjector<1>::project_to_child(fe_data_kplus1.reference_cell_type(),
+          QProjector<1>::project_to_child(fe_data_kplus1.reference_cell(),
                                           unit_quad,
                                           child);
 

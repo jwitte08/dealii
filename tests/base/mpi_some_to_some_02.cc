@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2018 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -51,7 +51,7 @@ test(const unsigned int max_particles,
   auto my_proc = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
 
   // Test some fake structure, similar to particles
-  typedef typename std::pair<unsigned int, Point<dim>> particle;
+  using particle = typename std::pair<unsigned int, Point<dim>>;
 
 
   unsigned int          n_local_particles = random_index(max_particles);

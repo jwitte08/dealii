@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -23,6 +23,7 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe_q.h>
@@ -32,7 +33,6 @@
 #include <deal.II/grid/manifold_lib.h>
 #include <deal.II/grid/tria.h>
 
-#include <deal.II/hp/dof_handler.h>
 #include <deal.II/hp/fe_values.h>
 
 #include <deal.II/lac/affine_constraints.h>
@@ -117,7 +117,7 @@ test()
   if (fe_degree > 1)
     return;
 
-  typedef double                            number;
+  using number = double;
   const SphericalManifold<dim>              manifold;
   parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
   GridGenerator::hyper_ball(tria);
@@ -156,12 +156,11 @@ test()
       quadrature_collection_mf.push_back(QGauss<1>(deg + 1));
     }
 
-  hp::DoFHandler<dim> dof(tria);
+  DoFHandler<dim> dof(tria);
   // set the active FE index in a random order
   {
-    typename hp::DoFHandler<dim>::active_cell_iterator cell =
-                                                         dof.begin_active(),
-                                                       endc = dof.end();
+    typename DoFHandler<dim>::active_cell_iterator cell = dof.begin_active(),
+                                                   endc = dof.end();
     for (; cell != endc; ++cell)
       {
         if (cell->is_locally_owned() == false)
@@ -212,9 +211,8 @@ test()
     FullMatrix<double>                   cell_matrix;
     std::vector<types::global_dof_index> local_dof_indices;
 
-    typename hp::DoFHandler<dim>::active_cell_iterator cell =
-                                                         dof.begin_active(),
-                                                       endc = dof.end();
+    typename DoFHandler<dim>::active_cell_iterator cell = dof.begin_active(),
+                                                   endc = dof.end();
     for (; cell != endc; ++cell)
       {
         if (cell->is_locally_owned() == false)

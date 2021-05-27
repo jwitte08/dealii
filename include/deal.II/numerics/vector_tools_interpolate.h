@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -73,7 +73,7 @@ namespace VectorTools
     const ComponentMask &component_mask = ComponentMask());
 
   /**
-   * Same as above but in an hp context.
+   * Same as above but in an hp-context.
    */
   template <int dim, int spacedim, typename VectorType>
   void
@@ -270,10 +270,11 @@ namespace VectorTools
    * vertices of the Triangulation.
    *
    * The optional ComponentMask argument can be used to specify what
-   * components of the FiniteElement to use to describe the geometry. If no
-   * mask is specified at construction time, then a default one is used, i.e.,
-   * the first spacedim components of the FiniteElement are assumed to
-   * represent the geometry of the problem.
+   * components of the FiniteElement to use to describe the
+   * geometry. If no mask is specified at construction time, then a
+   * default-constructed mask is used, which is then interpreted as
+   * saying that the first `spacedim` components of the FiniteElement
+   * are assumed to represent the geometry of the problem.
    *
    * This function is only implemented for FiniteElements where the specified
    * components are primitive.
@@ -281,6 +282,21 @@ namespace VectorTools
   template <int dim, int spacedim, typename VectorType>
   void
   get_position_vector(const DoFHandler<dim, spacedim> &dh,
+                      VectorType &                     vector,
+                      const ComponentMask &            mask = ComponentMask());
+
+  /**
+   * Like the above function but also taking @p mapping as argument.
+   * This will introduce an additional approximation between the true geometry
+   * specified by the manifold if the degree of the mapping is lower than the
+   * degree of the finite element in the DoFHandler @p dh, but more
+   * importantly it allows to fill location vectors for mappings that do not
+   * preserve vertex locations (like Eulerian mappings).
+   */
+  template <int dim, int spacedim, typename VectorType>
+  void
+  get_position_vector(const Mapping<dim, spacedim> &   mapping,
+                      const DoFHandler<dim, spacedim> &dh,
                       VectorType &                     vector,
                       const ComponentMask &            mask = ComponentMask());
 

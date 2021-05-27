@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2020 by the deal.II authors
+// Copyright (C) 2016 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -31,6 +31,8 @@
 #  include <deal.II/fe/fe_update_flags.h>
 #  include <deal.II/fe/mapping.h>
 #  include <deal.II/fe/mapping_q1.h>
+
+#  include <deal.II/grid/filtered_iterator.h>
 
 #  include <deal.II/lac/affine_constraints.h>
 #  include <deal.II/lac/cuda_vector.h>
@@ -82,6 +84,8 @@ namespace CUDAWrappers
   public:
     using jacobian_type = Tensor<2, dim, Tensor<1, dim, Number>>;
     using point_type    = Point<dim, Number>;
+    using CellFilter =
+      FilteredIterator<typename DoFHandler<dim>::active_cell_iterator>;
 
     /**
      * Parallelization scheme used: parallel_in_elem (parallelism at the level
@@ -237,7 +241,21 @@ namespace CUDAWrappers
      * degrees of freedom, the DoFHandler and the mapping describe the
      * transformation from unit to real cell, and the finite element
      * underlying the DoFHandler together with the quadrature formula
-     * describe the local operations.
+     * describe the local operations. This function takes an IteratorFilters
+     * object (predicate) to loop over a subset of the active cells. When using
+     * MPI, the predicate should filter out non locally owned cells.
+     */
+    template <typename IteratorFiltersType>
+    void
+    reinit(const Mapping<dim> &             mapping,
+           const DoFHandler<dim> &          dof_handler,
+           const AffineConstraints<Number> &constraints,
+           const Quadrature<1> &            quad,
+           const IteratorFiltersType &      iterator_filter,
+           const AdditionalData &           additional_data = AdditionalData());
+
+    /**
+     * Same as above using Iterators::LocallyOwnedCell() as predicate.
      */
     void
     reinit(const Mapping<dim> &             mapping,
@@ -340,6 +358,12 @@ namespace CUDAWrappers
       LinearAlgebra::distributed::Vector<Number, MemorySpace::CUDA> &vec) const;
 
     /**
+     * Return the colored graph of locally owned active cells.
+     */
+    const std::vector<std::vector<CellFilter>> &
+    get_colored_graph() const;
+
+    /**
      * Return the partitioner that represents the locally owned data and the
      * ghost indices where access is needed to for the cell loop. The
      * partitioner is constructed from the locally owned dofs and ghost dofs
@@ -374,11 +398,13 @@ namespace CUDAWrappers
     /**
      * Initializes the data structures.
      */
+    template <typename IteratorFiltersType>
     void
     internal_reinit(const Mapping<dim> &             mapping,
                     const DoFHandler<dim> &          dof_handler,
                     const AffineConstraints<Number> &constraints,
                     const Quadrature<1> &            quad,
+                    const IteratorFiltersType &      iterator_filter,
                     std::shared_ptr<const MPI_Comm>  comm,
                     const AdditionalData             additional_data);
 
@@ -616,6 +642,11 @@ namespace CUDAWrappers
      */
     const DoFHandler<dim> *dof_handler;
 
+    /**
+     * Colored graphed of locally owned active cells.
+     */
+    std::vector<std::vector<CellFilter>> graph;
+
     friend class internal::ReinitHelper<dim, Number>;
   };
 
@@ -734,20 +765,181 @@ namespace CUDAWrappers
              q_point_id_in_cell<dim>(n_q_points_1d));
   }
 
+  /**
+   * Structure which is passed to the kernel. It is used to pass all the
+   * necessary information from the CPU to the GPU.
+   */
+  template <int dim, typename Number>
+  struct DataHost
+  {
+    /**
+     * Vector of quadrature points.
+     */
+    std::vector<Point<dim, Number>> q_points;
+
+    /**
+     * Map the position in the local vector to the position in the global
+     * vector.
+     */
+    std::vector<types::global_dof_index> local_to_global;
+
+    /**
+     * Vector of inverse Jacobians.
+     */
+    std::vector<Number> inv_jacobian;
+
+    /**
+     * Vector of Jacobian times the weights.
+     */
+    std::vector<Number> JxW;
+
+    /**
+     * ID of the associated MatrixFree object.
+     */
+    unsigned int id;
+
+    /**
+     * Number of cells.
+     */
+    unsigned int n_cells;
+
+    /**
+     * Length of the padding.
+     */
+    unsigned int padding_length;
+
+    /**
+     * Row start (including padding).
+     */
+    unsigned int row_start;
+
+    /**
+     * Mask deciding where constraints are set on a given cell.
+     */
+    std::vector<unsigned int> constraint_mask;
+
+    /**
+     * If true, use graph coloring has been used and we can simply add into
+     * the destingation vector. Otherwise, use atomic operations.
+     */
+    bool use_coloring;
+  };
+
+
+
+  /**
+   * Copy @p data from the device to the device. @p update_flags should be
+   * identical to the one used in MatrixFree::AdditionalData.
+   *
+   * @relates CUDAWrappers::MatrixFree
+   */
+  template <int dim, typename Number>
+  DataHost<dim, Number>
+  copy_mf_data_to_host(
+    const typename dealii::CUDAWrappers::MatrixFree<dim, Number>::Data &data,
+    const UpdateFlags &update_flags)
+  {
+    DataHost<dim, Number> data_host;
+
+    data_host.id             = data.id;
+    data_host.n_cells        = data.n_cells;
+    data_host.padding_length = data.padding_length;
+    data_host.row_start      = data.row_start;
+    data_host.use_coloring   = data.use_coloring;
+
+    const unsigned int n_elements =
+      data_host.n_cells * data_host.padding_length;
+    if (update_flags & update_quadrature_points)
+      {
+        data_host.q_points.resize(n_elements);
+        Utilities::CUDA::copy_to_host(data.q_points, data_host.q_points);
+      }
+
+    data_host.local_to_global.resize(n_elements);
+    Utilities::CUDA::copy_to_host(data.local_to_global,
+                                  data_host.local_to_global);
+
+    if (update_flags & update_gradients)
+      {
+        data_host.inv_jacobian.resize(n_elements * dim * dim);
+        Utilities::CUDA::copy_to_host(data.inv_jacobian,
+                                      data_host.inv_jacobian);
+      }
+
+    if (update_flags & update_JxW_values)
+      {
+        data_host.JxW.resize(n_elements);
+        Utilities::CUDA::copy_to_host(data.JxW, data_host.JxW);
+      }
+
+    data_host.constraint_mask.resize(data_host.n_cells);
+    Utilities::CUDA::copy_to_host(data.constraint_mask,
+                                  data_host.constraint_mask);
+
+    return data_host;
+  }
+
+
+
+  /**
+   * This function is the host version of local_q_point_id().
+   *
+   * @relates CUDAWrappers::MatrixFree
+   */
+  template <int dim, typename Number>
+  inline unsigned int
+  local_q_point_id_host(const unsigned int           cell,
+                        const DataHost<dim, Number> &data,
+                        const unsigned int           n_q_points,
+                        const unsigned int           i)
+  {
+    return (data.row_start / data.padding_length + cell) * n_q_points + i;
+  }
+
+
+
+  /**
+   * This function is the host version of get_quadrature_point(). It assumes
+   * that the data in MatrixFree<dim, Number>::Data has been copied to the host
+   * using copy_mf_data_to_host().
+   *
+   * @relates CUDAWrappers::MatrixFree
+   */
+  template <int dim, typename Number>
+  inline Point<dim, Number>
+  get_quadrature_point_host(const unsigned int           cell,
+                            const DataHost<dim, Number> &data,
+                            const unsigned int           i)
+  {
+    return data.q_points[data.padding_length * cell + i];
+  }
+
 
   /*----------------------- Inline functions ---------------------------------*/
 
 #  ifndef DOXYGEN
 
   template <int dim, typename Number>
-  const std::shared_ptr<const Utilities::MPI::Partitioner> &
+  inline const std::vector<std::vector<
+    FilteredIterator<typename DoFHandler<dim>::active_cell_iterator>>> &
+  MatrixFree<dim, Number>::get_colored_graph() const
+  {
+    return graph;
+  }
+
+
+
+  template <int dim, typename Number>
+  inline const std::shared_ptr<const Utilities::MPI::Partitioner> &
   MatrixFree<dim, Number>::get_vector_partitioner() const
   {
     return partitioner;
   }
 
+
+
   template <int dim, typename Number>
-  const DoFHandler<dim> &
+  inline const DoFHandler<dim> &
   MatrixFree<dim, Number>::get_dof_handler() const
   {
     Assert(dof_handler != nullptr, ExcNotInitialized());
@@ -762,5 +954,4 @@ namespace CUDAWrappers
 DEAL_II_NAMESPACE_CLOSE
 
 #endif
-
 #endif

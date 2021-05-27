@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2019 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -122,7 +122,7 @@ namespace internal
        * and so on.
        *
        * In neighbors, <tt>neighbors[i].first</tt> is the level, while
-       * <tt>neighbors[i].first</tt> is the index of the neighbor.
+       * <tt>neighbors[i].second</tt> is the index of the neighbor.
        *
        * If a neighbor does not exist (cell is at the boundary),
        * <tt>level=index=-1</tt> is set.
@@ -222,7 +222,15 @@ namespace internal
        *
        * @note Used only for dim=2 and dim=3.
        */
-      std::vector<ReferenceCell::Type> reference_cell_type;
+      std::vector<dealii::ReferenceCell> reference_cell;
+
+      /**
+       * A cache for the vertex indices of the cells (`structdim == dim`), in
+       * order to more quickly retrieve these frequently accessed quantities.
+       * For simplified addressing, the information is indexed by the maximum
+       * number of vertices possible for a cell (quadrilateral/hexahedron).
+       */
+      std::vector<unsigned int> cell_vertex_indices_cache;
 
       /**
        * Determine an estimate for the memory consumption (in bytes) of this
@@ -233,7 +241,8 @@ namespace internal
 
       /**
        * Read or write the data of this object to or from a stream for the
-       * purpose of serialization
+       * purpose of serialization using the [BOOST serialization
+       * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
        */
       template <class Archive>
       void
@@ -249,9 +258,9 @@ namespace internal
 
       ar &refine_flags &coarsen_flags;
 
-      // do not serialize 'active_cell_indices' here. instead of storing them
-      // to the stream and re-reading them again later, we just rebuild them
-      // in Triangulation::load()
+      // do not serialize `active_cell_indices` and `vertex_indices_cache`
+      // here. instead of storing them to the stream and re-reading them again
+      // later, we just rebuild them in Triangulation::load()
 
       ar &neighbors;
       ar &subdomain_ids;
@@ -264,7 +273,7 @@ namespace internal
         ar &face_orientations;
 
       if (dim == 2 || dim == 3)
-        ar &reference_cell_type;
+        ar &reference_cell;
     }
 
   } // namespace TriangulationImplementation

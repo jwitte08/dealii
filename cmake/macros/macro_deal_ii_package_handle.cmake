@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2014 - 2018 by the deal.II authors
+## Copyright (C) 2014 - 2020 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -66,6 +66,8 @@ MACRO(DEAL_II_PACKAGE_HANDLE _feature _var)
   SET(_fine TRUE)
   SET(_fill_clear FALSE)
   SET(_clear "")
+
+  CLEAR_FEATURE(${_feature})
 
   FOREACH(_arg ${ARGN})
     IF(_arg MATCHES "^LIBRARIES(|_DEBUG|_RELEASE)$"

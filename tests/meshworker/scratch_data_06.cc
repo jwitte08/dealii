@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2018 - 2020 by the deal.II authors
+ * Copyright (C) 2018 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -55,8 +55,8 @@
 
 using namespace MeshWorker;
 
-typedef Sacado::Fad::DFad<double>  Sdouble;
-typedef Sacado::Fad::DFad<Sdouble> SSdouble;
+using Sdouble  = Sacado::Fad::DFad<double>;
+using SSdouble = Sacado::Fad::DFad<Sdouble>;
 
 template <int dim, int spacedim>
 void
@@ -113,7 +113,7 @@ test()
   auto cell = dh.begin_active();
   auto endc = dh.end();
 
-  typedef decltype(cell) Iterator;
+  using Iterator = decltype(cell);
 
   FEValuesExtractors::Scalar scalar(0);
 
@@ -168,7 +168,7 @@ test()
 int
 main()
 {
-  initlog(1);
+  initlog(true);
   MultithreadInfo::set_thread_limit(1); // to make output deterministic
 
   test<2, 2>();

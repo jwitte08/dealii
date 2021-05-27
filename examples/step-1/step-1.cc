@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 1999 - 2019 by the deal.II authors
+ * Copyright (C) 1999 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -20,9 +20,6 @@
 // The most fundamental class in the library is the Triangulation class, which
 // is declared here:
 #include <deal.II/grid/tria.h>
-// We need the following two includes for loops over cells and/or faces:
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 // Here are some functions to generate standard grids:
 #include <deal.II/grid/grid_generator.h>
 // Output of grids in various graphics formats:

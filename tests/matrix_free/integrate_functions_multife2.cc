@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2020 by the deal.II authors
+// Copyright (C) 2013 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -53,7 +53,7 @@ template <int dim, int fe_degree, typename Number>
 class MatrixFreeTest
 {
 public:
-  typedef std::vector<Vector<Number>> VectorType;
+  using VectorType = std::vector<Vector<Number>>;
 
   MatrixFreeTest(const MatrixFree<dim, Number> &data_in)
     : data(data_in)

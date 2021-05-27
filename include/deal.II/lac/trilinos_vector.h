@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2008 - 2020 by the deal.II authors
+// Copyright (C) 2008 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -738,9 +738,19 @@ namespace TrilinosWrappers
        *
        * If the vector contains ghost elements, they are included in this
        * number.
+       *
+       * @deprecated This function is deprecated.
        */
+      DEAL_II_DEPRECATED
       size_type
       local_size() const;
+
+      /**
+       * Return the local size of the vector, i.e., the number of indices
+       * owned locally.
+       */
+      size_type
+      locally_owned_size() const;
 
       /**
        * Return a pair of indices indicating which elements of this vector are
@@ -1274,15 +1284,22 @@ namespace TrilinosWrappers
         size_type,
         size_type,
         size_type,
-        << "You tried to access element " << arg1
+        << "You are trying to access element " << arg1
         << " of a distributed vector, but this element is not stored "
         << "on the current processor. Note: There are " << arg2
         << " elements stored "
-        << "on the current processor from within the range " << arg3
-        << " through " << arg4
-        << " but Trilinos vectors need not store contiguous "
+        << "on the current processor from within the range [" << arg3 << ","
+        << arg4 << "] but Trilinos vectors need not store contiguous "
         << "ranges on each processor, and not every element in "
-        << "this range may in fact be stored locally.");
+        << "this range may in fact be stored locally."
+        << "\n\n"
+        << "A common source for this kind of problem is that you "
+        << "are passing a 'fully distributed' vector into a function "
+        << "that needs read access to vector elements that correspond "
+        << "to degrees of freedom on ghost cells (or at least to "
+        << "'locally active' degrees of freedom that are not also "
+        << "'locally owned'). You need to pass a vector that has these "
+        << "elements as ghost entries.");
 
     private:
       /**
@@ -1532,7 +1549,7 @@ namespace TrilinosWrappers
     inline Vector::iterator
     Vector::end()
     {
-      return (*vector)[0] + local_size();
+      return (*vector)[0] + locally_owned_size();
     }
 
 
@@ -1548,7 +1565,7 @@ namespace TrilinosWrappers
     inline Vector::const_iterator
     Vector::end() const
     {
-      return (*vector)[0] + local_size();
+      return (*vector)[0] + locally_owned_size();
     }
 
 
@@ -1561,8 +1578,7 @@ namespace TrilinosWrappers
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
 
-      Assert(indices.size() == values.size(),
-             ExcDimensionMismatch(indices.size(), values.size()));
+      AssertDimension(indices.size(), values.size());
 
       set(indices.size(), indices.data(), values.data());
     }
@@ -1577,8 +1593,7 @@ namespace TrilinosWrappers
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
 
-      Assert(indices.size() == values.size(),
-             ExcDimensionMismatch(indices.size(), values.size()));
+      AssertDimension(indices.size(), values.size());
 
       set(indices.size(), indices.data(), values.begin());
     }
@@ -1633,8 +1648,7 @@ namespace TrilinosWrappers
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
-      Assert(indices.size() == values.size(),
-             ExcDimensionMismatch(indices.size(), values.size()));
+      AssertDimension(indices.size(), values.size());
 
       add(indices.size(), indices.data(), values.data());
     }
@@ -1648,8 +1662,7 @@ namespace TrilinosWrappers
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
-      Assert(indices.size() == values.size(),
-             ExcDimensionMismatch(indices.size(), values.size()));
+      AssertDimension(indices.size(), values.size());
 
       add(indices.size(), indices.data(), values.begin());
     }
@@ -1728,6 +1741,14 @@ namespace TrilinosWrappers
     Vector::local_size() const
     {
       return vector->Map().NumMyElements();
+    }
+
+
+
+    inline Vector::size_type
+    Vector::locally_owned_size() const
+    {
+      return owned_elements.n_elements();
     }
 
 
@@ -1856,7 +1877,7 @@ namespace TrilinosWrappers
 
       TrilinosScalar  norm    = 0;
       TrilinosScalar  sum     = 0;
-      const size_type n_local = local_size();
+      const size_type n_local = locally_owned_size();
 
       // loop over all the elements because
       // Trilinos does not support lp norms
@@ -1936,7 +1957,7 @@ namespace TrilinosWrappers
     inline Vector &
     Vector::operator+=(const Vector &v)
     {
-      Assert(size() == v.size(), ExcDimensionMismatch(size(), v.size()));
+      AssertDimension(size(), v.size());
       Assert(vector->Map().SameAs(v.vector->Map()),
              ExcDifferentParallelPartitioning());
 
@@ -1951,7 +1972,7 @@ namespace TrilinosWrappers
     inline Vector &
     Vector::operator-=(const Vector &v)
     {
-      Assert(size() == v.size(), ExcDimensionMismatch(size(), v.size()));
+      AssertDimension(size(), v.size());
       Assert(vector->Map().SameAs(v.vector->Map()),
              ExcDifferentParallelPartitioning());
 
@@ -1971,7 +1992,7 @@ namespace TrilinosWrappers
       Assert(!has_ghost_elements(), ExcGhostsPresent());
       AssertIsFinite(s);
 
-      size_type n_local = local_size();
+      size_type n_local = locally_owned_size();
       for (size_type i = 0; i < n_local; ++i)
         (*vector)[0][i] += s;
     }
@@ -1984,8 +2005,7 @@ namespace TrilinosWrappers
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
-      Assert(local_size() == v.local_size(),
-             ExcDimensionMismatch(local_size(), v.local_size()));
+      AssertDimension(locally_owned_size(), v.locally_owned_size());
 
       AssertIsFinite(a);
 
@@ -2004,10 +2024,8 @@ namespace TrilinosWrappers
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
-      Assert(local_size() == v.local_size(),
-             ExcDimensionMismatch(local_size(), v.local_size()));
-      Assert(local_size() == w.local_size(),
-             ExcDimensionMismatch(local_size(), w.local_size()));
+      AssertDimension(locally_owned_size(), v.locally_owned_size());
+      AssertDimension(locally_owned_size(), w.locally_owned_size());
 
       AssertIsFinite(a);
       AssertIsFinite(b);
@@ -2025,13 +2043,14 @@ namespace TrilinosWrappers
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
-      Assert(size() == v.size(), ExcDimensionMismatch(size(), v.size()));
+      AssertDimension(size(), v.size());
 
       AssertIsFinite(s);
 
       // We assume that the vectors have the same Map
       // if the local size is the same and if the vectors are not ghosted
-      if (local_size() == v.local_size() && !v.has_ghost_elements())
+      if (locally_owned_size() == v.locally_owned_size() &&
+          !v.has_ghost_elements())
         {
           Assert(this->vector->Map().SameAs(v.vector->Map()) == true,
                  ExcDifferentParallelPartitioning());
@@ -2055,13 +2074,14 @@ namespace TrilinosWrappers
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
-      Assert(size() == v.size(), ExcDimensionMismatch(size(), v.size()));
+      AssertDimension(size(), v.size());
       AssertIsFinite(s);
       AssertIsFinite(a);
 
       // We assume that the vectors have the same Map
       // if the local size is the same and if the vectors are not ghosted
-      if (local_size() == v.local_size() && !v.has_ghost_elements())
+      if (locally_owned_size() == v.locally_owned_size() &&
+          !v.has_ghost_elements())
         {
           Assert(this->vector->Map().SameAs(v.vector->Map()) == true,
                  ExcDifferentParallelPartitioning());
@@ -2085,8 +2105,7 @@ namespace TrilinosWrappers
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
-      Assert(local_size() == factors.local_size(),
-             ExcDimensionMismatch(local_size(), factors.local_size()));
+      AssertDimension(locally_owned_size(), factors.locally_owned_size());
 
       const int ierr = vector->Multiply(1.0, *(factors.vector), *vector, 0.0);
       AssertThrow(ierr == 0, ExcTrilinosError(ierr));

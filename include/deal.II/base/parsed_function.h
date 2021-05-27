@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2007 - 2019 by the deal.II authors
+// Copyright (C) 2007 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -128,7 +128,7 @@ namespace Functions
      *
      *  @endcode
      *
-     * Function constants is a collection of pairs in the form name=value,
+     * %Function constants is a collection of pairs in the form name=value,
      * separated by commas, for example:
      *
      *  @code

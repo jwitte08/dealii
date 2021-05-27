@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2004 - 2020 by the deal.II authors
+// Copyright (C) 2004 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -288,16 +288,11 @@ random_box(const double &min = 0.0, const double &max = 1.0)
 void
 cat_file(const char *filename)
 {
-  std::ifstream in(filename);
-  Assert(in, dealii::ExcIO());
-
-  while (in)
-    {
-      std::string s;
-      std::getline(in, s);
-      dealii::deallog.get_file_stream() << s << "\n";
-    }
-  in.close();
+  {
+    std::ifstream in(filename);
+    Assert(in, dealii::ExcIO());
+    deallog.get_file_stream() << in.rdbuf() << "\n";
+  }
 
   std::remove(filename);
 }
@@ -418,6 +413,7 @@ filter_out_small_numbers(const Number number, const double tolerance)
     return number;
 }
 
+
 // ---------------- Functions used in initializing subsystems -----------------
 
 
@@ -500,12 +496,12 @@ std::string   deallogname;
 std::ofstream deallogfile;
 
 void
-initlog(bool                          console = false,
+initlog(const bool                    console = false,
         const std::ios_base::fmtflags flags   = std::ios::showpoint |
                                               std::ios::left)
 {
   deallogname = "output";
-  deallogfile.open(deallogname.c_str());
+  deallogfile.open(deallogname);
   deallog.attach(deallogfile, true, flags);
   deallog.depth_console(console ? 10 : 0);
 }

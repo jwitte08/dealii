@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 1999 - 2020 by the deal.II authors
+ * Copyright (C) 1999 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -27,14 +27,6 @@
 #include <deal.II/dofs/dof_handler.h>
 // And this is the file in which the functions are declared that create grids:
 #include <deal.II/grid/grid_generator.h>
-
-// The next three files contain classes which are needed for loops over all
-// cells and to get the information from the cell objects. The first two have
-// been used before to get geometric information from cells; the last one is
-// new and provides information about the degrees of freedom local to a cell:
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
-#include <deal.II/dofs/dof_accessor.h>
 
 // This file contains the description of the Lagrange interpolation finite
 // element:

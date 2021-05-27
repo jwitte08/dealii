@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 - 2020 by the deal.II authors
+// Copyright (C) 2018 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -73,7 +73,7 @@ DEAL_II_NAMESPACE_OPEN
  * MPI support (several processes access the same HDF5 file).
  * File::File(const std::string &, const FileAccessMode)
  * opens/creates an HDF5 file for serial operations.
- * File::File(const std::string &, const FileAccessMode, const MPI_Comm)
+ * File::File(const std::string &, const FileAccessMode, const MPI_Comm &)
  * creates or opens an HDF5 file in parallel using MPI. The HDF5 calls that
  * modify the structure of the file are always collective, whereas writing
  * and reading raw data in a dataset can be done independently or collectively.
@@ -263,7 +263,21 @@ DEAL_II_NAMESPACE_OPEN
  * 4 5
  * @endcode
  *
- * # Complex numbers and HDF5
+ * # Datatypes
+ * Attribute datatypes can be float, `double`, `std::complex<float>`,
+ * `std::complex<double>`, `int`, `unsigned int`, `bool` and `std::string`.
+ * HDF5Object::get_attribute() and HDF5Object::set_attribute() can be used with
+ * all of these datatypes.
+ *
+ * Dataset datatypes can be `float`, `double`, `std::complex<float>`,
+ * `std::complex<double>`, `int` and `unsigned int`. DataSet::read(),
+ * DataSet::write(), DataSet::read_selection(), etc. can be used with all of
+ * these datatypes. Note that the dataset datatype can not be `bool`, the
+ * reason is that it can not be assumed that `std::vector<bool>` stores the
+ * elements in a contiguous way.
+ *
+ *
+ * ## Complex numbers and HDF5
  * There is no official HDF5 format to store `std::complex` numbers in a HDF5
  * file. But the *de facto* standard is to store the `std::complex` number in a
  * compound type in which `r` corresponds to the real part and `i` corresponds
@@ -1090,12 +1104,12 @@ namespace HDF5
      */
     File(const std::string &  name,
          const FileAccessMode mode,
-         const MPI_Comm       mpi_communicator);
+         const MPI_Comm &     mpi_communicator);
 
   private:
     /**
      * Delegation internal constructor.
-     * File(const std::string &, const MPI_Comm, const Mode);
+     * File(const std::string &, const MPI_Comm &, const Mode);
      * and
      * File(const std::string &, const Mode)
      * should be used to open or create HDF5 files.
@@ -1103,7 +1117,7 @@ namespace HDF5
     File(const std::string &  name,
          const FileAccessMode mode,
          const bool           mpi,
-         const MPI_Comm       mpi_communicator);
+         const MPI_Comm &     mpi_communicator);
   };
 
   namespace internal
@@ -1249,7 +1263,16 @@ namespace HDF5
     std::shared_ptr<hid_t>
     get_hdf5_datatype()
     {
-      std::shared_ptr<hid_t> t_type;
+      static_assert(std::is_same<number, float>::value ||
+                      std::is_same<number, double>::value ||
+                      std::is_same<number, int>::value ||
+                      std::is_same<number, bool>::value ||
+                      std::is_same<number, unsigned int>::value ||
+                      std::is_same<number, std::complex<float>>::value ||
+                      std::is_same<number, std::complex<double>>::value,
+                    "The data type you are trying to get the HDF5 tag for "
+                    "is not supported by this function.");
+
       if (std::is_same<number, float>::value)
         {
           return std::make_shared<hid_t>(H5T_NATIVE_FLOAT);
@@ -1266,15 +1289,21 @@ namespace HDF5
         {
           return std::make_shared<hid_t>(H5T_NATIVE_UINT);
         }
+      else if (std::is_same<number, bool>::value)
+        {
+          return std::make_shared<hid_t>(H5T_NATIVE_HBOOL);
+        }
       else if (std::is_same<number, std::complex<float>>::value)
         {
-          t_type  = std::shared_ptr<hid_t>(new hid_t, [](hid_t *pointer) {
-            // Release the HDF5 resource
-            const herr_t ret = H5Tclose(*pointer);
-            AssertNothrow(ret >= 0, ExcInternalError());
-            (void)ret;
-            delete pointer;
-          });
+          std::shared_ptr<hid_t> t_type =
+            std::shared_ptr<hid_t>(new hid_t, [](hid_t *pointer) {
+              // Release the HDF5 resource
+              const herr_t ret = H5Tclose(*pointer);
+              AssertNothrow(ret >= 0, ExcInternalError());
+              (void)ret;
+              delete pointer;
+            });
+
           *t_type = H5Tcreate(H5T_COMPOUND, sizeof(std::complex<float>));
           //  The C++ standards committee agreed to mandate that the storage
           //  format used for the std::complex type be binary-compatible with
@@ -1289,13 +1318,14 @@ namespace HDF5
         }
       else if (std::is_same<number, std::complex<double>>::value)
         {
-          t_type  = std::shared_ptr<hid_t>(new hid_t, [](hid_t *pointer) {
-            // Release the HDF5 resource
-            const herr_t ret = H5Tclose(*pointer);
-            AssertNothrow(ret >= 0, ExcInternalError());
-            (void)ret;
-            delete pointer;
-          });
+          std::shared_ptr<hid_t> t_type =
+            std::shared_ptr<hid_t>(new hid_t, [](hid_t *pointer) {
+              // Release the HDF5 resource
+              const herr_t ret = H5Tclose(*pointer);
+              AssertNothrow(ret >= 0, ExcInternalError());
+              (void)ret;
+              delete pointer;
+            });
           *t_type = H5Tcreate(H5T_COMPOUND, sizeof(std::complex<double>));
           //  The C++ standards committee agreed to mandate that the storage
           //  format used for the std::complex type be binary-compatible with
@@ -1311,7 +1341,7 @@ namespace HDF5
 
       // The function should not reach this point
       Assert(false, ExcInternalError());
-      return t_type;
+      return {};
     }
 
 
@@ -1572,29 +1602,6 @@ namespace HDF5
     Assert(ret >= 0, ExcMessage("Error at H5Aclose"));
 
     return value;
-  }
-
-
-
-  template <>
-  inline bool
-  HDF5Object::get_attribute(const std::string &attr_name) const
-  {
-    // The enum field generated by h5py can be casted to int
-    int    int_value;
-    hid_t  attr;
-    herr_t ret;
-
-    attr = H5Aopen(*hdf5_reference, attr_name.data(), H5P_DEFAULT);
-    Assert(attr >= 0, ExcMessage("Error at H5Aopen"));
-    ret = H5Aread(attr, H5T_NATIVE_INT, &int_value);
-    (void)ret;
-    Assert(ret >= 0, ExcMessage("Error at H5Aread"));
-    ret = H5Aclose(attr);
-    (void)ret;
-    Assert(ret >= 0, ExcMessage("Error at H5Aclose"));
-
-    return (int_value != 0);
   }
 
 

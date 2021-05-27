@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2020 by the deal.II authors
+// Copyright (C) 2003 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -179,6 +179,24 @@ template <typename T>
 struct identity
 {
   using type = T;
+};
+
+
+
+/**
+ * A class that always returns a given value.
+ * This is needed as a workaround for lambdas used as default parameters
+ * some compilers struggle to deal with.
+ */
+template <typename ArgType, typename ValueType>
+struct always_return
+{
+  ValueType value;
+  ValueType
+  operator()(const ArgType &)
+  {
+    return value;
+  }
 };
 
 

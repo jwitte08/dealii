@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 1999 - 2020 by the deal.II authors
+ * Copyright (C) 1999 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -25,9 +25,6 @@
 #include <deal.II/grid/tria.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/fe/fe_values.h>
@@ -381,7 +378,7 @@ void Step4<dim>::assemble_system()
                  fe_values.shape_grad(j, q_index) * // grad phi_j(x_q)
                  fe_values.JxW(q_index));           // dx
 
-            const auto x_q = fe_values.quadrature_point(q_index);
+            const auto &x_q = fe_values.quadrature_point(q_index);
             cell_rhs(i) += (fe_values.shape_value(i, q_index) * // phi_i(x_q)
                             right_hand_side.value(x_q) *        // f(x_q)
                             fe_values.JxW(q_index));            // dx

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -45,7 +45,8 @@ test(int n_refinements, MPI_Comm comm)
       deallog << cell->id() << " -> " << cell->subdomain_id() << " "
               << cell->global_active_cell_index() << std::endl;
 
-  const auto &part = tria.global_active_cell_index_partitioner();
+  const Utilities::MPI::Partitioner &part =
+    *tria.global_active_cell_index_partitioner().lock();
 
   part.locally_owned_range().print(deallog);
   part.ghost_indices().print(deallog);

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2018 by the deal.II authors
+// Copyright (C) 2016 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -129,7 +129,7 @@ do_project(const parallel::distributed::Triangulation<dim> &triangulation,
   for (unsigned int q = 0; q <= p + 2 - order_difference; ++q)
     {
       // project the function
-      projection.zero_out_ghosts();
+      projection.zero_out_ghost_values();
       VectorTools::project(dof_handler,
                            constraints,
                            QGauss<dim>(p + 2),

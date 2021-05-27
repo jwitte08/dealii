@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2002 - 2020 by the deal.II authors
+// Copyright (C) 2002 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -20,6 +20,7 @@
 #include <deal.II/base/config.h>
 
 #include <deal.II/base/exceptions.h>
+#include <deal.II/base/ndarray.h>
 #include <deal.II/base/point.h>
 #include <deal.II/base/polynomial.h>
 #include <deal.II/base/scalar_polynomials_base.h>
@@ -334,7 +335,7 @@ PolynomialSpace<dim>::compute_derivative(const unsigned int i,
 {
   const std::array<unsigned int, dim> indices = compute_index(i);
 
-  std::array<std::array<double, order + 1>, dim> v;
+  ndarray<double, dim, order + 1> v;
   {
     std::vector<double> tmp(order + 1);
     for (unsigned int d = 0; d < dim; ++d)

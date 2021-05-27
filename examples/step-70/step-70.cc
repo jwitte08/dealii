@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2020 by the deal.II authors
+ * Copyright (C) 2020 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -57,7 +57,6 @@ namespace LA
 #include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/tria.h>
 
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_renumbering.h>
 #include <deal.II/dofs/dof_tools.h>
@@ -73,8 +72,6 @@ namespace LA
 #include <deal.II/grid/grid_in.h>
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/manifold_lib.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/dynamic_sparsity_pattern.h>
@@ -383,45 +380,37 @@ namespace Step70
     // solid domain, and `Particle grid` is used to distribute some tracer
     // particles, that are advected with the velocity and only used as
     // passive tracers.
-    enter_my_subsection(this->prm);
-    this->prm.enter_subsection("Grid generation");
+    enter_subsection("Grid generation");
     {
-      this->prm.add_parameter("Fluid grid generator", name_of_fluid_grid);
-      this->prm.add_parameter("Fluid grid generator arguments",
-                              arguments_for_fluid_grid);
+      add_parameter("Fluid grid generator", name_of_fluid_grid);
+      add_parameter("Fluid grid generator arguments", arguments_for_fluid_grid);
 
-      this->prm.add_parameter("Solid grid generator", name_of_solid_grid);
-      this->prm.add_parameter("Solid grid generator arguments",
-                              arguments_for_solid_grid);
+      add_parameter("Solid grid generator", name_of_solid_grid);
+      add_parameter("Solid grid generator arguments", arguments_for_solid_grid);
 
-      this->prm.add_parameter("Particle grid generator", name_of_particle_grid);
-      this->prm.add_parameter("Particle grid generator arguments",
-                              arguments_for_particle_grid);
+      add_parameter("Particle grid generator", name_of_particle_grid);
+      add_parameter("Particle grid generator arguments",
+                    arguments_for_particle_grid);
     }
-    this->prm.leave_subsection();
-    leave_my_subsection(this->prm);
+    leave_subsection();
 
 
 
-    enter_my_subsection(this->prm);
-    this->prm.enter_subsection("Refinement and remeshing");
+    enter_subsection("Refinement and remeshing");
     {
-      this->prm.add_parameter("Refinement step frequency",
-                              refinement_frequency);
-      this->prm.add_parameter("Refinement maximal level", max_level_refinement);
-      this->prm.add_parameter("Refinement minimal level", min_level_refinement);
-      this->prm.add_parameter("Refinement strategy",
-                              refinement_strategy,
-                              "",
-                              Patterns::Selection(
-                                "fixed_fraction|fixed_number"));
-      this->prm.add_parameter("Refinement coarsening fraction",
-                              coarsening_fraction);
-      this->prm.add_parameter("Refinement fraction", refinement_fraction);
-      this->prm.add_parameter("Maximum number of cells", max_cells);
+      add_parameter("Refinement step frequency", refinement_frequency);
+      add_parameter("Refinement maximal level", max_level_refinement);
+      add_parameter("Refinement minimal level", min_level_refinement);
+      add_parameter("Refinement strategy",
+                    refinement_strategy,
+                    "",
+                    this->prm,
+                    Patterns::Selection("fixed_fraction|fixed_number"));
+      add_parameter("Refinement coarsening fraction", coarsening_fraction);
+      add_parameter("Refinement fraction", refinement_fraction);
+      add_parameter("Maximum number of cells", max_cells);
     }
-    this->prm.leave_subsection();
-    leave_my_subsection(this->prm);
+    leave_subsection();
 
     // The final task is to correct the default dimension for the right hand
     // side function and define a meaningful default angular velocity instead of
@@ -1021,7 +1010,7 @@ namespace Step70
     // levels of the tree:
     std::vector<BoundingBox<spacedim>> all_boxes;
     all_boxes.reserve(fluid_tria.n_locally_owned_active_cells());
-    for (const auto cell : fluid_tria.active_cell_iterators())
+    for (const auto &cell : fluid_tria.active_cell_iterators())
       if (cell->is_locally_owned())
         all_boxes.emplace_back(cell->bounding_box());
 
@@ -1073,7 +1062,7 @@ namespace Step70
     // successive vector elements (this is what the IndexSet::tensor_priduct()
     // function does).
     locally_owned_tracer_particle_coordinates =
-      tracer_particle_handler.locally_relevant_ids().tensor_product(
+      tracer_particle_handler.locally_owned_particle_ids().tensor_product(
         complete_index_set(spacedim));
 
     // At the beginning of the simulation, all particles are in their original
@@ -1876,7 +1865,7 @@ namespace Step70
           tracer_particle_velocities *= time_step;
 
           locally_relevant_tracer_particle_coordinates =
-            tracer_particle_handler.locally_relevant_ids().tensor_product(
+            tracer_particle_handler.locally_owned_particle_ids().tensor_product(
               complete_index_set(spacedim));
 
           relevant_tracer_particle_displacements.reinit(

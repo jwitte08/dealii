@@ -255,7 +255,8 @@ PointValueHistory<dim>::add_point(const Point<dim> &location)
           unsigned int component = dof_handler->get_fe()
                                      .system_to_component_index(support_point)
                                      .first;
-          Point<dim> test_point = fe_values.quadrature_point(support_point);
+          const Point<dim> &test_point =
+            fe_values.quadrature_point(support_point);
 
           if (location.distance(test_point) <
               location.distance(current_points[component]))
@@ -278,7 +279,7 @@ PointValueHistory<dim>::add_point(const Point<dim> &location)
   // the requested point for all finite
   // element components lie in the same cell.
   // this could possibly be violated if
-  // components use different fe orders,
+  // components use different FE orders,
   // requested points are on the edge or
   // vertex of a cell and we are unlucky with
   // floating point rounding. Worst case
@@ -402,7 +403,8 @@ PointValueHistory<dim>::add_points(const std::vector<Point<dim>> &locations)
           unsigned int component = dof_handler->get_fe()
                                      .system_to_component_index(support_point)
                                      .first;
-          Point<dim> test_point = fe_values.quadrature_point(support_point);
+          const Point<dim> &test_point =
+            fe_values.quadrature_point(support_point);
 
           for (unsigned int point = 0; point < locations.size(); point++)
             {

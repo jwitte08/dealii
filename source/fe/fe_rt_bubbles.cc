@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 - 2019 by the deal.II authors
+// Copyright (C) 2018 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -34,6 +34,9 @@
 
 DEAL_II_NAMESPACE_OPEN
 
+// TODO: implement the adjust_quad_dof_index_for_face_orientation_table and
+// adjust_line_dof_index_for_line_orientation_table fields, and write tests
+// similar to bits/face_orientation_and_fe_q_*
 
 template <int dim>
 FE_RT_Bubbles<dim>::FE_RT_Bubbles(const unsigned int deg)
@@ -103,6 +106,23 @@ FE_RT_Bubbles<dim>::FE_RT_Bubbles(const unsigned int deg)
           this->interface_constraints(target_row, j) = face_embeddings[d](i, j);
         ++target_row;
       }
+
+  // We need to initialize the dof permutation table and the one for the sign
+  // change.
+  initialize_quad_dof_index_permutation_and_sign_change();
+}
+
+
+template <int dim>
+void
+FE_RT_Bubbles<dim>::initialize_quad_dof_index_permutation_and_sign_change()
+{
+  // for 1D and 2D, do nothing
+  if (dim < 3)
+    return;
+
+  // TODO: Implement this for this class
+  return;
 }
 
 
@@ -163,19 +183,19 @@ FE_RT_Bubbles<dim>::initialize_support_points(const unsigned int deg)
         this->generalized_face_support_points[face_no][k] =
           face_points.point(k);
       Quadrature<dim> faces =
-        QProjector<dim>::project_to_all_faces(this->reference_cell_type(),
+        QProjector<dim>::project_to_all_faces(this->reference_cell(),
                                               face_points);
       for (unsigned int k = 0; k < this->n_dofs_per_face(face_no) *
                                      GeometryInfo<dim>::faces_per_cell;
            ++k)
-        this->generalized_support_points[k] =
-          faces.point(k + QProjector<dim>::DataSetDescriptor::face(
-                            this->reference_cell_type(),
-                            0,
-                            true,
-                            false,
-                            false,
-                            this->n_dofs_per_face(face_no)));
+        this->generalized_support_points[k] = faces.point(
+          k + QProjector<dim>::DataSetDescriptor::face(this->reference_cell(),
+                                                       0,
+                                                       true,
+                                                       false,
+                                                       false,
+                                                       this->n_dofs_per_face(
+                                                         face_no)));
 
       current =
         this->n_dofs_per_face(face_no) * GeometryInfo<dim>::faces_per_cell;

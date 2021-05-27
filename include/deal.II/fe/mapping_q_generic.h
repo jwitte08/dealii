@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2020 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -30,6 +30,7 @@
 #include <deal.II/grid/tria_iterator.h>
 
 #include <deal.II/matrix_free/shape_info.h>
+#include <deal.II/matrix_free/tensor_product_kernels.h>
 
 #include <array>
 #include <cmath>
@@ -164,6 +165,14 @@ public:
   virtual bool
   preserves_vertex_locations() const override;
 
+  // for documentation, see the Mapping base class
+  virtual BoundingBox<spacedim>
+  get_bounding_box(const typename Triangulation<dim, spacedim>::cell_iterator
+                     &cell) const override;
+
+  virtual bool
+  is_compatible_with(const ReferenceCell &reference_cell) const override;
+
   /**
    * @name Mapping points between reference and real cells
    * @{
@@ -237,11 +246,10 @@ public:
    */
 
   /**
-   * @name Interface with FEValues
+   * @name Interface with FEValues and friends
    * @{
    */
 
-public:
   /**
    * Storage for internal data of polynomial mappings. See
    * Mapping::InternalDataBase for an extensive description.
@@ -551,10 +559,12 @@ public:
   virtual std::unique_ptr<typename Mapping<dim, spacedim>::InternalDataBase>
   get_data(const UpdateFlags, const Quadrature<dim> &quadrature) const override;
 
+  using Mapping<dim, spacedim>::get_face_data;
+
   // documentation can be found in Mapping::get_face_data()
   virtual std::unique_ptr<typename Mapping<dim, spacedim>::InternalDataBase>
-  get_face_data(const UpdateFlags          flags,
-                const Quadrature<dim - 1> &quadrature) const override;
+  get_face_data(const UpdateFlags               flags,
+                const hp::QCollection<dim - 1> &quadrature) const override;
 
   // documentation can be found in Mapping::get_subface_data()
   virtual std::unique_ptr<typename Mapping<dim, spacedim>::InternalDataBase>
@@ -571,12 +581,14 @@ public:
     dealii::internal::FEValuesImplementation::MappingRelatedData<dim, spacedim>
       &output_data) const override;
 
+  using Mapping<dim, spacedim>::fill_fe_face_values;
+
   // documentation can be found in Mapping::fill_fe_face_values()
   virtual void
   fill_fe_face_values(
     const typename Triangulation<dim, spacedim>::cell_iterator &cell,
     const unsigned int                                          face_no,
-    const Quadrature<dim - 1> &                                 quadrature,
+    const hp::QCollection<dim - 1> &                            quadrature,
     const typename Mapping<dim, spacedim>::InternalDataBase &   internal_data,
     dealii::internal::FEValuesImplementation::MappingRelatedData<dim, spacedim>
       &output_data) const override;
@@ -591,6 +603,32 @@ public:
     const typename Mapping<dim, spacedim>::InternalDataBase &   internal_data,
     dealii::internal::FEValuesImplementation::MappingRelatedData<dim, spacedim>
       &output_data) const override;
+
+
+  /**
+   * As opposed to the other fill_fe_values() and fill_fe_face_values()
+   * functions that rely on pre-computed information of InternalDataBase, this
+   * function chooses the flexible evaluation path on the cell and points
+   * passed in to the current function.
+   *
+   * @param[in] cell The cell where to evaluate the mapping
+   *
+   * @param[in] unit_points The points in reference coordinates where the
+   * transformation (Jacobians, positions) should be computed.
+   *
+   * @param[in] update_flags The kind of information that should be computed.
+   *
+   * @param[out] output_data A struct containing the evaluated quantities such
+   * as the Jacobian resulting from application of the mapping on the given
+   * cell with its underlying manifolds.
+   */
+  void
+  fill_mapping_data_for_generic_points(
+    const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+    const ArrayView<const Point<dim>> &                         unit_points,
+    const UpdateFlags                                           update_flags,
+    dealii::internal::FEValuesImplementation::MappingRelatedData<dim, spacedim>
+      &output_data) const;
 
   /**
    * @}

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2009 - 2020 by the deal.II authors
+// Copyright (C) 2009 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -52,7 +52,7 @@ namespace
    *
    * Given that the elements of @p dof_values are stored in consecutive
    * locations, we can just memcpy them. Since floating point values don't
-   * compress well, we also forgo the compression the default
+   * compress well, we also waive the compression that the default
    * Utilities::pack() and Utilities::unpack() functions offer.
    */
   template <typename value_type>
@@ -121,8 +121,9 @@ namespace parallel
       , handle(numbers::invalid_unsigned_int)
     {
       Assert(
-        (dynamic_cast<const parallel::distributed::
-                        Triangulation<dim, DoFHandlerType::space_dimension> *>(
+        (dynamic_cast<const parallel::DistributedTriangulationBase<
+           dim,
+           DoFHandlerType::space_dimension> *>(
            &dof_handler->get_triangulation()) != nullptr),
         ExcMessage(
           "parallel::distributed::SolutionTransfer requires a parallel::distributed::Triangulation object."));
@@ -136,6 +137,10 @@ namespace parallel
       prepare_for_coarsening_and_refinement(
         const std::vector<const VectorType *> &all_in)
     {
+      for (unsigned int i = 0; i < all_in.size(); ++i)
+        Assert(all_in[i]->size() == dof_handler->n_dofs(),
+               ExcDimensionMismatch(all_in[i]->size(), dof_handler->n_dofs()));
+
       input_vectors = all_in;
       register_data_attach();
     }
@@ -147,12 +152,11 @@ namespace parallel
     SolutionTransfer<dim, VectorType, DoFHandlerType>::register_data_attach()
     {
       // TODO: casting away constness is bad
-      parallel::distributed::Triangulation<dim, DoFHandlerType::space_dimension>
-        *tria = (dynamic_cast<parallel::distributed::Triangulation<
-                   dim,
-                   DoFHandlerType::space_dimension> *>(
-          const_cast<dealii::Triangulation<dim, DoFHandlerType::space_dimension>
-                       *>(&dof_handler->get_triangulation())));
+      auto *tria = (dynamic_cast<parallel::DistributedTriangulationBase<
+                      dim,
+                      DoFHandlerType::space_dimension> *>(
+        const_cast<dealii::Triangulation<dim, DoFHandlerType::space_dimension>
+                     *>(&dof_handler->get_triangulation())));
       Assert(tria != nullptr, ExcInternalError());
 
       handle = tria->register_data_attach(
@@ -230,14 +234,16 @@ namespace parallel
     {
       Assert(input_vectors.size() == all_out.size(),
              ExcDimensionMismatch(input_vectors.size(), all_out.size()));
+      for (unsigned int i = 0; i < all_out.size(); ++i)
+        Assert(all_out[i]->size() == dof_handler->n_dofs(),
+               ExcDimensionMismatch(all_out[i]->size(), dof_handler->n_dofs()));
 
       // TODO: casting away constness is bad
-      parallel::distributed::Triangulation<dim, DoFHandlerType::space_dimension>
-        *tria = (dynamic_cast<parallel::distributed::Triangulation<
-                   dim,
-                   DoFHandlerType::space_dimension> *>(
-          const_cast<dealii::Triangulation<dim, DoFHandlerType::space_dimension>
-                       *>(&dof_handler->get_triangulation())));
+      auto *tria = (dynamic_cast<parallel::DistributedTriangulationBase<
+                      dim,
+                      DoFHandlerType::space_dimension> *>(
+        const_cast<dealii::Triangulation<dim, DoFHandlerType::space_dimension>
+                     *>(&dof_handler->get_triangulation())));
       Assert(tria != nullptr, ExcInternalError());
 
       tria->notify_ready_to_unpack(
@@ -308,7 +314,7 @@ namespace parallel
                 dim,
                 DoFHandlerType::space_dimension>::CELL_COARSEN:
                 {
-                  // In case of coarsening, we need to find a suitable fe index
+                  // In case of coarsening, we need to find a suitable FE index
                   // for the parent cell. We choose the 'least dominant fe'
                   // on all children from the associated FECollection.
 #  ifdef DEBUG
@@ -318,7 +324,10 @@ namespace parallel
                              dim>::ExcInconsistentCoarseningFlags());
 #  endif
 
-                  fe_index = cell->dominated_future_fe_on_children();
+                  fe_index = dealii::internal::hp::DoFHandlerImplementation::
+                    dominated_future_fe_on_children<
+                      dim,
+                      DoFHandlerType::space_dimension>(cell);
                   break;
                 }
 
@@ -383,10 +392,10 @@ namespace parallel
                 DoFHandlerType::space_dimension>::CELL_REFINE:
                 {
                   // After refinement, this particular cell is no longer active,
-                  // and its children have inherited its fe index. However, to
-                  // unpack the data on the old cell, we need to recover its fe
+                  // and its children have inherited its FE index. However, to
+                  // unpack the data on the old cell, we need to recover its FE
                   // index from one of the children. Just to be sure, we also
-                  // check if all children have the same fe index.
+                  // check if all children have the same FE index.
                   fe_index = cell->child(0)->active_fe_index();
                   for (unsigned int child_index = 1;
                        child_index < cell->n_children();

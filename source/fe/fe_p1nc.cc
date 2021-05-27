@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2015 - 2019 by the deal.II authors
+// Copyright (C) 2015 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -85,7 +85,7 @@ FE_P1NC::get_dpo_vector()
 
 
 
-std::array<std::array<double, 3>, 4>
+ndarray<double, 4, 3>
 FE_P1NC::get_linear_shape_coefficients(
   const Triangulation<2, 2>::cell_iterator &cell)
 {
@@ -102,7 +102,7 @@ FE_P1NC::get_linear_shape_coefficients(
   const double det = (mpt[0](0) - mpt[1](0)) * (mpt[2](1) - mpt[3](1)) -
                      (mpt[2](0) - mpt[3](0)) * (mpt[0](1) - mpt[1](1));
 
-  std::array<std::array<double, 3>, 4> coeffs;
+  ndarray<double, 4, 3> coeffs;
   coeffs[0][0] =
     ((mpt[2](1) - mpt[3](1)) * (0.5) - (mpt[0](1) - mpt[1](1)) * (0.5)) / det;
   coeffs[1][0] =
@@ -160,15 +160,17 @@ std::unique_ptr<FiniteElement<2, 2>::InternalDataBase>
 FE_P1NC::get_face_data(
   const UpdateFlags update_flags,
   const Mapping<2, 2> &,
-  const Quadrature<1> &quadrature,
+  const hp::QCollection<1> &quadrature,
   dealii::internal::FEValuesImplementation::FiniteElementRelatedData<2, 2>
     &output_data) const
 {
+  AssertDimension(quadrature.size(), 1);
+
   auto data_ptr = std::make_unique<FiniteElement<2, 2>::InternalDataBase>();
 
   data_ptr->update_each = requires_update_flags(update_flags);
 
-  const unsigned int n_q_points = quadrature.size();
+  const unsigned int n_q_points = quadrature[0].size();
   output_data.initialize(n_q_points, FE_P1NC(), data_ptr->update_each);
 
   // this is a linear element, so its second derivatives are zero
@@ -222,8 +224,7 @@ FE_P1NC::fill_fe_values(
   const unsigned int n_q_points = mapping_data.quadrature_points.size();
 
   // linear shape functions
-  std::array<std::array<double, 3>, 4> coeffs =
-    get_linear_shape_coefficients(cell);
+  ndarray<double, 4, 3> coeffs = get_linear_shape_coefficients(cell);
 
   // compute on the cell
   if (flags & update_values)
@@ -246,7 +247,7 @@ void
 FE_P1NC::fill_fe_face_values(
   const Triangulation<2, 2>::cell_iterator &cell,
   const unsigned int                        face_no,
-  const Quadrature<1> &                     quadrature,
+  const hp::QCollection<1> &                quadrature,
   const Mapping<2, 2> &                     mapping,
   const Mapping<2, 2>::InternalDataBase &,
   const dealii::internal::FEValuesImplementation::MappingRelatedData<2, 2> &,
@@ -254,16 +255,17 @@ FE_P1NC::fill_fe_face_values(
   dealii::internal::FEValuesImplementation::FiniteElementRelatedData<2, 2>
     &output_data) const
 {
+  AssertDimension(quadrature.size(), 1);
+
   const UpdateFlags flags(fe_internal.update_each);
 
   // linear shape functions
-  const std::array<std::array<double, 3>, 4> coeffs =
-    get_linear_shape_coefficients(cell);
+  const ndarray<double, 4, 3> coeffs = get_linear_shape_coefficients(cell);
 
   // compute on the face
   const Quadrature<2> quadrature_on_face =
-    QProjector<2>::project_to_face(this->reference_cell_type(),
-                                   quadrature,
+    QProjector<2>::project_to_face(this->reference_cell(),
+                                   quadrature[0],
                                    face_no);
 
   if (flags & update_values)
@@ -304,12 +306,11 @@ FE_P1NC::fill_fe_subface_values(
   const UpdateFlags flags(fe_internal.update_each);
 
   // linear shape functions
-  const std::array<std::array<double, 3>, 4> coeffs =
-    get_linear_shape_coefficients(cell);
+  const ndarray<double, 4, 3> coeffs = get_linear_shape_coefficients(cell);
 
   // compute on the subface
   const Quadrature<2> quadrature_on_subface = QProjector<2>::project_to_subface(
-    this->reference_cell_type(), quadrature, face_no, sub_no);
+    this->reference_cell(), quadrature, face_no, sub_no);
 
   if (flags & update_values)
     for (unsigned int i = 0; i < quadrature_on_subface.size(); ++i)

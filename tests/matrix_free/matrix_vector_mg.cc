@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2020 by the deal.II authors
+// Copyright (C) 2013 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -83,8 +83,8 @@ test()
   system_matrix.reinit(sparsity);
 
   // setup MG levels
-  const unsigned int                       nlevels = tria.n_levels();
-  typedef MatrixFree<dim>                  MatrixFreeTestType;
+  const unsigned int nlevels = tria.n_levels();
+  using MatrixFreeTestType   = MatrixFree<dim>;
   MGLevelObject<MatrixFreeTestType>        mg_matrices;
   MGLevelObject<AffineConstraints<double>> mg_constraints;
   MGLevelObject<SparsityPattern>           mg_sparsities;

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2020 by the deal.II authors
+// Copyright (C) 2013 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -82,8 +82,8 @@ template <int dim, int fe_degree, typename Number>
 class MatrixFreeTest
 {
 public:
-  typedef VectorizedArray<Number> vector_t;
-  static const std::size_t        n_vectors = VectorizedArray<Number>::size();
+  using vector_t                     = VectorizedArray<Number>;
+  static const std::size_t n_vectors = VectorizedArray<Number>::size();
 
   MatrixFreeTest(const MatrixFree<dim, Number> &data_in)
     : data(data_in){};
@@ -114,7 +114,7 @@ template <int dim, int fe_degree>
 void
 test()
 {
-  typedef double number;
+  using number = double;
 
   parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
   GridGenerator::hyper_cube(tria);

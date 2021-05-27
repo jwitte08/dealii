@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2020 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -72,7 +72,7 @@ public:
 void
 test(const double x, const double y)
 {
-  typedef double RealT;
+  using RealT = double;
 
   QuadraticObjective<RealT> quad_objective;
 

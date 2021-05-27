@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2020 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -20,6 +20,7 @@
 #include <deal.II/base/config.h>
 
 #include <deal.II/base/exceptions.h>
+#include <deal.II/base/ndarray.h>
 #include <deal.II/base/point.h>
 #include <deal.II/base/polynomial.h>
 #include <deal.II/base/scalar_polynomials_base.h>
@@ -66,6 +67,10 @@ class TensorProductPolynomialsConst;
  * indices i,j,k of the one-dimensional polynomials in x,y and z direction.
  * The ordering of the dim-dimensional polynomials can be changed by using the
  * set_numbering() function.
+ *
+ * @tparam PolynomialType A class that satisfies the required interface for computing
+ *   tensor products. Typical choices for this template argument are
+ *   Polynomials::Polynomial and Polynomials::PiecewisePolynomial.
  */
 template <int dim, typename PolynomialType = Polynomials::Polynomial<double>>
 class TensorProductPolynomials : public ScalarPolynomialsBase<dim>
@@ -79,9 +84,9 @@ public:
 
   /**
    * Constructor. <tt>pols</tt> is a vector of objects that should be derived
-   * or otherwise convertible to one-dimensional polynomial objects of type @p
-   * PolynomialType (template argument of class). It will be copied element by
-   * element into a private variable.
+   * or otherwise convertible to one-dimensional polynomial objects of type
+   * `PolynomialType` (template argument of class). It will be copied element
+   * by element into a protected member variable.
    */
   template <class Pol>
   TensorProductPolynomials(const std::vector<Pol> &pols);
@@ -239,6 +244,13 @@ public:
    */
   virtual std::size_t
   memory_consumption() const override;
+
+  /**
+   * Return a copy of the underlying one-dimensional polynomials given to the
+   * constructor of this class.
+   */
+  std::vector<PolynomialType>
+  get_underlying_polynomials() const;
 
 protected:
   /**
@@ -538,7 +550,7 @@ TensorProductPolynomials<dim, PolynomialType>::compute_derivative(
   std::array<unsigned int, dim> indices;
   compute_index(i, indices);
 
-  std::array<std::array<double, 5>, dim> v;
+  ndarray<double, dim, 5> v;
   {
     std::vector<double> tmp(5);
     for (unsigned int d = 0; d < dim; ++d)

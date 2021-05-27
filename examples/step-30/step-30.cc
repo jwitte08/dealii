@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2007 - 2020 by the deal.II authors
+ * Copyright (C) 2007 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -31,10 +31,7 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_out.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/mapping_q1.h>
@@ -500,7 +497,7 @@ namespace Step30
                     // Now we loop over all subfaces, i.e. the children and
                     // possibly grandchildren of the current face.
                     for (unsigned int subface_no = 0;
-                         subface_no < face->number_of_children();
+                         subface_no < face->n_active_descendants();
                          ++subface_no)
                       {
                         // To get the cell behind the current subface we can
@@ -750,7 +747,7 @@ namespace Step30
                       unsigned int neighbor2 = cell->neighbor_face_no(face_no);
                       // Now we loop over all subfaces,
                       for (unsigned int subface_no = 0;
-                           subface_no < face->number_of_children();
+                           subface_no < face->n_active_descendants();
                            ++subface_no)
                         {
                           // get an iterator pointing to the cell behind the
@@ -843,7 +840,7 @@ namespace Step30
                                  ExcInternalError());
                           Assert(neighbor_face_subface.second <
                                    neighbor->face(neighbor_face_subface.first)
-                                     ->number_of_children(),
+                                     ->n_active_descendants(),
                                  ExcInternalError());
                           Assert(neighbor->neighbor_child_on_subface(
                                    neighbor_face_subface.first,

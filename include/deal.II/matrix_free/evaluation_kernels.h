@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2020 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -113,6 +113,40 @@ namespace internal
             int                              n_q_points_1d,
             typename Number>
   struct FEEvaluationImpl
+  {
+    static void
+    evaluate(const unsigned int                            n_components,
+             const EvaluationFlags::EvaluationFlags        evaluation_flag,
+             const MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
+             const Number *                                values_dofs_actual,
+             Number *                                      values_quad,
+             Number *                                      gradients_quad,
+             Number *                                      hessians_quad,
+             Number *                                      scratch_data);
+
+    static void
+    integrate(const unsigned int                            n_components,
+              const EvaluationFlags::EvaluationFlags        integration_flag,
+              const MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
+              Number *                                      values_dofs_actual,
+              Number *                                      values_quad,
+              Number *                                      gradients_quad,
+              Number *                                      scratch_data,
+              const bool add_into_values_array);
+  };
+
+
+
+  /**
+   * Specialization for MatrixFreeFunctions::tensor_none, which cannot use the
+   * sum-factorization kernels.
+   */
+  template <int dim, int fe_degree, int n_q_points_1d, typename Number>
+  struct FEEvaluationImpl<MatrixFreeFunctions::tensor_none,
+                          dim,
+                          fe_degree,
+                          n_q_points_1d,
+                          Number>
   {
     static void
     evaluate(const unsigned int                            n_components,
@@ -636,6 +670,162 @@ namespace internal
                 }
               count_q += i * (degree + 1);
             }
+      }
+  }
+
+
+
+  template <int dim, int fe_degree, int n_q_points_1d, typename Number>
+  inline void
+  FEEvaluationImpl<
+    MatrixFreeFunctions::tensor_none,
+    dim,
+    fe_degree,
+    n_q_points_1d,
+    Number>::evaluate(const unsigned int                     n_components,
+                      const EvaluationFlags::EvaluationFlags evaluation_flag,
+                      const MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
+                      const Number *values_dofs_actual,
+                      Number *      values_quad,
+                      Number *      gradients_quad,
+                      Number *      hessians_quad,
+                      Number *      scratch_data)
+  {
+    (void)scratch_data;
+
+    const unsigned int n_dofs     = shape_info.dofs_per_component_on_cell;
+    const unsigned int n_q_points = shape_info.n_q_points;
+
+    using Eval =
+      EvaluatorTensorProduct<evaluate_general, 1, 0, 0, Number, Number>;
+
+    if (evaluation_flag & EvaluationFlags::values)
+      {
+        const auto shape_values = shape_info.data.front().shape_values.data();
+        auto       values_quad_ptr        = values_quad;
+        auto       values_dofs_actual_ptr = values_dofs_actual;
+
+        Eval eval(shape_values, nullptr, nullptr, n_dofs, n_q_points);
+        for (unsigned int c = 0; c < n_components; ++c)
+          {
+            eval.template values<0, true, false>(values_dofs_actual_ptr,
+                                                 values_quad_ptr);
+
+            values_quad_ptr += n_q_points;
+            values_dofs_actual_ptr += n_dofs;
+          }
+      }
+
+    if (evaluation_flag & EvaluationFlags::gradients)
+      {
+        const auto shape_gradients =
+          shape_info.data.front().shape_gradients.data();
+        auto gradients_quad_ptr     = gradients_quad;
+        auto values_dofs_actual_ptr = values_dofs_actual;
+
+        for (unsigned int c = 0; c < n_components; ++c)
+          {
+            for (unsigned int d = 0; d < dim; ++d)
+              {
+                Eval eval(nullptr,
+                          shape_gradients + n_q_points * n_dofs * d,
+                          nullptr,
+                          n_dofs,
+                          n_q_points);
+
+                eval.template gradients<0, true, false>(values_dofs_actual_ptr,
+                                                        gradients_quad_ptr);
+
+                gradients_quad_ptr += n_q_points;
+              }
+            values_dofs_actual_ptr += n_dofs;
+          }
+      }
+
+    if (evaluation_flag & EvaluationFlags::hessians)
+      {
+        Assert(false, ExcNotImplemented());
+        (void)hessians_quad;
+      }
+  }
+
+
+
+  template <int dim, int fe_degree, int n_q_points_1d, typename Number>
+  inline void
+  FEEvaluationImpl<
+    MatrixFreeFunctions::tensor_none,
+    dim,
+    fe_degree,
+    n_q_points_1d,
+    Number>::integrate(const unsigned int                     n_components,
+                       const EvaluationFlags::EvaluationFlags integration_flag,
+                       const MatrixFreeFunctions::ShapeInfo<Number> &shape_info,
+                       Number *   values_dofs_actual,
+                       Number *   values_quad,
+                       Number *   gradients_quad,
+                       Number *   scratch_data,
+                       const bool add_into_values_array)
+  {
+    (void)scratch_data;
+
+    const unsigned int n_dofs     = shape_info.dofs_per_component_on_cell;
+    const unsigned int n_q_points = shape_info.n_q_points;
+
+    using Eval =
+      EvaluatorTensorProduct<evaluate_general, 1, 0, 0, Number, Number>;
+
+    if (integration_flag & EvaluationFlags::values)
+      {
+        const auto shape_values = shape_info.data.front().shape_values.data();
+        auto       values_quad_ptr        = values_quad;
+        auto       values_dofs_actual_ptr = values_dofs_actual;
+
+        Eval eval(shape_values, nullptr, nullptr, n_dofs, n_q_points);
+        for (unsigned int c = 0; c < n_components; ++c)
+          {
+            if (add_into_values_array == false)
+              eval.template values<0, false, false>(values_quad_ptr,
+                                                    values_dofs_actual_ptr);
+            else
+              eval.template values<0, false, true>(values_quad_ptr,
+                                                   values_dofs_actual_ptr);
+
+            values_quad_ptr += n_q_points;
+            values_dofs_actual_ptr += n_dofs;
+          }
+      }
+
+    if (integration_flag & EvaluationFlags::gradients)
+      {
+        const auto shape_gradients =
+          shape_info.data.front().shape_gradients.data();
+        auto gradients_quad_ptr     = gradients_quad;
+        auto values_dofs_actual_ptr = values_dofs_actual;
+
+        for (unsigned int c = 0; c < n_components; ++c)
+          {
+            for (unsigned int d = 0; d < dim; ++d)
+              {
+                Eval eval(nullptr,
+                          shape_gradients + n_q_points * n_dofs * d,
+                          nullptr,
+                          n_dofs,
+                          n_q_points);
+
+                if ((add_into_values_array == false &&
+                     (integration_flag & EvaluationFlags::values) == false) &&
+                    d == 0)
+                  eval.template gradients<0, false, false>(
+                    gradients_quad_ptr, values_dofs_actual_ptr);
+                else
+                  eval.template gradients<0, false, true>(
+                    gradients_quad_ptr, values_dofs_actual_ptr);
+
+                gradients_quad_ptr += n_q_points;
+              }
+            values_dofs_actual_ptr += n_dofs;
+          }
       }
   }
 
@@ -2124,6 +2314,22 @@ namespace internal
                               hessians_quad,
                               scratch_data);
         }
+      else if (shape_info.element_type ==
+               internal::MatrixFreeFunctions::tensor_none)
+        {
+          internal::FEEvaluationImpl<internal::MatrixFreeFunctions::tensor_none,
+                                     dim,
+                                     fe_degree,
+                                     n_q_points_1d,
+                                     Number>::evaluate(n_components,
+                                                       evaluation_flag,
+                                                       shape_info,
+                                                       values_dofs_actual,
+                                                       values_quad,
+                                                       gradients_quad,
+                                                       hessians_quad,
+                                                       scratch_data);
+        }
       else
         {
           internal::FEEvaluationImpl<
@@ -2269,6 +2475,22 @@ namespace internal
                                gradients_quad,
                                scratch_data,
                                sum_into_values_array);
+        }
+      else if (shape_info.element_type ==
+               internal::MatrixFreeFunctions::tensor_none)
+        {
+          internal::FEEvaluationImpl<internal::MatrixFreeFunctions::tensor_none,
+                                     dim,
+                                     fe_degree,
+                                     n_q_points_1d,
+                                     Number>::integrate(n_components,
+                                                        integration_flag,
+                                                        shape_info,
+                                                        values_dofs_actual,
+                                                        values_quad,
+                                                        gradients_quad,
+                                                        scratch_data,
+                                                        sum_into_values_array);
         }
       else
         {
@@ -2949,6 +3171,71 @@ namespace internal
         const unsigned int            face_orientation,
         const Table<2, unsigned int> &orientation_map)
     {
+      if (data.element_type == MatrixFreeFunctions::tensor_none)
+        {
+          const unsigned int n_dofs     = data.dofs_per_component_on_cell;
+          const unsigned int n_q_points = data.n_q_points_faces[face_no];
+          const auto         shape_info = data.data.front();
+
+          using Eval = EvaluatorTensorProduct<evaluate_general,
+                                              1,
+                                              0,
+                                              0,
+                                              VectorizedArrayType,
+                                              VectorizedArrayType>;
+
+          if (evaluate_values)
+            {
+              const auto shape_values =
+                &shape_info.shape_values_face(face_no, face_orientation, 0);
+
+              auto values_quad_ptr        = values_quad;
+              auto values_dofs_actual_ptr = values_array;
+
+              Eval eval(shape_values, nullptr, nullptr, n_dofs, n_q_points);
+              for (unsigned int c = 0; c < n_components; ++c)
+                {
+                  eval.template values<0, true, false>(values_dofs_actual_ptr,
+                                                       values_quad_ptr);
+
+                  values_quad_ptr += n_q_points;
+                  values_dofs_actual_ptr += n_dofs;
+                }
+            }
+
+          if (evaluate_gradients)
+            {
+              auto gradients_quad_ptr     = gradients_quad;
+              auto values_dofs_actual_ptr = values_array;
+
+              std::array<const VectorizedArrayType *, dim> shape_gradients;
+              for (unsigned int d = 0; d < dim; ++d)
+                shape_gradients[d] = &shape_info.shape_gradients_face(
+                  face_no, face_orientation, d, 0);
+
+              for (unsigned int c = 0; c < n_components; ++c)
+                {
+                  for (unsigned int d = 0; d < dim; ++d)
+                    {
+                      Eval eval(nullptr,
+                                shape_gradients[d],
+                                nullptr,
+                                n_dofs,
+                                n_q_points);
+
+                      eval.template gradients<0, true, false>(
+                        values_dofs_actual_ptr, gradients_quad_ptr);
+
+                      gradients_quad_ptr += n_q_points;
+                    }
+                  values_dofs_actual_ptr += n_dofs;
+                }
+            }
+
+
+          return true;
+        }
+
       constexpr unsigned int static_dofs_per_face =
         fe_degree > -1 ? Utilities::pow(fe_degree + 1, dim - 1) :
                          numbers::invalid_unsigned_int;
@@ -3039,6 +3326,75 @@ namespace internal
         const unsigned int            face_orientation,
         const Table<2, unsigned int> &orientation_map)
     {
+      if (data.element_type == MatrixFreeFunctions::tensor_none)
+        {
+          const unsigned int n_dofs     = data.dofs_per_component_on_cell;
+          const unsigned int n_q_points = data.n_q_points_faces[face_no];
+          const auto         shape_info = data.data.front();
+
+          using Eval = EvaluatorTensorProduct<evaluate_general,
+                                              1,
+                                              0,
+                                              0,
+                                              VectorizedArrayType,
+                                              VectorizedArrayType>;
+
+          if (integrate_values)
+            {
+              const auto shape_values =
+                &shape_info.shape_values_face(face_no, face_orientation, 0);
+
+              auto values_quad_ptr        = values_quad;
+              auto values_dofs_actual_ptr = values_array;
+
+              Eval eval(shape_values, nullptr, nullptr, n_dofs, n_q_points);
+              for (unsigned int c = 0; c < n_components; ++c)
+                {
+                  eval.template values<0, false, false>(values_quad_ptr,
+                                                        values_dofs_actual_ptr);
+
+                  values_quad_ptr += n_q_points;
+                  values_dofs_actual_ptr += n_dofs;
+                }
+            }
+
+          if (integrate_gradients)
+            {
+              auto gradients_quad_ptr     = gradients_quad;
+              auto values_dofs_actual_ptr = values_array;
+
+              std::array<const VectorizedArrayType *, dim> shape_gradients;
+              for (unsigned int d = 0; d < dim; ++d)
+                shape_gradients[d] = &shape_info.shape_gradients_face(
+                  face_no, face_orientation, d, 0);
+
+              for (unsigned int c = 0; c < n_components; ++c)
+                {
+                  for (unsigned int d = 0; d < dim; ++d)
+                    {
+                      Eval eval(nullptr,
+                                shape_gradients[d],
+                                nullptr,
+                                n_dofs,
+                                n_q_points);
+
+                      if ((integrate_values == false) && d == 0)
+                        eval.template gradients<0, false, false>(
+                          gradients_quad_ptr, values_dofs_actual_ptr);
+                      else
+                        eval.template gradients<0, false, true>(
+                          gradients_quad_ptr, values_dofs_actual_ptr);
+
+                      gradients_quad_ptr += n_q_points;
+                    }
+                  values_dofs_actual_ptr += n_dofs;
+                }
+            }
+
+
+          return true;
+        }
+
       if (face_orientation)
         adjust_for_face_orientation(dim,
                                     n_components,
@@ -3121,6 +3477,7 @@ namespace internal
     auto  n_components             = proc.n_components;
     auto  integrate                = proc.integrate;
     auto  global_vector_ptr        = proc.global_vector_ptr;
+    auto &sm_ptr                   = proc.sm_ptr;
     auto &data                     = proc.data;
     auto &dof_info                 = proc.dof_info;
     auto  values_quad              = proc.values_quad;
@@ -3141,6 +3498,7 @@ namespace internal
     static const int fe_degree = Processor::fe_degree_;
     using VectorizedArrayType  = typename Processor::VectorizedArrayType_;
 
+    using Number   = typename Processor::Number_;
     using Number2_ = typename Processor::Number2_;
 
     const unsigned int cell = cells[0];
@@ -3624,7 +3982,8 @@ namespace internal
 
                 const bool vectorization_possible =
                   (n_face_orientations == 1) &&
-                  (n_filled_lanes == VectorizedArrayType::size());
+                  (n_filled_lanes == VectorizedArrayType::size()) &&
+                  (sm_ptr != nullptr);
 
                 std::array<Number2_ *, VectorizedArrayType::size()>
                   vector_ptrs = {};
@@ -3634,7 +3993,22 @@ namespace internal
                     if (n_face_orientations == 1)
                       {
                         for (unsigned int v = 0; v < n_filled_lanes; ++v)
-                          vector_ptrs[v] = vector_ptr + indices[v];
+                          if (sm_ptr == nullptr)
+                            {
+                              vector_ptrs[v] = vector_ptr + indices[v];
+                            }
+                          else
+                            {
+                              const auto &temp =
+                                dof_info.dof_indices_contiguous_sm
+                                  [dof_access_index]
+                                  [cell * VectorizedArrayType::size() + v];
+                              vector_ptrs[v] = const_cast<Number *>(
+                                sm_ptr->operator[](temp.first).data() +
+                                temp.second + comp * static_dofs_per_component +
+                                dof_info.component_dof_indices_offset
+                                  [active_fe_index][first_selected_component]);
+                            }
                       }
                     else if (n_face_orientations == VectorizedArrayType::size())
                       {
@@ -3642,10 +4016,29 @@ namespace internal
                              v < VectorizedArrayType::size();
                              ++v)
                           if (cells[v] != numbers::invalid_unsigned_int)
-                            vector_ptrs[v] =
-                              vector_ptr +
-                              dof_info.dof_indices_contiguous[dof_access_index]
+                            {
+                              if (sm_ptr == nullptr)
+                                {
+                                  vector_ptrs[v] =
+                                    vector_ptr +
+                                    dof_info
+                                      .dof_indices_contiguous[dof_access_index]
                                                              [cells[v]];
+                                }
+                              else
+                                {
+                                  const auto &temp =
+                                    dof_info.dof_indices_contiguous_sm
+                                      [dof_access_index][cells[v]];
+                                  vector_ptrs[v] = const_cast<Number *>(
+                                    sm_ptr->operator[](temp.first).data() +
+                                    temp.second +
+                                    comp * static_dofs_per_component +
+                                    dof_info.component_dof_indices_offset
+                                      [active_fe_index]
+                                      [first_selected_component]);
+                                }
+                            }
                       }
                     else
                       {
@@ -3755,8 +4148,6 @@ namespace internal
             else
               {
                 // case 5: default vector access
-                AssertDimension(n_face_orientations, 1);
-
                 // for the integrate_scatter path (integrate == true), we
                 // need to only prepare the data in this function for all
                 // components to later call distribute_local_to_global();
@@ -3773,8 +4164,6 @@ namespace internal
         else
           {
             // case 5: default vector access
-            AssertDimension(n_face_orientations, 1);
-
             proc.default_operation(temp1, comp);
             if (integrate)
               accesses_global_vector = false;
@@ -3839,9 +4228,10 @@ namespace internal
         const Table<2, unsigned int> &orientation_map)
     {
       if (src_ptr == nullptr)
-        {
-          return false;
-        }
+        return false;
+
+      if (data.element_type == MatrixFreeFunctions::tensor_none)
+        return false;
 
       (void)sm_ptr;
 
@@ -3880,6 +4270,7 @@ namespace internal
       static const int fe_degree_     = fe_degree;
       static const int n_q_points_1d_ = n_q_points_1d;
       using VectorizedArrayType_      = VectorizedArrayType;
+      using Number_                   = Number;
       using Number2_                  = const Number2;
 
       Processor(
@@ -4094,9 +4485,9 @@ namespace internal
     {
       (void)sm_ptr;
 
-      if (dst_ptr == nullptr)
+      if (dst_ptr == nullptr ||
+          data.element_type == MatrixFreeFunctions::tensor_none)
         {
-          AssertDimension(n_face_orientations, 1);
           AssertDimension(n_face_orientations, 1);
 
           // for block vectors simply integrate
@@ -4155,6 +4546,7 @@ namespace internal
       static const int fe_degree_     = fe_degree;
       static const int n_q_points_1d_ = n_q_points_1d;
       using VectorizedArrayType_      = VectorizedArrayType;
+      using Number_                   = Number;
       using Number2_                  = Number2;
 
 

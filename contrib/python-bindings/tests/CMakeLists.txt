@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2020 by the deal.II authors
+## Copyright (C) 2020 - 2021 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -28,4 +28,3 @@ FOREACH(_test_path ${_tests})
    "PYTHONPATH=${CMAKE_BINARY_DIR}/${DEAL_II_PYTHON_RELDIR}/../:$ENV{PYTHONPATH};DEAL_II_PYTHON_TESTPATH=${_test_directory}"
    )
 ENDFOREACH()
-

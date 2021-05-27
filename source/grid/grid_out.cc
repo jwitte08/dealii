@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -31,6 +31,10 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/archive/binary_oarchive.hpp>
+
+#ifdef DEAL_II_GMSH_WITH_API
+#  include <gmsh.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -1470,6 +1474,211 @@ GridOut::write_xfig(const Triangulation<2> &tria,
 
 
 
+#ifdef DEAL_II_GMSH_WITH_API
+template <int dim, int spacedim>
+void
+GridOut::write_msh(const Triangulation<dim, spacedim> &tria,
+                   const std::string &                 filename) const
+{
+  // mesh Type renumbering
+  const std::array<int, 8> dealii_to_gmsh_type = {{15, 1, 2, 3, 4, 7, 6, 5}};
+
+  // Vertex renumbering, by dealii type
+  const std::array<std::vector<unsigned int>, 8> dealii_to_gmsh = {
+    {{0},
+     {{0, 1}},
+     {{0, 1, 2}},
+     {{0, 1, 3, 2}},
+     {{0, 1, 2, 3}},
+     {{0, 1, 3, 2, 4}},
+     {{0, 1, 2, 3, 4, 5}},
+     {{0, 1, 3, 2, 4, 5, 7, 6}}}};
+
+  // Extract all vertices (nodes in gmsh terminology), and store their three
+  // dimensional coordinates (regardless of dim).
+  const auto &             vertices = tria.get_vertices();
+  std::vector<double>      coords(3 * vertices.size());
+  std::vector<std::size_t> nodes(vertices.size());
+
+  // Each node has a strictly positive tag. We assign simply its index+1.
+  std::size_t i = 0;
+  for (const auto &p : vertices)
+    {
+      for (unsigned int d = 0; d < spacedim; ++d)
+        coords[i * 3 + d] = p[d];
+      nodes[i] = i + 1;
+      ++i;
+    }
+
+  // Construct one entity tag per boundary and manifold id pair.
+  // We need to be smart here, in order to save some disk space. All cells need
+  // to be written, but only faces and lines that have non default boundary ids
+  // and/or manifold ids. We collect them into pairs, and for each unique pair,
+  // we create a gmsh entity where we store the elements. Pre-count all the
+  // entities, and make sure we know which pair refers to what entity and
+  // vice-versa.
+  using IdPair = std::pair<types::material_id, types::manifold_id>;
+  std::map<IdPair, int> id_pair_to_entity_tag;
+  std::vector<IdPair>   all_pairs;
+  {
+    std::set<IdPair> set_of_pairs;
+    for (const auto &cell : tria.active_cell_iterators())
+      {
+        set_of_pairs.insert({cell->material_id(), cell->manifold_id()});
+        for (const auto &f : cell->face_iterators())
+          if (f->manifold_id() != numbers::flat_manifold_id ||
+              (f->boundary_id() != 0 &&
+               f->boundary_id() != numbers::internal_face_boundary_id))
+            set_of_pairs.insert({f->boundary_id(), f->manifold_id()});
+        if (dim > 2)
+          for (const auto l : cell->line_indices())
+            {
+              const auto &f = cell->line(l);
+              if (f->manifold_id() != numbers::flat_manifold_id ||
+                  (f->boundary_id() != 0 &&
+                   f->boundary_id() != numbers::internal_face_boundary_id))
+                set_of_pairs.insert({f->boundary_id(), f->manifold_id()});
+            }
+      }
+    all_pairs = {set_of_pairs.begin(), set_of_pairs.end()};
+
+    int entity = 1;
+    for (const auto &p : set_of_pairs)
+      id_pair_to_entity_tag[p] = entity++;
+  }
+
+  const auto n_entity_tags = id_pair_to_entity_tag.size();
+
+  // All elements in the mesh, by entity tag, and by dealii type.
+  std::vector<std::vector<std::vector<std::size_t>>> element_ids(
+    n_entity_tags, std::vector<std::vector<std::size_t>>(8));
+  std::vector<std::vector<std::vector<std::size_t>>> element_nodes(
+    n_entity_tags, std::vector<std::vector<std::size_t>>(8));
+
+  // One element id counter for all dimensions.
+  std::size_t element_id = 1;
+
+  const auto add_element = [&](const auto &element, const int &entity_tag) {
+    const auto type = element->reference_cell();
+
+    Assert(entity_tag > 0, ExcInternalError());
+    // Add all vertex ids. Make sure we renumber to gmsh, and we add 1 to the
+    // global index.
+    for (const auto v : element->vertex_indices())
+      element_nodes[entity_tag - 1][type].emplace_back(
+        element->vertex_index(dealii_to_gmsh[type][v]) + 1);
+
+    // Save the element id.
+    element_ids[entity_tag - 1][type].emplace_back(element_id);
+    ++element_id;
+  };
+
+  // Will create a separate gmsh entity, only  if it's a cell, or if the
+  // boundary and/or the manifold ids are not the default ones.
+  // In the meanwhile, also store each pair of dimension and entity tag that was
+  // requested.
+  std::set<std::pair<int, int>> dim_entity_tag;
+
+  auto maybe_add_element =
+    [&](const auto &              element,
+        const types::boundary_id &boundary_or_material_id) {
+      const auto struct_dim  = element->structure_dimension;
+      const auto manifold_id = element->manifold_id();
+
+      // Exclude default boundary/manifold id or invalid/flag
+      const bool non_default_boundary_or_material_id =
+        (boundary_or_material_id != 0 &&
+         boundary_or_material_id != numbers::internal_face_boundary_id);
+      const bool non_default_manifold =
+        manifold_id != numbers::flat_manifold_id;
+      if (struct_dim == dim || non_default_boundary_or_material_id ||
+          non_default_manifold)
+        {
+          const auto entity_tag =
+            id_pair_to_entity_tag[{boundary_or_material_id, manifold_id}];
+          add_element(element, entity_tag);
+          dim_entity_tag.insert({struct_dim, entity_tag});
+        }
+    };
+
+  // Loop recursively over all cells, faces, and possibly lines.
+  for (const auto &cell : tria.active_cell_iterators())
+    {
+      maybe_add_element(cell, cell->material_id());
+      for (const auto &face : cell->face_iterators())
+        maybe_add_element(face, face->boundary_id());
+      if (dim > 2)
+        for (const auto l : cell->line_indices())
+          maybe_add_element(cell->line(l), cell->line(l)->boundary_id());
+    }
+
+  // Now that we collected everything, plug them into gmsh
+  gmsh::initialize();
+  gmsh::option::setNumber("General.Verbosity", 0);
+  gmsh::model::add("Grid generated in deal.II");
+  for (const auto &p : dim_entity_tag)
+    {
+      gmsh::model::addDiscreteEntity(p.first, p.second);
+      gmsh::model::mesh::addNodes(p.first, p.second, nodes, coords);
+    }
+
+  for (unsigned int entity_tag = 0; entity_tag < n_entity_tags; ++entity_tag)
+    for (unsigned int t = 1; t < 8; ++t)
+      {
+        const auto all_element_ids   = element_ids[entity_tag][t];
+        const auto all_element_nodes = element_nodes[entity_tag][t];
+        const auto gmsh_t            = dealii_to_gmsh_type[t];
+        if (all_element_ids.size() > 0)
+          gmsh::model::mesh::addElementsByType(entity_tag + 1,
+                                               gmsh_t,
+                                               all_element_ids,
+                                               all_element_nodes);
+      }
+
+  // Make sure nodes belong to the right entities.
+  gmsh::model::mesh::reclassifyNodes();
+  gmsh::model::mesh::removeDuplicateNodes();
+
+  // Now for each individual pair of dim and entry, add a physical group, if
+  // necessary
+  for (const auto &it : dim_entity_tag)
+    {
+      const auto &d           = it.first;
+      const auto &entity_tag  = it.second;
+      const auto &boundary_id = all_pairs[entity_tag - 1].first;
+      const auto &manifold_id = all_pairs[entity_tag - 1].second;
+
+      std::string physical_name;
+      if (d == dim && boundary_id != 0)
+        physical_name += "MaterialID:" + Utilities::int_to_string(
+                                           static_cast<int>(boundary_id));
+      else if (d < dim && boundary_id != 0)
+        physical_name +=
+          "BoundaryID:" +
+          (boundary_id == numbers::internal_face_boundary_id ?
+             "-1" :
+             Utilities::int_to_string(static_cast<int>(boundary_id)));
+
+      std::string sep = physical_name != "" ? ", " : "";
+      if (manifold_id != numbers::flat_manifold_id)
+        physical_name +=
+          sep + "ManifoldID:" +
+          Utilities::int_to_string(static_cast<int>(manifold_id));
+      const auto physical_tag =
+        gmsh::model::addPhysicalGroup(d, {entity_tag}, -1);
+      if (physical_name != "")
+        gmsh::model::setPhysicalName(d, physical_tag, physical_name);
+    }
+
+
+  gmsh::write(filename);
+  gmsh::clear();
+  gmsh::finalize();
+}
+#endif
+
+
+
 namespace
 {
   /**
@@ -1512,7 +1721,17 @@ void
 GridOut::write_svg(const Triangulation<dim, spacedim> &,
                    std::ostream & /*out*/) const
 {
-  Assert(false, ExcNotImplemented());
+  Assert(false,
+         ExcMessage("Mesh output in SVG format is not implemented for anything "
+                    "other than two-dimensional meshes in two-dimensional "
+                    "space. That's because three-dimensional meshes are best "
+                    "viewed in programs that allow changing the viewpoint, "
+                    "but SVG format does not allow this: It is an inherently "
+                    "2d format, and for three-dimensional meshes would "
+                    "require choosing one, fixed viewpoint."
+                    "\n\n"
+                    "You probably want to output your mesh in a format such "
+                    "as VTK, VTU, or gnuplot."));
 }
 
 
@@ -2787,6 +3006,7 @@ GridOut::write_svg(const Triangulation<2, 2> &tria, std::ostream &out) const
 }
 
 
+
 template <>
 void
 GridOut::write_mathgl(const Triangulation<1> &, std::ostream &) const
@@ -2794,6 +3014,7 @@ GridOut::write_mathgl(const Triangulation<1> &, std::ostream &) const
   // 1d specialization not done yet
   Assert(false, ExcNotImplemented());
 }
+
 
 
 template <int dim, int spacedim>
@@ -2954,8 +3175,8 @@ namespace
     for (; cell != end; ++cell)
       {
         DataOutBase::Patch<dim, spacedim> patch;
-        patch.reference_cell_type = cell->reference_cell_type();
-        patch.n_subdivisions      = 1;
+        patch.reference_cell = cell->reference_cell();
+        patch.n_subdivisions = 1;
         patch.data.reinit(5, cell->n_vertices());
 
         for (const unsigned int v : cell->vertex_indices())
@@ -3208,7 +3429,10 @@ GridOut::write_vtk(const Triangulation<dim, spacedim> &tria,
    *
    * see also: https://vtk.org/wp-content/uploads/2015/04/file-formats.pdf
    */
-  static const std::array<int, 8> table = {{1, 3, 5, 9, 10, 14, 13, 12}};
+  static const std::array<int, 8> deal_to_vtk_cell_type = {
+    {1, 3, 5, 9, 10, 14, 13, 12}};
+  static const std::array<unsigned int, 8> vtk_to_deal_hypercube = {
+    {0, 1, 3, 2, 4, 5, 7, 6}};
 
   // write cells.
   if (vtk_flags.output_cells)
@@ -3217,11 +3441,26 @@ GridOut::write_vtk(const Triangulation<dim, spacedim> &tria,
         out << cell->n_vertices();
         for (const unsigned int i : cell->vertex_indices())
           {
-            out << ' '
-                << cell->vertex_index(GeometryInfo<dim>::vertices_per_cell ==
-                                          cell->n_vertices() ?
-                                        GeometryInfo<dim>::ucd_to_deal[i] :
-                                        i);
+            out << ' ';
+            const auto reference_cell = cell->reference_cell();
+
+            if ((reference_cell == ReferenceCells::Vertex) ||
+                (reference_cell == ReferenceCells::Line) ||
+                (reference_cell == ReferenceCells::Quadrilateral) ||
+                (reference_cell == ReferenceCells::Hexahedron))
+              out << cell->vertex_index(vtk_to_deal_hypercube[i]);
+            else if ((reference_cell == ReferenceCells::Triangle) ||
+                     (reference_cell == ReferenceCells::Tetrahedron) ||
+                     (reference_cell == ReferenceCells::Wedge))
+              out << cell->vertex_index(i);
+            else if (reference_cell == ReferenceCells::Pyramid)
+              {
+                static const std::array<unsigned int, 5> permutation_table{
+                  {0, 1, 3, 2, 4}};
+                out << cell->vertex_index(permutation_table[i]);
+              }
+            else
+              Assert(false, ExcNotImplemented());
           }
         out << '\n';
       }
@@ -3229,13 +3468,12 @@ GridOut::write_vtk(const Triangulation<dim, spacedim> &tria,
     for (const auto &face : faces)
       {
         out << face->n_vertices();
-        constexpr int face_dim = dim > 1 ? dim - 1 : 1;
         for (const unsigned int i : face->vertex_indices())
           {
             out << ' '
                 << face->vertex_index(GeometryInfo<dim>::vertices_per_face ==
                                           face->n_vertices() ?
-                                        GeometryInfo<face_dim>::ucd_to_deal[i] :
+                                        vtk_to_deal_hypercube[i] :
                                         i);
           }
         out << '\n';
@@ -3254,19 +3492,22 @@ GridOut::write_vtk(const Triangulation<dim, spacedim> &tria,
   if (vtk_flags.output_cells)
     {
       for (const auto &cell : tria.active_cell_iterators())
-        out << table[static_cast<int>(cell->reference_cell_type())] << ' ';
+        out << deal_to_vtk_cell_type[static_cast<int>(cell->reference_cell())]
+            << ' ';
       out << '\n';
     }
   if (vtk_flags.output_faces)
     {
       for (const auto &face : faces)
-        out << table[static_cast<int>(face->reference_cell_type())] << ' ';
+        out << deal_to_vtk_cell_type[static_cast<int>(face->reference_cell())]
+            << ' ';
       out << '\n';
     }
   if (vtk_flags.output_edges)
     {
       for (const auto &edge : edges)
-        out << table[static_cast<int>(edge->reference_cell_type())] << ' ';
+        out << deal_to_vtk_cell_type[static_cast<int>(edge->reference_cell())]
+            << ' ';
     }
   out << "\n\nCELL_DATA " << n_cells << '\n'
       << "SCALARS MaterialID int 1\n"
@@ -3408,7 +3649,13 @@ GridOut::write_mesh_per_processor_as_vtu(
   data_names.emplace_back("level_subdomain");
   data_names.emplace_back("proc_writing");
 
-  const unsigned int n_q_points = GeometryInfo<dim>::vertices_per_cell;
+  const auto reference_cells = tria.get_reference_cells();
+
+  AssertDimension(reference_cells.size(), 1);
+
+  const auto &reference_cell = reference_cells[0];
+
+  const unsigned int n_q_points = reference_cell.n_vertices();
 
   for (const auto &cell : tria.cell_iterators())
     {
@@ -3435,6 +3682,7 @@ GridOut::write_mesh_per_processor_as_vtu(
       DataOutBase::Patch<dim, spacedim> patch;
       patch.data.reinit(n_datasets, n_q_points);
       patch.points_are_available = false;
+      patch.reference_cell       = reference_cell;
 
       for (unsigned int vertex = 0; vertex < n_q_points; ++vertex)
         {
@@ -3452,7 +3700,7 @@ GridOut::write_mesh_per_processor_as_vtu(
           patch.data(3, vertex) = tria.locally_owned_subdomain();
         }
 
-      for (auto f : GeometryInfo<dim>::face_indices())
+      for (auto f : reference_cell.face_indices())
         patch.neighbors[f] = numbers::invalid_unsigned_int;
       patches.push_back(patch);
     }
@@ -4037,9 +4285,8 @@ namespace internal
           std::vector<double> dummy_weights(n_points, 1. / n_points);
           Quadrature<dim - 1> quadrature(boundary_points, dummy_weights);
 
-          q_projector =
-            QProjector<dim>::project_to_all_faces(ReferenceCell::Type::Quad,
-                                                  quadrature);
+          q_projector = QProjector<dim>::project_to_all_faces(
+            dealii::ReferenceCells::Quadrilateral, quadrature);
         }
 
       for (const auto &cell : tria.active_cell_iterators())

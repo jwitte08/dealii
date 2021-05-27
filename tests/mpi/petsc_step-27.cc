@@ -36,6 +36,7 @@ namespace LA
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_accessor.h>
+#include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe_q.h>
@@ -45,7 +46,6 @@ namespace LA
 #include <deal.II/grid/tria_accessor.h>
 #include <deal.II/grid/tria_iterator.h>
 
-#include <deal.II/hp/dof_handler.h>
 #include <deal.II/hp/fe_values.h>
 #include <deal.II/hp/q_collection.h>
 #include <deal.II/hp/refinement.h>
@@ -102,7 +102,7 @@ namespace Step27
 
     parallel::distributed::Triangulation<dim> triangulation;
 
-    hp::DoFHandler<dim>      dof_handler;
+    DoFHandler<dim>          dof_handler;
     hp::FECollection<dim>    fe_collection;
     hp::QCollection<dim>     quadrature_collection;
     hp::QCollection<dim - 1> face_quadrature_collection;
@@ -228,15 +228,19 @@ namespace Step27
 #ifdef DEBUG
     // We have not dealt with chains of constraints on ghost cells yet.
     // Thus, we are content with verifying their consistency for now.
+    std::vector<IndexSet> locally_owned_dofs_per_processor =
+      Utilities::MPI::all_gather(dof_handler.get_communicator(),
+                                 dof_handler.locally_owned_dofs());
+
     IndexSet locally_active_dofs;
     DoFTools::extract_locally_active_dofs(dof_handler, locally_active_dofs);
-    AssertThrow(constraints.is_consistent_in_parallel(
-                  dof_handler.locally_owned_dofs_per_processor(),
-                  locally_active_dofs,
-                  mpi_communicator,
-                  /*verbose=*/true),
-                ExcMessage(
-                  "AffineConstraints object contains inconsistencies!"));
+
+    AssertThrow(
+      constraints.is_consistent_in_parallel(locally_owned_dofs_per_processor,
+                                            locally_active_dofs,
+                                            mpi_communicator,
+                                            /*verbose=*/true),
+      ExcMessage("AffineConstraints object contains inconsistencies!"));
 #endif
     constraints.close();
 

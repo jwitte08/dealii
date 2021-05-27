@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -216,14 +216,14 @@ namespace internal
         {
           Assert(
             dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<dim, spacedim>::ExcNotAvailableWithoutHP()));
+            (typename DoFHandler<dim, spacedim>::ExcOnlyAvailableWithHP()));
 
           std::map<types::global_dof_index, types::global_dof_index>
             dof_identities;
 
           // Note: we may wish to have something here similar to what
           // we do for lines and quads, namely that we only identify
-          // dofs for any fe towards the most dominating one. however,
+          // dofs for any FE towards the most dominating one. however,
           // it is not clear whether this is actually necessary for
           // vertices at all, I can't think of a finite element that
           // would make that necessary...
@@ -297,7 +297,7 @@ namespace internal
                           // are not yet constrained to anything else,
                           // except for to each other. use the rule that
                           // we will always constrain the dof with the
-                          // higher fe index to the one with the lower,
+                          // higher FE index to the one with the lower,
                           // to avoid circular reasoning.
                           for (const auto &identity : identities)
                             {
@@ -374,9 +374,8 @@ namespace internal
         compute_line_dof_identities(const DoFHandler<1, spacedim> &dof_handler)
         {
           (void)dof_handler;
-          Assert(
-            dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<1, spacedim>::ExcNotAvailableWithoutHP()));
+          Assert(dof_handler.hp_capability_enabled == true,
+                 (typename DoFHandler<1, spacedim>::ExcOnlyAvailableWithHP()));
 
           return std::map<types::global_dof_index, types::global_dof_index>();
         }
@@ -389,7 +388,7 @@ namespace internal
         {
           Assert(
             dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<dim, spacedim>::ExcNotAvailableWithoutHP()));
+            (typename DoFHandler<dim, spacedim>::ExcOnlyAvailableWithHP()));
 
           std::map<types::global_dof_index, types::global_dof_index>
             dof_identities;
@@ -402,7 +401,7 @@ namespace internal
             dof_handler.get_triangulation())
             .clear_user_flags_line();
 
-          // An implementation of the algorithm described in the hp paper,
+          // An implementation of the algorithm described in the hp-paper,
           // including the modification mentioned later in the "complications in
           // 3-d" subsections
           //
@@ -446,7 +445,7 @@ namespace internal
                                            fe_index_2 =
                                              line->nth_active_fe_index(g);
 
-                        // as described in the hp paper, we only unify on lines
+                        // as described in the hp-paper, we only unify on lines
                         // when there are at most two different FE objects
                         // assigned on it.
                         // however, more than two 'active_fe_indices' can be
@@ -743,7 +742,7 @@ namespace internal
           (void)dof_handler;
           Assert(
             dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<dim, spacedim>::ExcNotAvailableWithoutHP()));
+            (typename DoFHandler<dim, spacedim>::ExcOnlyAvailableWithHP()));
 
           // this function should only be called for dim<3 where there are
           // no quad dof identies. for dim==3, the specialization below should
@@ -758,9 +757,8 @@ namespace internal
         static std::map<types::global_dof_index, types::global_dof_index>
         compute_quad_dof_identities(const DoFHandler<3, spacedim> &dof_handler)
         {
-          Assert(
-            dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<3, spacedim>::ExcNotAvailableWithoutHP()));
+          Assert(dof_handler.hp_capability_enabled == true,
+                 (typename DoFHandler<3, spacedim>::ExcOnlyAvailableWithHP()));
 
           const int dim = 3;
 
@@ -777,7 +775,7 @@ namespace internal
             dof_handler.get_triangulation())
             .clear_user_flags_quad();
 
-          // An implementation of the algorithm described in the hp
+          // An implementation of the algorithm described in the hp-
           // paper, including the modification mentioned later in the
           // "complications in 3-d" subsections
           //
@@ -837,8 +835,8 @@ namespace internal
                                 dof_handler.get_fe(other_fe_index),
                                 quad_dof_identities
                                   [most_dominating_fe_index][other_fe_index]
-                                  [cell->quad(q)->reference_cell_type() ==
-                                   ReferenceCell::Type::Quad],
+                                  [cell->quad(q)->reference_cell() ==
+                                   dealii::ReferenceCells::Quadrilateral],
                                 most_dominating_fe_index_face_no);
 
                             for (const auto &identity : identities)
@@ -1020,7 +1018,7 @@ namespace internal
         /**
          * Once degrees of freedom have been distributed on all cells, see if
          * we can identify DoFs on neighboring cells. This function does
-         * nothing unless the DoFHandler has hp capabilities.
+         * nothing unless the DoFHandler has hp-capabilities.
          *
          * Return the final number of degrees of freedom, which is the old one
          * minus however many were identified.
@@ -1066,11 +1064,11 @@ namespace internal
         {
           Assert(
             dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<dim, spacedim>::ExcNotAvailableWithoutHP()));
+            (typename DoFHandler<dim, spacedim>::ExcOnlyAvailableWithHP()));
 
           // Note: we may wish to have something here similar to what
           // we do for lines and quads, namely that we only identify
-          // dofs for any fe towards the most dominating one. however,
+          // dofs for any FE towards the most dominating one. however,
           // it is not clear whether this is actually necessary for
           // vertices at all, I can't think of a finite element that
           // would make that necessary...
@@ -1157,7 +1155,7 @@ namespace internal
                           // are not yet constrained to anything else,
                           // except for to each other. use the rule that
                           // we will always constrain the dof with the
-                          // higher fe index to the one with the lower,
+                          // higher FE index to the one with the lower,
                           // to avoid circular reasoning.
                           for (const auto &identity : identities)
                             {
@@ -1186,7 +1184,7 @@ namespace internal
                               // we need to work on.
                               //
                               // all degrees of freedom belonging to
-                              // dominating fe indices or to a processor
+                              // dominating FE indices or to a processor
                               // with a higher rank have been set at this
                               // point (either in Phase 2, or after the
                               // first ghost exchange in Phase 5). thus,
@@ -1223,9 +1221,8 @@ namespace internal
           DoFHandler<1, spacedim> &dof_handler)
         {
           (void)dof_handler;
-          Assert(
-            dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<1, spacedim>::ExcNotAvailableWithoutHP()));
+          Assert(dof_handler.hp_capability_enabled == true,
+                 (typename DoFHandler<1, spacedim>::ExcOnlyAvailableWithHP()));
         }
 
 
@@ -1236,7 +1233,7 @@ namespace internal
         {
           Assert(
             dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<dim, spacedim>::ExcNotAvailableWithoutHP()));
+            (typename DoFHandler<dim, spacedim>::ExcOnlyAvailableWithHP()));
 
           // we will mark lines that we have already treated, so first save and
           // clear the user flags on lines and later restore them
@@ -1252,7 +1249,7 @@ namespace internal
               for (const auto l : cell->line_indices())
                 cell->line(l)->set_user_flag();
 
-          // An implementation of the algorithm described in the hp paper,
+          // An implementation of the algorithm described in the hp-paper,
           // including the modification mentioned later in the "complications in
           // 3-d" subsections
           //
@@ -1459,7 +1456,7 @@ namespace internal
                                     // we need to work on.
                                     //
                                     // all degrees of freedom belonging to
-                                    // dominating fe indices or to a processor
+                                    // dominating FE indices or to a processor
                                     // with a higher rank have been set at this
                                     // point (either in Phase 2, or after the
                                     // first ghost exchange in Phase 5). thus,
@@ -1499,7 +1496,7 @@ namespace internal
           (void)dof_handler;
           Assert(
             dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<dim, spacedim>::ExcNotAvailableWithoutHP()));
+            (typename DoFHandler<dim, spacedim>::ExcOnlyAvailableWithHP()));
 
           // this function should only be called for dim<3 where there are
           // no quad dof identies. for dim>=3, the specialization below should
@@ -1512,9 +1509,8 @@ namespace internal
         static void merge_invalid_quad_dofs_on_ghost_interfaces(
           DoFHandler<3, spacedim> &dof_handler)
         {
-          Assert(
-            dof_handler.hp_capability_enabled == true,
-            (typename DoFHandler<3, spacedim>::ExcNotAvailableWithoutHP()));
+          Assert(dof_handler.hp_capability_enabled == true,
+                 (typename DoFHandler<3, spacedim>::ExcOnlyAvailableWithHP()));
 
           const int dim = 3;
 
@@ -1533,7 +1529,7 @@ namespace internal
               for (const auto q : cell->face_indices())
                 cell->quad(q)->set_user_flag();
 
-          // An implementation of the algorithm described in the hp
+          // An implementation of the algorithm described in the hp-
           // paper, including the modification mentioned later in the
           // "complications in 3-d" subsections
           //
@@ -1594,8 +1590,8 @@ namespace internal
                                 dof_handler.get_fe(other_fe_index),
                                 quad_dof_identities
                                   [most_dominating_fe_index][other_fe_index]
-                                  [cell->quad(q)->reference_cell_type() ==
-                                   ReferenceCell::Type::Quad],
+                                  [cell->quad(q)->reference_cell() ==
+                                   dealii::ReferenceCells::Quadrilateral],
                                 most_dominating_fe_index_face_no);
 
                             for (const auto &identity : identities)
@@ -1614,7 +1610,7 @@ namespace internal
                                 // we need to work on.
                                 //
                                 // all degrees of freedom belonging to
-                                // dominating fe indices or to a processor with
+                                // dominating FE indices or to a processor with
                                 // a higher rank have been set at this point
                                 // (either in Phase 2, or after the first ghost
                                 // exchange in Phase 5). thus, we only have to
@@ -1649,7 +1645,7 @@ namespace internal
          * know the indices of all dominating DoFs, and we have to assign those
          * invalid entries to their corresponding global value.
          *
-         * This function does nothing unless the DoFHandler has hp
+         * This function does nothing unless the DoFHandler has hp-
          * capabilities.
          */
         template <int dim, int spacedim>
@@ -1935,7 +1931,7 @@ namespace internal
                       // the previous indices were all valid. this really should
                       // be the case: we allocated space for these vertex dofs,
                       // i.e., at least one adjacent cell has a valid
-                      // active_fe_index, so there are DoFs that really live
+                      // active FE index, so there are DoFs that really live
                       // on this vertex. if check_validity is set, then we
                       // must make sure that they have been set to something
                       // useful
@@ -1958,7 +1954,7 @@ namespace internal
                           // non-locally owned DoF for which we don't know the
                           // new number yet and so set it to an invalid index.
                           // This will later be fixed up after the first ghost
-                          // exchange phase when we unify hp DoFs on neighboring
+                          // exchange phase when we unify hp-DoFs on neighboring
                           // cells.
                           if (indices_we_care_about.size() == 0)
                             dealii::internal::DoFAccessorImplementation::
@@ -2052,7 +2048,7 @@ namespace internal
                         // DoF for which we don't know the new number yet and so
                         // set it to an invalid index. This will later be fixed
                         // up after the first ghost exchange phase when we unify
-                        // hp DoFs on neighboring cells.
+                        // hp-DoFs on neighboring cells.
                         if (indices_we_care_about.size() == 0)
                           cell->set_dof_index(d,
                                               new_numbers[old_dof_index],
@@ -2163,7 +2159,7 @@ namespace internal
                                   // for which we don't know the new number yet
                                   // and so set it to an invalid index. This
                                   // will later be fixed up after the first
-                                  // ghost exchange phase when we unify hp DoFs
+                                  // ghost exchange phase when we unify hp-DoFs
                                   // on neighboring cells.
                                   if (indices_we_care_about.size() == 0)
                                     line->set_dof_index(
@@ -2272,7 +2268,7 @@ namespace internal
                                   // for which we don't know the new number yet
                                   // and so set it to an invalid index. This
                                   // will later be fixed up after the first
-                                  // ghost exchange phase when we unify hp DoFs
+                                  // ghost exchange phase when we unify hp-DoFs
                                   // on neighboring cells.
                                   if (indices_we_care_about.size() == 0)
                                     line->set_dof_index(
@@ -2350,7 +2346,7 @@ namespace internal
                                   // for which we don't know the new number yet
                                   // and so set it to an invalid index. This
                                   // will later be fixed up after the first
-                                  // ghost exchange phase when we unify hp DoFs
+                                  // ghost exchange phase when we unify hp-DoFs
                                   // on neighboring cells.
                                   if (indices_we_care_about.size() == 0)
                                     quad->set_dof_index(
@@ -2845,7 +2841,7 @@ namespace internal
         // return a sequential, complete index set. take into account that the
         // number of DoF indices may in fact be smaller than there were before
         // if some previously separately numbered dofs have been identified.
-        // this is, for example, what we do when the DoFHandler has hp
+        // this is, for example, what we do when the DoFHandler has hp-
         // capabilities enabled: it first enumerates all DoFs on cells
         // independently, and then unifies some located at vertices or faces;
         // this leaves us with fewer DoFs than there were before, so use the
@@ -3026,25 +3022,16 @@ namespace internal
         const unsigned int n_procs =
           Utilities::MPI::n_mpi_processes(tr->get_communicator());
 
-        // If the underlying shared::Tria allows artificial cells,
-        // then save the current set of subdomain ids, and set
-        // subdomain ids to the "true" owner of each cell. we later
-        // restore these flags
-        std::vector<types::subdomain_id> saved_subdomain_ids;
-        if (tr->with_artificial_cells())
-          {
-            saved_subdomain_ids.resize(tr->n_active_cells());
-
-            const std::vector<types::subdomain_id> &true_subdomain_ids =
-              tr->get_true_subdomain_ids_of_cells();
-
-            for (const auto &cell : tr->active_cell_iterators())
-              {
-                const unsigned int index   = cell->active_cell_index();
-                saved_subdomain_ids[index] = cell->subdomain_id();
-                cell->set_subdomain_id(true_subdomain_ids[index]);
-              }
-          }
+        // If an underlying shared::Tria allows artificial cells, we need to
+        // restore the true cell owners temporarily.
+        // We use the TemporarilyRestoreSubdomainIds class for this purpose: we
+        // save the current set of subdomain ids, set subdomain ids to the
+        // "true" owner of each cell upon construction of the
+        // TemporarilyRestoreSubdomainIds object, and later restore these flags
+        // when it is destroyed.
+        const internal::parallel::shared::
+          TemporarilyRestoreSubdomainIds<dim, spacedim>
+            subdomain_modifier(*tr);
 
         // first let the sequential algorithm do its magic. it is going to
         // enumerate DoFs on all cells, regardless of owner
@@ -3157,12 +3144,6 @@ namespace internal
               start_index = end_index;
             }
         }
-
-        // finally, restore current subdomain ids
-        if (tr->with_artificial_cells())
-          for (const auto &cell : tr->active_cell_iterators())
-            cell->set_subdomain_id(
-              saved_subdomain_ids[cell->active_cell_index()]);
 
         // return a NumberCache object made up from the sets of locally
         // owned DoFs
@@ -3379,20 +3360,10 @@ namespace internal
             &this->dof_handler->get_triangulation()));
         Assert(tr != nullptr, ExcInternalError());
 
-        typename dealii::parallel::shared::Triangulation<dim, spacedim>::
-          active_cell_iterator
-            cell = this->dof_handler->get_triangulation().begin_active(),
-            endc = this->dof_handler->get_triangulation().end();
-        std::vector<types::subdomain_id> current_subdomain_ids(
-          tr->n_active_cells());
-        const std::vector<types::subdomain_id> &true_subdomain_ids =
-          tr->get_true_subdomain_ids_of_cells();
-        if (tr->with_artificial_cells())
-          for (unsigned int index = 0; cell != endc; cell++, index++)
-            {
-              current_subdomain_ids[index] = cell->subdomain_id();
-              cell->set_subdomain_id(true_subdomain_ids[index]);
-            }
+        // Set subdomain IDs to the "true" owner of each cell.
+        const internal::parallel::shared::
+          TemporarilyRestoreSubdomainIds<dim, spacedim>
+            subdomain_modifier(*tr);
 
         std::vector<types::global_dof_index> global_gathered_numbers(
           this->dof_handler->n_dofs(), 0);
@@ -3471,10 +3442,13 @@ namespace internal
             // one-to-one relation between old and new DoFs.
             std::vector<unsigned int> flag_1(this->dof_handler->n_dofs(), 0);
             std::vector<unsigned int> flag_2(this->dof_handler->n_dofs(), 0);
+            std::vector<IndexSet>     locally_owned_dofs_per_processor =
+              Utilities::MPI::all_gather(
+                tr->get_communicator(),
+                this->dof_handler->locally_owned_dofs());
             for (unsigned int i = 0; i < n_cpu; i++)
               {
-                const IndexSet iset =
-                  this->dof_handler->locally_owned_dofs_per_processor()[i];
+                const IndexSet iset = locally_owned_dofs_per_processor[i];
                 for (types::global_dof_index ind = 0; ind < iset.n_elements();
                      ind++)
                   {
@@ -3514,12 +3488,6 @@ namespace internal
         const NumberCache number_cache(
           DoFTools::locally_owned_dofs_per_subdomain(*this->dof_handler),
           this->dof_handler->get_triangulation().locally_owned_subdomain());
-
-        // restore artificial cells
-        cell = tr->begin_active();
-        if (tr->with_artificial_cells())
-          for (unsigned int index = 0; cell != endc; cell++, index++)
-            cell->set_subdomain_id(current_subdomain_ids[index]);
 
         return number_cache;
 #endif
@@ -3819,7 +3787,7 @@ namespace internal
         // --------- Phase 2: eliminate dof duplicates on all cells:
         //                    - un-numerate dofs on interfaces to ghost cells
         //                      that we don't own
-        //                    - in case of hp support, unify dofs
+        //                    - in case of hp-support, unify dofs
         std::vector<dealii::types::global_dof_index> renumbering(
           n_initial_local_dofs, enumeration_dof_index);
 
@@ -3830,7 +3798,7 @@ namespace internal
           invalidate_dof_indices_on_weaker_ghost_cells_for_renumbering(
             renumbering, subdomain_id, *dof_handler);
 
-        // then, we identify DoF duplicates if the DoFHandler has hp
+        // then, we identify DoF duplicates if the DoFHandler has hp-
         // capabilities
         std::vector<std::map<types::global_dof_index, types::global_dof_index>>
           all_constrained_indices(dim);
@@ -3917,9 +3885,9 @@ namespace internal
           // done twice
           communicate_dof_indices_on_marked_cells(*dof_handler);
 
-          // If the DoFHandler has hp capabilities enabled, then we may have
+          // If the DoFHandler has hp-capabilities enabled, then we may have
           // received valid indices of degrees of freedom that are dominated
-          // by a fe object adjacent to a ghost interface.  thus, we overwrite
+          // by a FE object adjacent to a ghost interface.  thus, we overwrite
           // the remaining invalid indices with the valid ones in this step.
           Implementation::merge_invalid_dof_indices_on_ghost_interfaces(
             *dof_handler);
@@ -4089,6 +4057,7 @@ namespace internal
                                triangulation->get_communicator()) -
                                1,
                              triangulation->get_communicator());
+            AssertThrowMPI(ierr);
 
             // shift indices
             for (types::global_dof_index &index : renumbering)
@@ -4410,7 +4379,7 @@ namespace internal
             //
             // This is the same as phase 5+6 in the distribute_dofs() algorithm,
             // taking into account that we have to unify a few DoFs in between
-            // then communication phases if we do hp numbering
+            // then communication phases if we do hp-numbering
             {
               std::vector<bool> user_flags;
               triangulation->save_user_flags(user_flags);
@@ -4430,9 +4399,9 @@ namespace internal
               // done twice
               communicate_dof_indices_on_marked_cells(*dof_handler);
 
-              // if the DoFHandler has hp capabilities then we may have
+              // if the DoFHandler has hp-capabilities then we may have
               // received valid indices of degrees of freedom that are
-              // dominated by a fe object adjacent to a ghost interface.
+              // dominated by a FE object adjacent to a ghost interface.
               // thus, we overwrite the remaining invalid indices with the
               // valid ones in this step.
               Implementation::merge_invalid_dof_indices_on_ghost_interfaces(

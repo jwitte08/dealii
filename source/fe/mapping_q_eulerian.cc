@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2020 by the deal.II authors
+// Copyright (C) 2001 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -88,7 +88,7 @@ std::unique_ptr<Mapping<dim, spacedim>>
 MappingQEulerian<dim, VectorType, spacedim>::clone() const
 {
   return std::make_unique<MappingQEulerian<dim, VectorType, spacedim>>(
-    this->get_degree(), *euler_dof_handler, *euler_vector);
+    this->get_degree(), *euler_dof_handler, *euler_vector, this->level);
 }
 
 
@@ -267,6 +267,18 @@ MappingQEulerian<dim, VectorType, spacedim>::fill_fe_values(
   // similarity wasn't based on the mapped field, but
   // the original vertices which are meaningless
   return CellSimilarity::invalid_next_cell;
+}
+
+
+
+template <int dim, class VectorType, int spacedim>
+BoundingBox<spacedim>
+MappingQEulerian<dim, VectorType, spacedim>::get_bounding_box(
+  const typename Triangulation<dim, spacedim>::cell_iterator &cell) const
+{
+  return BoundingBox<spacedim>(
+    dynamic_cast<const MappingQEulerianGeneric &>(*this->qp_mapping)
+      .compute_mapping_support_points(cell));
 }
 
 

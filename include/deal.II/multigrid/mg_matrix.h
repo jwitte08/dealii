@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2019 by the deal.II authors
+// Copyright (C) 2003 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -208,7 +208,9 @@ namespace mg
         // rich enough interface to populate reinit_(domain|range)_vector.
         // Thus, apply an empty LinearOperator exemplar.
         matrices[level] =
-          linear_operator<VectorType>(LinearOperator<VectorType>(), p[level]);
+          linear_operator<VectorType>(LinearOperator<VectorType>(),
+                                      Utilities::get_underlying_value(
+                                        p[level]));
       }
   }
 

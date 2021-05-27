@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2018 by the deal.II authors
+// Copyright (C) 2005 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -32,7 +32,7 @@ main()
 {
   initlog();
 
-  typedef std::map<types::boundary_id, std::unique_ptr<FunctionParser<3>>> T;
+  using T = std::map<types::boundary_id, std::unique_ptr<FunctionParser<3>>>;
 
   T a;
   a = Convert<T>::to_value("0:x,y,z*t");

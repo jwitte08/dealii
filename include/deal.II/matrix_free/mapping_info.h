@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2020 by the deal.II authors
+// Copyright (C) 2011 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -27,6 +27,9 @@
 #include <deal.II/fe/fe.h>
 #include <deal.II/fe/mapping.h>
 
+#include <deal.II/grid/reference_cell.h>
+
+#include <deal.II/hp/mapping_collection.h>
 #include <deal.II/hp/q_collection.h>
 
 #include <deal.II/matrix_free/face_info.h>
@@ -103,7 +106,7 @@ namespace internal
      * The third component is a descriptor of data from the unit cells, called
      * QuadratureDescriptor, which contains the quadrature weights and
      * permutations of how to go through quadrature points in case of face
-     * data. The latter comes in a vector for the support of hp adaptivity,
+     * data. The latter comes in a vector for the support of hp-adaptivity,
      * with several data fields for the individual quadrature formulas.
      *
      * @ingroup matrixfree
@@ -124,6 +127,14 @@ namespace internal
          * Constructor. Does nothing.
          */
         QuadratureDescriptor();
+
+        /**
+         * Set up the lengths in the various members of this struct.
+         */
+        template <int dim_q>
+        void
+        initialize(const Quadrature<dim_q> &quadrature,
+                   const UpdateFlags update_flags_inner_faces = update_default);
 
         /**
          * Set up the lengths in the various members of this struct.
@@ -179,11 +190,19 @@ namespace internal
       /**
        * A class describing the layout of the sections in the @p data_storage
        * field and also includes some data that depends on the number of
-       * quadrature points in the hp context such as the inner quadrature
+       * quadrature points in the hp-context such as the inner quadrature
        * formula and re-indexing for faces that are not in the standard
        * orientation.
        */
       std::vector<QuadratureDescriptor> descriptor;
+
+      /**
+       * Collection of quadrature formulae applied on the given face.
+       *
+       * @note Only filled for faces, since faces might be quadrilateral or
+       *   triangle shaped.
+       */
+      std::vector<dealii::hp::QCollection<structdim>> q_collection;
 
       /**
        * Stores the index offset into the arrays @p jxw_values, @p jacobians,
@@ -280,7 +299,7 @@ namespace internal
 
       /**
        * Returns the quadrature index for a given number of quadrature
-       * points. If not in hp mode or if the index is not found, this
+       * points. If not in hp-mode or if the index is not found, this
        * function always returns index 0. Hence, this function does not
        * check whether the given degree is actually present.
        */
@@ -320,17 +339,17 @@ namespace internal
        * CellIterator::level() and CellIterator::index(), in order to allow
        * for different kinds of iterators, e.g. standard DoFHandler,
        * multigrid, etc.)  on a fixed Triangulation. In addition, a mapping
-       * and several quadrature formulas are given.
+       * and several 1D quadrature formulas are given.
        */
       void
       initialize(
         const dealii::Triangulation<dim> &                        tria,
         const std::vector<std::pair<unsigned int, unsigned int>> &cells,
         const FaceInfo<VectorizedArrayType::size()> &             faces,
-        const std::vector<unsigned int> &              active_fe_index,
-        const Mapping<dim> &                           mapping,
-        const std::vector<dealii::hp::QCollection<1>> &quad,
-        const UpdateFlags                              update_flags_cells,
+        const std::vector<unsigned int> &active_fe_index,
+        const std::shared_ptr<dealii::hp::MappingCollection<dim>> &mapping,
+        const std::vector<dealii::hp::QCollection<dim>> &          quad,
+        const UpdateFlags update_flags_cells,
         const UpdateFlags update_flags_boundary_faces,
         const UpdateFlags update_flags_inner_faces,
         const UpdateFlags update_flags_faces_by_cells);
@@ -347,7 +366,7 @@ namespace internal
         const std::vector<std::pair<unsigned int, unsigned int>> &cells,
         const FaceInfo<VectorizedArrayType::size()> &             faces,
         const std::vector<unsigned int> &active_fe_index,
-        const Mapping<dim> &             mapping);
+        const std::shared_ptr<dealii::hp::MappingCollection<dim>> &mapping);
 
       /**
        * Return the type of a given cell as detected during initialization.
@@ -436,13 +455,24 @@ namespace internal
         face_data_by_cells;
 
       /**
-       * The pointer to the underlying Mapping object.
+       * The pointer to the underlying hp::MappingCollection object.
+       */
+      std::shared_ptr<dealii::hp::MappingCollection<dim>> mapping_collection;
+
+      /**
+       * The pointer to the first entry of mapping_collection.
        */
       SmartPointer<const Mapping<dim>> mapping;
 
       /**
+       * Reference-cell type related to each quadrature and active quadrature
+       * index.
+       */
+      std::vector<std::vector<dealii::ReferenceCell>> reference_cell_types;
+
+      /**
        * Internal function to compute the geometry for the case the mapping is
-       * a MappingQ and a single quadrature formula per slot (non-hp case) is
+       * a MappingQ and a single quadrature formula per slot (non-hp-case) is
        * used. This method computes all data from the underlying cell
        * quadrature points using the fast operator evaluation techniques from
        * the matrix-free framework itself, i.e., it uses a polynomial
@@ -476,8 +506,8 @@ namespace internal
       initialize_cells(
         const dealii::Triangulation<dim> &                        tria,
         const std::vector<std::pair<unsigned int, unsigned int>> &cells,
-        const std::vector<unsigned int> &active_fe_index,
-        const Mapping<dim> &             mapping);
+        const std::vector<unsigned int> &         active_fe_index,
+        const dealii::hp::MappingCollection<dim> &mapping);
 
       /**
        * Computes the information in the given faces, called within
@@ -488,8 +518,9 @@ namespace internal
         const dealii::Triangulation<dim> &                        tria,
         const std::vector<std::pair<unsigned int, unsigned int>> &cells,
         const std::vector<FaceToCellTopology<VectorizedArrayType::size()>>
-          &                 faces,
-        const Mapping<dim> &mapping);
+          &                                       faces,
+        const std::vector<unsigned int> &         active_fe_index,
+        const dealii::hp::MappingCollection<dim> &mapping);
 
       /**
        * Computes the information in the given faces, called within
@@ -499,16 +530,17 @@ namespace internal
       initialize_faces_by_cells(
         const dealii::Triangulation<dim> &                        tria,
         const std::vector<std::pair<unsigned int, unsigned int>> &cells,
-        const Mapping<dim> &                                      mapping);
+        const dealii::hp::MappingCollection<dim> &                mapping);
 
       /**
        * Helper function to determine which update flags must be set in the
        * internal functions to initialize all data as requested by the user.
        */
       static UpdateFlags
-      compute_update_flags(const UpdateFlags update_flags,
-                           const std::vector<dealii::hp::QCollection<1>> &quad =
-                             std::vector<dealii::hp::QCollection<1>>());
+      compute_update_flags(
+        const UpdateFlags                                update_flags,
+        const std::vector<dealii::hp::QCollection<dim>> &quad =
+          std::vector<dealii::hp::QCollection<dim>>());
     };
 
 

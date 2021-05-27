@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -25,6 +25,7 @@
 #include <deal.II/base/point.h>
 #include <deal.II/base/table.h>
 
+#include <deal.II/grid/reference_cell.h>
 #include <deal.II/grid/tria.h>
 
 #include <array>
@@ -128,6 +129,17 @@ namespace GridGenerator
   simplex(Triangulation<dim, dim> &      tria,
           const std::vector<Point<dim>> &vertices);
 
+  /*
+   * Create a (coarse) grid with a single cell of the shape of the provided
+   * reference cell. This is a generalization of the hyper_cube() and simplex()
+   * functions above.
+   */
+  template <int dim, int spacedim>
+  void
+  reference_cell(Triangulation<dim, spacedim> &tria,
+                 const ReferenceCell &         reference_cell);
+
+
   /**
    * Same as hyper_cube(), but with the difference that not only one cell is
    * created but each coordinate direction is subdivided into @p repetitions
@@ -145,10 +157,8 @@ namespace GridGenerator
    * @param tria The triangulation to create. It needs to be empty upon
    * calling this function.
    *
-   * @param repetitions A vector of @p dim positive values denoting the number
-   * of cells to generate in that direction. For example, the first component of
-   * the vector specifies the number of cells in the x-direction, the second
-   * component specifies that for the y-direction for dim=2.
+   * @param repetitions An unsigned integer denoting the number of cells to
+   * generate in each direction.
    *
    * @param left Lower bound for the interval used to create the hyper cube.
    *
@@ -385,7 +395,7 @@ namespace GridGenerator
                     const double             pad_top           = 2.,
                     const double             pad_left          = 1.,
                     const double             pad_right         = 1.,
-                    const Point<dim>         center            = Point<dim>(),
+                    const Point<dim> &       center            = Point<dim>(),
                     const types::manifold_id polar_manifold_id = 0,
                     const types::manifold_id tfi_manifold_id   = 1,
                     const double             L                 = 1.,
@@ -769,6 +779,58 @@ namespace GridGenerator
                       const double        radius = 1.);
 
   /**
+   * Generate a 2D mesh consisting of the unit square joined with a copy shifted
+   * by $s = (1,0)$. Depending on the flags passed either the right or the left
+   * square is rotated by $\pi/2$. This way one can generate a mesh in which one
+   * square possibly contains an edge that has the opposite tangential (and
+   * hence also opposite normal) orientation of the neighboring edge of the
+   * other square.
+   *
+   * This mesh is not overly useful from a practical point of view. For
+   * debugging purposes it can be used to check for orientation issues for
+   * vector- or tensor-valued finite elements.
+   *
+   * @note If <code>rotate_left_square==rotate_right_square</code> the mesh is consistently oriented.
+   *
+   * @param[out] tria The input triangulation.
+   * @param[in] rotate_left_square <code>true</code> if the left square is
+   * rotated by $\pi/2$.
+   * @param[in] rotate_right_square <code>true</code> if the right square is
+   * rotated by $\pi/2$.
+   */
+  void non_standard_orientation_mesh(Triangulation<2> &tria,
+                                     const bool        rotate_left_square,
+                                     const bool        rotate_right_square);
+
+  /**
+   * Generate a 3D mesh consisting of the unit cube joined with a copy shifted
+   * by $s = (1,0,0)$. Depending on the flags passed either the right or the
+   * left cube (when looking at the positively oriented (x,z)-plane) contains a
+   * face that is either not in standard orientation and/or is rotated by either
+   * $\pi/2$, $\pi$ or $3/2\pi$.
+   *
+   * This mesh is not overly useful from a practical point of view. For
+   * debugging purposes it can be used to check for orientation issues for
+   * vector- or tensor-valued finite elements.
+   *
+   * @param[out] tria The input triangulation.
+   * @param[in] face_orientation <code>true</code> if the face is the not in
+   * standard orientation.
+   * @param[in] face_flip <code>true</code> if the face is rotated by +180
+   * degrees
+   * @param[in] face_rotation <code>true</code> if the face is rotated
+   * (additionally) by +90 degrees
+   * @param[in] manipulate_left_cube <code>true</code> if the left cube is
+   * to be re-ordered. If `false`, it is the right cube.
+   */
+  void non_standard_orientation_mesh(Triangulation<3> &tria,
+                                     const bool        face_orientation,
+                                     const bool        face_flip,
+                                     const bool        face_rotation,
+                                     const bool        manipulate_left_cube);
+
+
+  /**
    * Creates a hyper sphere, i.e., a surface of a ball in @p spacedim
    * dimensions. This function only exists for dim+1=spacedim in 2 and 3 space
    * dimensions. (To create a mesh of a ball, use GridGenerator::hyper_ball().)
@@ -793,14 +855,13 @@ namespace GridGenerator
    * @pre The triangulation passed as argument needs to be empty when calling
    * this function.
    */
-
   template <int spacedim>
   void hyper_sphere(Triangulation<spacedim - 1, spacedim> &tria,
                     const Point<spacedim> &center = Point<spacedim>(),
                     const double           radius = 1.);
 
   /**
-   * This class produces a hyper-ball intersected with the positive orthant
+   * This function produces a hyper-ball intersected with the positive orthant
    * relative to @p center, which contains three elements in 2d and four in
    * 3d. The interior points of the mesh are chosen to balance the minimal
    * singular value of the Jacobian of the mapping from reference to real
@@ -839,7 +900,7 @@ namespace GridGenerator
                      const double        radius = 1.);
 
   /**
-   * This class produces a half hyper-ball around @p center, which contains
+   * This function produces a half hyper-ball around @p center, which contains
    * four elements in 2d and 6 in 3d. The cut plane is perpendicular to the
    * <i>x</i>-axis.
    *
@@ -884,6 +945,48 @@ namespace GridGenerator
   cylinder(Triangulation<dim> &tria,
            const double        radius      = 1.,
            const double        half_length = 1.);
+
+
+  /**
+   * Create a @p dim dimensional cylinder where the $x$-axis serves as
+   * the axis of the cylinder. For the purposes of this function, a
+   * cylinder is defined as a (@p dim - 1) dimensional disk of given
+   * @p radius, extruded along the axis of the cylinder (which is the
+   * first coordinate direction). Consequently, in three dimensions,
+   * the cylinder extends from `x=-half_length` to `x=+half_length`
+   * and its projection into the @p yz-plane is a circle of radius @p
+   * radius. In two dimensions, the cylinder is a rectangle from
+   * `x=-half_length` to `x=+half_length` and from `y=-radius` to
+   * `y=radius`. This function is only implemented for dim==3.
+   *
+   * The boundaries are colored according to the following scheme: 0 for the
+   * hull of the cylinder, 1 for the left hand face and 2 for the right hand
+   * face (see
+   * @ref GlossColorization "the glossary entry on colorization").
+   *
+   * The manifold id for the hull of the cylinder is set to zero, and a
+   * CylindricalManifold is attached to it.
+   *
+   * @image html subdivided_cylinder_3D.png
+   *
+   * @param tria The triangulation to be created. It needs to be empty upon
+   * calling this function.
+   *
+   * @param x_subdivisions A positive integer denoting the number
+   * of cells to generate in the x direction. The default cylinder has
+   * x_repetitions=2.
+   *
+   * @param radius The radius of the circle in the yz-plane used to extrude the cylinder.
+   *
+   * @param half_length The half-length of the cylinder in the x direction.
+   */
+  template <int dim>
+  void
+  subdivided_cylinder(Triangulation<dim> &tria,
+                      const unsigned int  x_subdivisions,
+                      const double        radius      = 1.,
+                      const double        half_length = 1.);
+
 
   /**
    * Create a cut cone around the x-axis.  The cone extends from
@@ -1011,6 +1114,8 @@ namespace GridGenerator
    * the y-direction, and front to back in the z-direction. A negative number
    * denotes cutting away cells in the reverse direction, so right to left,
    * top to bottom, and back to front.
+   *
+   * A demonstration of this grid can be found in step-75.
    *
    * This function may be used to generate a mesh for a backward
    * facing step, a useful domain for benchmark problems in fluid dynamics.
@@ -1174,7 +1279,7 @@ namespace GridGenerator
    * triangulation.  However, opposed to the previous function, it does not
    * produce a whole shell, but only one half of it, namely that part for
    * which the first component is restricted to non-negative values. The
-   * purpose of this class is to enable computations for solutions which have
+   * purpose of this function is to enable computations for solutions which have
    * rotational symmetry, in which case the half shell in 2d represents a
    * shell in 3d.
    *
@@ -1522,6 +1627,7 @@ namespace GridGenerator
    * Given the two triangulations specified as the first two arguments, create
    * the triangulation that contains the cells of both triangulation and store
    * it in the third parameter. Previous content of @p result will be deleted.
+   * One of the two input triangulations can also be the @p result triangulation.
    *
    * This function is most often used to compose meshes for more complicated
    * geometries if the geometry can be composed of simpler parts for which
@@ -1712,7 +1818,8 @@ namespace GridGenerator
    * existing triangulation. A prototypical case is a 2d domain with
    * rectangular holes. This can be achieved by first meshing the entire
    * domain and then using this function to get rid of the cells that are
-   * located at the holes. Likewise, you could create the mesh that
+   * located at the holes. A demonstration of this particular use case is part
+   * of step-27. Likewise, you could create the mesh that
    * GridGenerator::hyper_L() produces by starting with a
    * GridGenerator::hyper_cube(), refining it once, and then calling the
    * current function with a single cell in the second argument.
@@ -1907,6 +2014,48 @@ namespace GridGenerator
   flatten_triangulation(const Triangulation<dim, spacedim1> &in_tria,
                         Triangulation<dim, spacedim2> &      out_tria);
 
+  /**
+   * Convert a triangulation consisting only of hypercube cells
+   * (quadrilaterals, hexahedra) to a triangulation only consisting of
+   * simplices (triangles, tetrahedra).
+   *
+   * As an example, the following image shows how a set of three hexahedra
+   * meshing one eighths of a sphere are subdivided into tetrahedra, and how
+   * the curved surface is taken into account. Colors indicate how boundary
+   * indicators are inherited:
+   * @image html "convert_hypercube_to_simplex_mesh_visualization_octant.png"
+   *
+   * In general, each quadrilateral in 2d is subdivided into eight triangles,
+   * and each hexahedron in 3d into 24 tetrahedra as shown here:
+   * @image html "convert_hypercube_to_simplex_mesh_visualization.png"
+   *
+   * Material ID and boundary IDs are inherited upon conversion.
+   *
+   * @param in_tria The triangulation containing hex elements.
+   * @param out_tria The converted triangulation containing tet elements.
+   *
+   * @note No manifold objects are copied by this function: you must
+   *   copy existing manifold objects from @p in_tria to @p out_tria, e.g.,
+   *   with the following code:
+   * @code
+   * for (const auto i : in_tria.get_manifold_ids())
+   *   if (i != numbers::flat_manifold_id)
+   *     out_tria.set_manifold(i, in_tria.get_manifold(i));
+   * @endcode
+   */
+  template <int dim, int spacedim>
+  void
+  convert_hypercube_to_simplex_mesh(const Triangulation<dim, spacedim> &in_tria,
+                                    Triangulation<dim, spacedim> &out_tria);
+
+  /**
+   * Specialization of the above function for 1D: simply copy triangulation.
+   */
+  template <int spacedim>
+  void
+  convert_hypercube_to_simplex_mesh(const Triangulation<1, spacedim> &in_tria,
+                                    Triangulation<1, spacedim> &      out_tria);
+
 
   /**
    * Namespace Airfoil contains classes and functions in order to create a
@@ -2038,8 +2187,6 @@ namespace GridGenerator
       add_parameters(ParameterHandler &prm);
     };
 
-
-
     /**
      * Initialize the given triangulation with a flow field around an airfoil,
      * i.e., a mesh of C-Type approximating Joukowski or NACA (4 digit)
@@ -2099,6 +2246,50 @@ namespace GridGenerator
 
   } // namespace Airfoil
 
+  /**
+   * Create a coordinate-parallel brick from the two diagonally opposite
+   * corner points @p p1 and @p p2. The number of vertices in coordinate
+   * direction @p i is given by <tt>repetitions[i]+1</tt>.
+   *
+   * @note This function connects internally 4/8 vertices to
+   *   quadrilateral/hexahedral cells and subdivides these into 2/5
+   * triangular/tetrahedral cells.
+   *
+   * @note Currently, this function only works for `dim==spacedim`.
+   *
+   * @ingroup simplex
+   */
+  template <int dim, int spacedim>
+  void
+  subdivided_hyper_rectangle_with_simplices(
+    Triangulation<dim, spacedim> &   tria,
+    const std::vector<unsigned int> &repetitions,
+    const Point<dim> &               p1,
+    const Point<dim> &               p2,
+    const bool                       colorize = false);
+
+  /**
+   * Initialize the given triangulation with a hypercube (square in 2D and
+   * cube in 3D) consisting of @p repetitions cells in each direction.
+   * The hypercube volume is the tensor product interval
+   * $[left,right]^{\text{dim}}$ in the present number of dimensions, where
+   * the limits are given as arguments. They default to zero and unity, then
+   * producing the unit hypercube.
+   *
+   * @note This function connects internally 4/8 vertices to
+   * quadrilateral/hexahedral cells and subdivides these into 2/5
+   * triangular/tetrahedral cells.
+   *
+   * @ingroup simplex
+   */
+  template <int dim, int spacedim>
+  void
+  subdivided_hyper_cube_with_simplices(Triangulation<dim, spacedim> &tria,
+                                       const unsigned int repetitions,
+                                       const double       p1       = 0.0,
+                                       const double       p2       = 1.0,
+                                       const bool         colorize = false);
+
   ///@}
 
   /**
@@ -2154,11 +2345,11 @@ namespace GridGenerator
    * @ref ConceptMeshType "MeshType concept".
    * The map that is returned will be between cell iterators pointing into the
    * container describing the surface mesh and face iterators of the volume
-   * mesh container. If MeshType is DoFHandler or hp::DoFHandler, then the
-   * function will re-build the triangulation underlying the second argument
-   * and return a map between appropriate iterators into the MeshType
-   * arguments. However, the function will not actually distribute degrees of
-   * freedom on this newly created surface mesh.
+   * mesh container. If MeshType is DoFHandler, then the function will re-build
+   * the triangulation underlying the second argument and return a map between
+   * appropriate iterators into the MeshType arguments. However, the function
+   * will not actually distribute degrees of freedom on this newly created
+   * surface mesh.
    *
    * @tparam dim The dimension of the cells of the volume mesh. For example,
    * if dim==2, then the cells are quadrilaterals that either live in the

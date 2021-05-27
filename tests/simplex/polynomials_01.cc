@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -14,13 +14,12 @@
 // ---------------------------------------------------------------------
 
 
-// Test Simplex::ScalarPolynomial on an the points of an arbitrary quadrature
-// rule.
+// Test BarycentricPolynomials on an the points of an arbitrary
+// quadrature rule.
 
 
+#include <deal.II/base/polynomials_barycentric.h>
 #include <deal.II/base/quadrature_lib.h>
-
-#include <deal.II/simplex/polynomials.h>
 
 #include "../tests.h"
 
@@ -30,8 +29,8 @@ template <int dim>
 void
 test(const unsigned int degree)
 {
-  Simplex::ScalarPolynomial<dim> poly(degree);
-  QSimplex<dim>                  quad(QGauss<dim>(degree + 1));
+  const auto    poly = BarycentricPolynomials<dim>::get_fe_p_basis(degree);
+  QSimplex<dim> quad(QGauss<dim>(degree + 1));
 
   std::vector<double>         values(poly.n());
   std::vector<Tensor<1, dim>> grads(poly.n());

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2020 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -220,7 +220,7 @@ namespace Step11
   void
   LaplaceProblem<dim>::assemble_and_solve()
   {
-    typedef decltype(dof_handler.begin_active()) Iterator;
+    using Iterator = decltype(dof_handler.begin_active());
 
     auto cell_worker = [](const Iterator &  cell,
                           ScratchData<dim> &scratch_data,

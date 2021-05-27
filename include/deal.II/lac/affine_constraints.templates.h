@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -63,18 +63,6 @@ DEAL_II_NAMESPACE_OPEN
 
 
 template <typename number>
-void
-AffineConstraints<number>::copy_from(const AffineConstraints<number> &other)
-{
-  lines       = other.lines;
-  lines_cache = other.lines_cache;
-  local_lines = other.local_lines;
-  sorted      = other.sorted;
-}
-
-
-
-template <typename number>
 bool
 AffineConstraints<number>::ConstraintLine::
 operator<(const ConstraintLine &a) const
@@ -119,7 +107,7 @@ bool
 AffineConstraints<number>::is_consistent_in_parallel(
   const std::vector<IndexSet> &locally_owned_dofs,
   const IndexSet &             locally_active_dofs,
-  const MPI_Comm               mpi_communicator,
+  const MPI_Comm &             mpi_communicator,
   const bool                   verbose) const
 {
   // Helper to return a ConstraintLine object that belongs to row @p row.
@@ -237,40 +225,42 @@ AffineConstraints<number>::add_lines(const IndexSet &lines)
 template <typename number>
 void
 AffineConstraints<number>::add_entries(
-  const size_type                                  line_n,
-  const std::vector<std::pair<size_type, number>> &col_val_pairs)
+  const size_type                                  constrained_dof_index,
+  const std::vector<std::pair<size_type, number>> &col_weight_pairs)
 {
   Assert(sorted == false, ExcMatrixIsClosed());
-  Assert(is_constrained(line_n), ExcLineInexistant(line_n));
+  Assert(is_constrained(constrained_dof_index),
+         ExcLineInexistant(constrained_dof_index));
 
-  ConstraintLine &line = lines[lines_cache[calculate_line_index(line_n)]];
-  Assert(line.index == line_n, ExcInternalError());
+  ConstraintLine &line =
+    lines[lines_cache[calculate_line_index(constrained_dof_index)]];
+  Assert(line.index == constrained_dof_index, ExcInternalError());
 
   // if in debug mode, check whether an entry for this column already
   // exists and if its the same as the one entered at present
   //
   // in any case: skip this entry if an entry for this column already
   // exists, since we don't want to enter it twice
-  for (const std::pair<size_type, number> &col_val_pair : col_val_pairs)
+  for (const std::pair<size_type, number> &col_weight_pair : col_weight_pairs)
     {
-      Assert(line_n != col_val_pair.first,
+      Assert(constrained_dof_index != col_weight_pair.first,
              ExcMessage("Can't constrain a degree of freedom to itself"));
       bool entry_exists = false;
       for (const std::pair<size_type, number> &entry : line.entries)
-        if (entry.first == col_val_pair.first)
+        if (entry.first == col_weight_pair.first)
           {
             // entry exists, break innermost loop
-            Assert(entry.second == col_val_pair.second,
-                   ExcEntryAlreadyExists(line_n,
-                                         col_val_pair.first,
+            Assert(entry.second == col_weight_pair.second,
+                   ExcEntryAlreadyExists(constrained_dof_index,
+                                         col_weight_pair.first,
                                          entry.second,
-                                         col_val_pair.second));
+                                         col_weight_pair.second));
             entry_exists = true;
             break;
           }
 
       if (entry_exists == false)
-        line.entries.push_back(col_val_pair);
+        line.entries.push_back(col_weight_pair);
     }
 }
 
@@ -1883,7 +1873,7 @@ namespace internal
           if (vec.in_local_range(idx))
             vec(idx) = 0.;
         }
-      vec.zero_out_ghosts();
+      vec.zero_out_ghost_values();
     }
 
 #ifdef DEAL_II_COMPILER_CUDA_AWARE
@@ -1928,7 +1918,7 @@ namespace internal
 
       Utilities::CUDA::free(constrained_local_dofs_device);
 
-      vec.zero_out_ghosts();
+      vec.zero_out_ghost_values();
     }
 #endif
 
@@ -2172,7 +2162,7 @@ namespace internal
     // TODO: the in vector might already have all elements. need to find a
     // way to efficiently avoid the copy then
     const_cast<LinearAlgebra::distributed::Vector<number> &>(vec)
-      .zero_out_ghosts();
+      .zero_out_ghost_values();
     output.reinit(locally_owned_elements,
                   needed_elements,
                   vec.get_mpi_communicator());
@@ -3359,6 +3349,8 @@ namespace internal
   } // end of namespace AffineConstraints
 } // end of namespace internal
 
+
+
 // Basic idea of setting up a list of
 // all global dofs: first find all rows and columns
 // that we are going to write touch,
@@ -3426,6 +3418,8 @@ AffineConstraints<number>::make_sorted_row_list(
     }
 }
 
+
+
 // Same function as before, but now do only extract the global indices that
 // come from the local ones without storing their origin. Used for sparsity
 // pattern generation.
@@ -3480,6 +3474,8 @@ AffineConstraints<number>::make_sorted_row_list(
     }
 }
 
+
+
 // Resolve the constraints from the vector and apply inhomogeneities.
 template <typename number>
 template <typename MatrixScalar, typename VectorScalar>
@@ -3524,6 +3520,8 @@ AffineConstraints<number>::resolve_vector_entry(
   return val;
 }
 
+
+
 // internal implementation for distribute_local_to_global for standard
 // (non-block) matrices
 template <typename number>
@@ -3535,8 +3533,8 @@ AffineConstraints<number>::distribute_local_to_global(
   const std::vector<size_type> &local_dof_indices,
   MatrixType &                  global_matrix,
   VectorType &                  global_vector,
-  bool                          use_inhomogeneities_for_rhs,
-  std::integral_constant<bool, false>) const
+  const bool                    use_inhomogeneities_for_rhs,
+  const std::integral_constant<bool, false>) const
 {
   // FIXME: static_assert MatrixType::value_type == number
 
@@ -3679,6 +3677,8 @@ AffineConstraints<number>::distribute_local_to_global(
     use_inhomogeneities_for_rhs);
 }
 
+
+
 // similar function as above, but now specialized for block matrices. See the
 // other function for additional comments.
 template <typename number>
@@ -3690,8 +3690,8 @@ AffineConstraints<number>::distribute_local_to_global(
   const std::vector<size_type> &local_dof_indices,
   MatrixType &                  global_matrix,
   VectorType &                  global_vector,
-  bool                          use_inhomogeneities_for_rhs,
-  std::integral_constant<bool, true>) const
+  const bool                    use_inhomogeneities_for_rhs,
+  const std::integral_constant<bool, true>) const
 {
   const bool use_vectors =
     (local_vector.size() == 0 && global_vector.size() == 0) ? false : true;
@@ -3816,6 +3816,7 @@ AffineConstraints<number>::distribute_local_to_global(
 }
 
 
+
 template <typename number>
 template <typename MatrixType>
 void
@@ -3828,6 +3829,7 @@ AffineConstraints<number>::distribute_local_to_global(
   distribute_local_to_global(
     local_matrix, row_indices, *this, col_indices, global_matrix);
 }
+
 
 
 template <typename number>
@@ -3893,6 +3895,8 @@ AffineConstraints<number>::distribute_local_to_global(
     }
 }
 
+
+
 template <typename number>
 template <typename SparsityPatternType>
 void
@@ -3901,7 +3905,7 @@ AffineConstraints<number>::add_entries_local_to_global(
   SparsityPatternType &         sparsity_pattern,
   const bool                    keep_constrained_entries,
   const Table<2, bool> &        dof_mask,
-  std::integral_constant<bool, false>) const
+  const std::integral_constant<bool, false>) const
 {
   Assert(sparsity_pattern.n_rows() == sparsity_pattern.n_cols(),
          ExcNotQuadratic());
@@ -3988,6 +3992,8 @@ AffineConstraints<number>::add_entries_local_to_global(
                                                       sparsity_pattern);
 }
 
+
+
 template <typename number>
 template <typename SparsityPatternType>
 void
@@ -4043,6 +4049,8 @@ AffineConstraints<number>::add_entries_local_to_global(
   Assert(false, ExcNotImplemented());
 }
 
+
+
 template <typename number>
 template <typename SparsityPatternType>
 void
@@ -4051,7 +4059,7 @@ AffineConstraints<number>::add_entries_local_to_global(
   SparsityPatternType &         sparsity_pattern,
   const bool                    keep_constrained_entries,
   const Table<2, bool> &        dof_mask,
-  std::integral_constant<bool, true>) const
+  const std::integral_constant<bool, true>) const
 {
   // just as the other add_entries_local_to_global function, but now
   // specialized for block matrices.

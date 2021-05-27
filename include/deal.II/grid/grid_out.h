@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2020 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1098,6 +1098,53 @@ public:
   void
   write_msh(const Triangulation<dim, spacedim> &tria, std::ostream &out) const;
 
+#ifdef DEAL_II_GMSH_WITH_API
+  /**
+   * Write the triangulation in any format supported by gmsh API.
+   *
+   * Gmsh API allows writing its output in several formats through their C++
+   * API. This function translates a Triangulation object into a gmsh collection
+   * of entities and calls the gmsh::write() method with the filename passed as
+   * argument. This method generates a different entity for each unique pair of
+   * non default manifold id and boundary id, and writes a gmsh physical group
+   * for each unique combination, allowing you to read back the triangulation
+   * using the GridIn::read_msh() method that takes a string as argument.
+   *
+   * In particular, all cell objects with non default boundary id or non
+   * default manifold id are grouped in a unique physical tag, whose name
+   * contains the boundary and manifold indicators. The names are constructed
+   * using Patterns::Tools::to_value() applied to a `std::map<std::string, int>`
+   * where the keys are either `MaterialID`, `BoundaryID`, or `ManifoldID`,
+   * i.e., a cell with material id 1, and manifold id 3 would be grouped in a
+   * physical tag (whose numbering is not specified), named
+   * `MaterialID:1, ManifoldID:3`.
+   *
+   * For example, calling the method with a hyper ball grid refined once,
+   * would results in the following physical tags defined in the output file:
+   * @code
+   * MeshFormat
+   * 4.1 0 8
+   * \$EndMeshFormat
+   * \$PhysicalNames
+   * 3
+   * 1 1 "ManifoldID:0"
+   * 1 2 "BoundaryID:-1, ManifoldID:1"
+   * 2 3 "ManifoldID:1"
+   * \$EndPhysicalNames
+   * \$Entities
+   * ...
+   * @endcode
+   *
+   * The special boundary id `-1` is used to indicate internal boundaries. The
+   * internal boundaries must be specified whenever it is necessary to specify
+   * a non-flat manifold id.
+   */
+  template <int dim, int spacedim>
+  void
+  write_msh(const Triangulation<dim, spacedim> &tria,
+            const std::string &                 filename) const;
+#endif
+
   /**
    * Write the triangulation in the ucd format.
    *
@@ -1277,17 +1324,18 @@ public:
    *
    * Due to the way this function writes data to the output stream,
    * the resulting output files correspond to a faithful representation
-   * of the mesh in that all cells are visible for visualization. However,
+   * of the mesh in that all cells are visible for visualization. In general,
    * the data is not in a format that allows reading this file in again
    * through the GridIn class. This is because every vertex of the mesh is
    * duplicated as many times as there are adjacent cells. In other words,
    * every cell has its own, separate set of vertices that are at the
    * same location as the vertices of other cells, but are separately
-   * numbered. If such a file is read in through the GridIn class, then
-   * that will result in a mesh that has the correct cells and vertex
-   * locations, but because the vertices are logically separate (though at
-   * the same locations) all cells are unconnected and have no neighbors
-   * across faces.
+   * numbered.
+   *
+   * In order to create a file that can be read with the GridIn class,
+   * the flag GridOutFlags::Vtu::serialize_triangulation must be set to true. In
+   * this case, the generated vtu file will contain the triangulation in a xml
+   * section which is ignored by general vtu readers.
    */
   template <int dim, int spacedim>
   void

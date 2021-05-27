@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2020 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -30,14 +30,13 @@
 #include <deal.II/fe/mapping_q_generic.h>
 #include <deal.II/fe/mapping_q_internal.h>
 
-#include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/manifold_lib.h>
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/tria_iterator.h>
 
-#include <deal.II/lac/full_matrix.h>
-
+DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 #include <boost/container/small_vector.hpp>
+DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 
 #include <algorithm>
 #include <array>
@@ -465,7 +464,7 @@ MappingQGeneric<dim, spacedim>::transform_real_to_unit_cell_internal(
 {
   // default implementation (should never be called)
   Assert(false, ExcInternalError());
-  return Point<dim>();
+  return {};
 }
 
 
@@ -878,16 +877,18 @@ MappingQGeneric<dim, spacedim>::get_data(const UpdateFlags      update_flags,
 template <int dim, int spacedim>
 std::unique_ptr<typename Mapping<dim, spacedim>::InternalDataBase>
 MappingQGeneric<dim, spacedim>::get_face_data(
-  const UpdateFlags          update_flags,
-  const Quadrature<dim - 1> &quadrature) const
+  const UpdateFlags               update_flags,
+  const hp::QCollection<dim - 1> &quadrature) const
 {
+  AssertDimension(quadrature.size(), 1);
+
   std::unique_ptr<typename Mapping<dim, spacedim>::InternalDataBase> data_ptr =
     std::make_unique<InternalData>(polynomial_degree);
   auto &data = dynamic_cast<InternalData &>(*data_ptr);
   data.initialize_face(this->requires_update_flags(update_flags),
                        QProjector<dim>::project_to_all_faces(
-                         ReferenceCell::get_hypercube(dim), quadrature),
-                       quadrature.size());
+                         ReferenceCells::get_hypercube<dim>(), quadrature[0]),
+                       quadrature[0].size());
 
   return data_ptr;
 }
@@ -905,7 +906,7 @@ MappingQGeneric<dim, spacedim>::get_subface_data(
   auto &data = dynamic_cast<InternalData &>(*data_ptr);
   data.initialize_face(this->requires_update_flags(update_flags),
                        QProjector<dim>::project_to_all_subfaces(
-                         ReferenceCell::get_hypercube(dim), quadrature),
+                         ReferenceCells::get_hypercube<dim>(), quadrature),
                        quadrature.size());
 
   return data_ptr;
@@ -1140,11 +1141,13 @@ void
 MappingQGeneric<dim, spacedim>::fill_fe_face_values(
   const typename Triangulation<dim, spacedim>::cell_iterator &cell,
   const unsigned int                                          face_no,
-  const Quadrature<dim - 1> &                                 quadrature,
+  const hp::QCollection<dim - 1> &                            quadrature,
   const typename Mapping<dim, spacedim>::InternalDataBase &   internal_data,
   internal::FEValuesImplementation::MappingRelatedData<dim, spacedim>
     &output_data) const
 {
+  AssertDimension(quadrature.size(), 1);
+
   // ensure that the following cast is really correct:
   Assert((dynamic_cast<const InternalData *>(&internal_data) != nullptr),
          ExcInternalError());
@@ -1168,13 +1171,14 @@ MappingQGeneric<dim, spacedim>::fill_fe_face_values(
     cell,
     face_no,
     numbers::invalid_unsigned_int,
-    QProjector<dim>::DataSetDescriptor::face(ReferenceCell::get_hypercube(dim),
-                                             face_no,
-                                             cell->face_orientation(face_no),
-                                             cell->face_flip(face_no),
-                                             cell->face_rotation(face_no),
-                                             quadrature.size()),
-    quadrature,
+    QProjector<dim>::DataSetDescriptor::face(
+      ReferenceCells::get_hypercube<dim>(),
+      face_no,
+      cell->face_orientation(face_no),
+      cell->face_flip(face_no),
+      cell->face_rotation(face_no),
+      quadrature[0].size()),
+    quadrature[0],
     data,
     output_data);
 }
@@ -1215,18 +1219,119 @@ MappingQGeneric<dim, spacedim>::fill_fe_subface_values(
     cell,
     face_no,
     subface_no,
-    QProjector<dim>::DataSetDescriptor::subface(ReferenceCell::get_hypercube(
-                                                  dim),
-                                                face_no,
-                                                subface_no,
-                                                cell->face_orientation(face_no),
-                                                cell->face_flip(face_no),
-                                                cell->face_rotation(face_no),
-                                                quadrature.size(),
-                                                cell->subface_case(face_no)),
+    QProjector<dim>::DataSetDescriptor::subface(
+      ReferenceCells::get_hypercube<dim>(),
+      face_no,
+      subface_no,
+      cell->face_orientation(face_no),
+      cell->face_flip(face_no),
+      cell->face_rotation(face_no),
+      quadrature.size(),
+      cell->subface_case(face_no)),
     quadrature,
     data,
     output_data);
+}
+
+
+
+template <int dim, int spacedim>
+inline void
+MappingQGeneric<dim, spacedim>::fill_mapping_data_for_generic_points(
+  const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+  const ArrayView<const Point<dim>> &                         unit_points,
+  const UpdateFlags                                           update_flags,
+  dealii::internal::FEValuesImplementation::MappingRelatedData<dim, spacedim>
+    &output_data) const
+{
+  if (update_flags == update_default)
+    return;
+
+  Assert(update_flags & update_inverse_jacobians ||
+           update_flags & update_jacobians ||
+           update_flags & update_quadrature_points,
+         ExcNotImplemented());
+
+  output_data.initialize(unit_points.size(), update_flags);
+  const std::vector<Point<spacedim>> support_points =
+    this->compute_mapping_support_points(cell);
+
+  const unsigned int n_points = unit_points.size();
+  const unsigned int n_lanes  = VectorizedArray<double>::size();
+
+  // Use the more heavy VectorizedArray code path if there is more than
+  // one point left to compute
+  for (unsigned int i = 0; i < n_points; i += n_lanes)
+    if (n_points - i > 1)
+      {
+        Point<dim, VectorizedArray<double>> p_vec;
+        for (unsigned int j = 0; j < n_lanes; ++j)
+          if (i + j < n_points)
+            for (unsigned int d = 0; d < dim; ++d)
+              p_vec[d][j] = unit_points[i + j][d];
+          else
+            for (unsigned int d = 0; d < dim; ++d)
+              p_vec[d][j] = unit_points[i][d];
+
+        const auto result =
+          internal::evaluate_tensor_product_value_and_gradient(
+            polynomials_1d,
+            support_points,
+            p_vec,
+            polynomial_degree == 1,
+            renumber_lexicographic_to_hierarchic);
+
+        if (update_flags & update_quadrature_points)
+          for (unsigned int j = 0; j < n_lanes && i + j < n_points; ++j)
+            for (unsigned int d = 0; d < spacedim; ++d)
+              output_data.quadrature_points[i + j][d] = result.first[d][j];
+
+        if (update_flags & update_jacobians)
+          for (unsigned int j = 0; j < n_lanes && i + j < n_points; ++j)
+            for (unsigned int d = 0; d < spacedim; ++d)
+              for (unsigned int e = 0; e < dim; ++e)
+                output_data.jacobians[i + j][d][e] = result.second[e][d][j];
+
+        if (update_flags & update_inverse_jacobians)
+          {
+            DerivativeForm<1, spacedim, dim, VectorizedArray<double>> jac(
+              result.second);
+            const DerivativeForm<1, spacedim, dim, VectorizedArray<double>>
+              inv_jac = jac.covariant_form();
+            for (unsigned int j = 0; j < n_lanes && i + j < n_points; ++j)
+              for (unsigned int d = 0; d < dim; ++d)
+                for (unsigned int e = 0; e < spacedim; ++e)
+                  output_data.inverse_jacobians[i + j][d][e] = inv_jac[d][e][j];
+          }
+      }
+    else
+      {
+        const auto result =
+          internal::evaluate_tensor_product_value_and_gradient(
+            polynomials_1d,
+            support_points,
+            unit_points[i],
+            polynomial_degree == 1,
+            renumber_lexicographic_to_hierarchic);
+
+        if (update_flags & update_quadrature_points)
+          output_data.quadrature_points[i] = result.first;
+
+        if (update_flags & update_jacobians)
+          {
+            DerivativeForm<1, spacedim, dim> jac = result.second;
+            output_data.jacobians[i]             = jac.transpose();
+          }
+
+        if (update_flags & update_inverse_jacobians)
+          {
+            DerivativeForm<1, spacedim, dim> jac(result.second);
+            DerivativeForm<1, spacedim, dim> inv_jac = jac.covariant_form();
+            for (unsigned int d = 0; d < dim; ++d)
+              for (unsigned int e = 0; e < spacedim; ++e)
+                output_data.inverse_jacobians[i][d][e] = inv_jac[d][e];
+          }
+      }
 }
 
 
@@ -1635,6 +1740,33 @@ MappingQGeneric<dim, spacedim>::compute_mapping_support_points(
     }
 
   return a;
+}
+
+
+
+template <int dim, int spacedim>
+BoundingBox<spacedim>
+MappingQGeneric<dim, spacedim>::get_bounding_box(
+  const typename Triangulation<dim, spacedim>::cell_iterator &cell) const
+{
+  return BoundingBox<spacedim>(this->compute_mapping_support_points(cell));
+}
+
+
+
+template <int dim, int spacedim>
+bool
+MappingQGeneric<dim, spacedim>::is_compatible_with(
+  const ReferenceCell &reference_cell) const
+{
+  Assert(dim == reference_cell.get_dimension(),
+         ExcMessage("The dimension of your mapping (" +
+                    Utilities::to_string(dim) +
+                    ") and the reference cell cell_type (" +
+                    Utilities::to_string(reference_cell.get_dimension()) +
+                    " ) do not agree."));
+
+  return reference_cell.is_hyper_cube();
 }
 
 

@@ -69,6 +69,11 @@ public:
   DerivativeForm(const Tensor<order + 1, dim, Number> &);
 
   /**
+   * Constructor from a tensor.
+   */
+  DerivativeForm(const Tensor<order, spacedim, Tensor<1, dim, Number>> &);
+
+  /**
    * Read-Write access operator.
    */
   Tensor<order, dim, Number> &operator[](const unsigned int i);
@@ -83,6 +88,12 @@ public:
    */
   DerivativeForm &
   operator=(const Tensor<order + 1, dim, Number> &);
+
+  /**
+   * Assignment operator.
+   */
+  DerivativeForm &
+  operator=(const Tensor<order, spacedim, Tensor<1, dim, Number>> &);
 
   /**
    * Assignment operator.
@@ -185,6 +196,16 @@ inline DerivativeForm<order, dim, spacedim, Number>::DerivativeForm(
 
 
 template <int order, int dim, int spacedim, typename Number>
+inline DerivativeForm<order, dim, spacedim, Number>::DerivativeForm(
+  const Tensor<order, spacedim, Tensor<1, dim, Number>> &T)
+{
+  for (unsigned int j = 0; j < spacedim; ++j)
+    (*this)[j] = T[j];
+}
+
+
+
+template <int order, int dim, int spacedim, typename Number>
 inline DerivativeForm<order, dim, spacedim, Number> &
 DerivativeForm<order, dim, spacedim, Number>::
 operator=(const Tensor<order + 1, dim, Number> &ta)
@@ -194,6 +215,18 @@ operator=(const Tensor<order + 1, dim, Number> &ta)
   if (dim == spacedim)
     for (unsigned int j = 0; j < dim; ++j)
       (*this)[j] = ta[j];
+  return *this;
+}
+
+
+
+template <int order, int dim, int spacedim, typename Number>
+inline DerivativeForm<order, dim, spacedim, Number> &
+DerivativeForm<order, dim, spacedim, Number>::
+operator=(const Tensor<order, spacedim, Tensor<1, dim, Number>> &T)
+{
+  for (unsigned int j = 0; j < spacedim; ++j)
+    (*this)[j] = T[j];
   return *this;
 }
 
@@ -391,12 +424,12 @@ DerivativeForm<order, dim, spacedim, Number>::memory_consumption()
  *
  * @relatesalso DerivativeForm
  */
-template <int spacedim, int dim, typename Number>
-inline Tensor<1, spacedim, Number>
-apply_transformation(const DerivativeForm<1, dim, spacedim, Number> &grad_F,
-                     const Tensor<1, dim, Number> &                  d_x)
+template <int spacedim, int dim, typename Number1, typename Number2>
+inline Tensor<1, spacedim, typename ProductType<Number1, Number2>::type>
+apply_transformation(const DerivativeForm<1, dim, spacedim, Number1> &grad_F,
+                     const Tensor<1, dim, Number2> &                  d_x)
 {
-  Tensor<1, spacedim, Number> dest;
+  Tensor<1, spacedim, typename ProductType<Number1, Number2>::type> dest;
   for (unsigned int i = 0; i < spacedim; ++i)
     dest[i] = grad_F[i] * d_x;
   return dest;
@@ -413,17 +446,54 @@ apply_transformation(const DerivativeForm<1, dim, spacedim, Number> &grad_F,
  * @relatesalso DerivativeForm
  */
 // rank=2
-template <int spacedim, int dim, typename Number>
-inline DerivativeForm<1, spacedim, dim, Number>
-apply_transformation(const DerivativeForm<1, dim, spacedim, Number> &grad_F,
-                     const Tensor<2, dim, Number> &                  D_X)
+template <int spacedim, int dim, typename Number1, typename Number2>
+inline DerivativeForm<1,
+                      spacedim,
+                      dim,
+                      typename ProductType<Number1, Number2>::type>
+apply_transformation(const DerivativeForm<1, dim, spacedim, Number1> &grad_F,
+                     const Tensor<2, dim, Number2> &                  D_X)
 {
-  DerivativeForm<1, spacedim, dim, Number> dest;
+  DerivativeForm<1, spacedim, dim, typename ProductType<Number1, Number2>::type>
+    dest;
   for (unsigned int i = 0; i < dim; ++i)
     dest[i] = apply_transformation(grad_F, D_X[i]);
 
   return dest;
 }
+
+
+
+/**
+ * Similar to the previous apply_transformation().
+ * Each row of the result corresponds to one of the rows of @p D_X transformed
+ * by @p grad_F.
+ *
+ * @relatesalso DerivativeForm
+ */
+template <int spacedim,
+          int dim,
+          int n_components,
+          typename Number1,
+          typename Number2>
+inline Tensor<1,
+              n_components,
+              Tensor<1, spacedim, typename ProductType<Number1, Number2>::type>>
+apply_transformation(
+  const DerivativeForm<1, dim, spacedim, Number1> &       grad_F,
+  const Tensor<1, n_components, Tensor<1, dim, Number2>> &D_X)
+{
+  Tensor<1,
+         n_components,
+         Tensor<1, spacedim, typename ProductType<Number1, Number2>::type>>
+    dest;
+  for (unsigned int i = 0; i < n_components; ++i)
+    dest[i] = apply_transformation(grad_F, D_X[i]);
+
+  return dest;
+}
+
+
 
 /**
  * Similar to the previous apply_transformation(). In matrix notation, it
@@ -440,18 +510,19 @@ apply_transformation(const DerivativeForm<1, dim, spacedim, Number> &grad_F,
  *
  * @relatesalso DerivativeForm
  */
-template <int spacedim, int dim, typename Number>
-inline Tensor<2, spacedim, Number>
-apply_transformation(const DerivativeForm<1, dim, spacedim, Number> &DF1,
-                     const DerivativeForm<1, dim, spacedim, Number> &DF2)
+template <int spacedim, int dim, typename Number1, typename Number2>
+inline Tensor<2, spacedim, typename ProductType<Number1, Number2>::type>
+apply_transformation(const DerivativeForm<1, dim, spacedim, Number1> &DF1,
+                     const DerivativeForm<1, dim, spacedim, Number2> &DF2)
 {
-  Tensor<2, spacedim, Number> dest;
+  Tensor<2, spacedim, typename ProductType<Number1, Number2>::type> dest;
 
   for (unsigned int i = 0; i < spacedim; ++i)
     dest[i] = apply_transformation(DF1, DF2[i]);
 
   return dest;
 }
+
 
 
 /**

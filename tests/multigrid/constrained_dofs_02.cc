@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2006 - 2019 by the deal.II authors
+// Copyright (C) 2006 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -79,11 +79,11 @@ setup_tria(parallel::distributed::Triangulation<dim> &triangulation)
 }
 
 
-template <typename DoFHandlerType>
+template <int dim>
 void
-extract_locally_active_level_dofs(const DoFHandlerType &dof_handler,
-                                  const unsigned int    level,
-                                  IndexSet &            dof_set)
+extract_locally_active_level_dofs(const DoFHandler<dim> &dof_handler,
+                                  const unsigned int     level,
+                                  IndexSet &             dof_set)
 {
   dof_set = IndexSet(dof_handler.n_dofs(level));
 
@@ -98,8 +98,8 @@ extract_locally_active_level_dofs(const DoFHandlerType &dof_handler,
   std::vector<types::global_dof_index> dof_indices;
   std::vector<types::global_dof_index> active_dofs;
 
-  typename DoFHandlerType::cell_iterator cell = dof_handler.begin(level),
-                                         endc = dof_handler.end(level);
+  typename DoFHandler<dim>::cell_iterator cell = dof_handler.begin(level),
+                                          endc = dof_handler.end(level);
   for (; cell != endc; ++cell)
     {
       const types::subdomain_id id = cell->level_subdomain_id();
@@ -182,7 +182,6 @@ check_fe(FiniteElement<dim> &fe)
         std::vector<types::global_dof_index> &renumbered =
           mgdofmap[cell->id().to_string()];
         cell->set_mg_dof_indices(renumbered);
-        cell->update_cell_dof_indices_cache();
       }
 
     mg_constrained_dofs_ref.initialize(dofhref);

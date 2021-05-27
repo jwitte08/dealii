@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2020 by the deal.II authors
+// Copyright (C) 2016 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -689,7 +689,7 @@ namespace MatrixCreator
                      const Function<spacedim, number> *const coefficient,
                      const AffineConstraints<number> &       constraints)
   {
-    create_mass_matrix(StaticMappingQ1<dim, spacedim>::mapping,
+    create_mass_matrix(get_default_linear_mapping(dof.get_triangulation()),
                        dof,
                        q,
                        matrix,
@@ -766,7 +766,7 @@ namespace MatrixCreator
                      const Function<spacedim, number> *const coefficient,
                      const AffineConstraints<number> &       constraints)
   {
-    create_mass_matrix(StaticMappingQ1<dim, spacedim>::mapping,
+    create_mass_matrix(get_default_linear_mapping(dof.get_triangulation()),
                        dof,
                        q,
                        matrix,
@@ -1728,7 +1728,8 @@ namespace MatrixCreator
     const Function<spacedim, number> *const a,
     std::vector<unsigned int>               component_mapping)
   {
-    create_boundary_mass_matrix(StaticMappingQ1<dim, spacedim>::mapping,
+    create_boundary_mass_matrix(get_default_linear_mapping(
+                                  dof.get_triangulation()),
                                 dof,
                                 q,
                                 matrix,
@@ -1917,7 +1918,7 @@ namespace MatrixCreator
                         const Function<spacedim> *const  coefficient,
                         const AffineConstraints<double> &constraints)
   {
-    create_laplace_matrix(StaticMappingQ1<dim, spacedim>::mapping,
+    create_laplace_matrix(get_default_linear_mapping(dof.get_triangulation()),
                           dof,
                           q,
                           matrix,
@@ -1993,7 +1994,7 @@ namespace MatrixCreator
                         const Function<spacedim> *const  coefficient,
                         const AffineConstraints<double> &constraints)
   {
-    create_laplace_matrix(StaticMappingQ1<dim, spacedim>::mapping,
+    create_laplace_matrix(get_default_linear_mapping(dof.get_triangulation()),
                           dof,
                           q,
                           matrix,

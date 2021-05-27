@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 - 2020 by the deal.II authors
+// Copyright (C) 2019 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -129,12 +129,13 @@ namespace Particles
 
           // The local particle start index is the number of all particles
           // generated on lower MPI ranks.
-          MPI_Exscan(&n_particles_to_generate,
-                     &particle_index,
-                     1,
-                     DEAL_II_PARTICLE_INDEX_MPI_TYPE,
-                     MPI_SUM,
-                     tria->get_communicator());
+          const int ierr = MPI_Exscan(&n_particles_to_generate,
+                                      &particle_index,
+                                      1,
+                                      DEAL_II_PARTICLE_INDEX_MPI_TYPE,
+                                      MPI_SUM,
+                                      tria->get_communicator());
+          AssertThrowMPI(ierr);
         }
 #endif
 
@@ -176,7 +177,7 @@ namespace Particles
       std::uniform_real_distribution<double> uniform_distribution_01(0, 1);
 
       const BoundingBox<spacedim> cell_bounding_box(cell->bounding_box());
-      const std::pair<Point<spacedim>, Point<spacedim>> cell_bounds(
+      const std::pair<Point<spacedim>, Point<spacedim>> &cell_bounds(
         cell_bounding_box.get_boundary_points());
 
       // Generate random points in these bounds until one is within the cell
@@ -260,7 +261,10 @@ namespace Particles
                                                 probability_density_function);
 
         // Sum the local integrals over all nodes
-        double local_weight_integral = cumulative_cell_weights.back();
+        double local_weight_integral = (cumulative_cell_weights.size() > 0) ?
+                                         cumulative_cell_weights.back() :
+                                         0.0;
+
         double global_weight_integral;
 
         if (const auto tria =
@@ -295,12 +299,13 @@ namespace Particles
               dynamic_cast<const parallel::TriangulationBase<dim, spacedim> *>(
                 &triangulation))
           {
-            MPI_Exscan(&local_weight_integral,
-                       &local_start_weight,
-                       1,
-                       MPI_DOUBLE,
-                       MPI_SUM,
-                       tria->get_communicator());
+            const int ierr = MPI_Exscan(&local_weight_integral,
+                                        &local_start_weight,
+                                        1,
+                                        MPI_DOUBLE,
+                                        MPI_SUM,
+                                        tria->get_communicator());
+            AssertThrowMPI(ierr);
           }
 #endif
 
@@ -401,6 +406,8 @@ namespace Particles
         particle_handler.insert_particles(particles);
       }
     }
+
+
 
     template <int dim, int spacedim>
     void

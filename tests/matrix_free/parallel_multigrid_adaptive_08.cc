@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2020 by the deal.II authors
+// Copyright (C) 2016 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -327,9 +327,9 @@ do_test(const DoFHandler<dim> &dof)
   MGCoarseIterative<LevelMatrixType, number> mg_coarse;
   mg_coarse.initialize(mg_matrices[0]);
 
-  typedef PreconditionChebyshev<LevelMatrixType,
-                                LinearAlgebra::distributed::Vector<number>>
-    SMOOTHER;
+  using SMOOTHER =
+    PreconditionChebyshev<LevelMatrixType,
+                          LinearAlgebra::distributed::Vector<number>>;
   MGSmootherPrecondition<LevelMatrixType,
                          SMOOTHER,
                          LinearAlgebra::distributed::Vector<number>>

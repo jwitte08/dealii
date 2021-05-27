@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2019 - 2020 by the deal.II authors
+ * Copyright (C) 2019 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -592,7 +592,7 @@ namespace Step69
 
     triangulation.clear();
 
-    Triangulation<dim> tria1, tria2, tria3, tria4;
+    Triangulation<dim> tria1, tria2, tria3, tria4, tria5, tria6;
 
     GridGenerator::hyper_cube_with_cylindrical_hole(
       tria1, disk_diameter / 2., disk_diameter, 0.5, 1, false);
@@ -611,14 +611,27 @@ namespace Step69
 
     GridGenerator::subdivided_hyper_rectangle(
       tria4,
-      {6, 4},
-      Point<2>(disk_diameter, -height / 2.),
+      {6, 2},
+      Point<2>(disk_diameter, -disk_diameter),
+      Point<2>(length - disk_position, disk_diameter));
+
+    GridGenerator::subdivided_hyper_rectangle(
+      tria5,
+      {6, 1},
+      Point<2>(disk_diameter, disk_diameter),
       Point<2>(length - disk_position, height / 2.));
 
-    GridGenerator::merge_triangulations({&tria1, &tria2, &tria3, &tria4},
-                                        triangulation,
-                                        1.e-12,
-                                        true);
+    GridGenerator::subdivided_hyper_rectangle(
+      tria6,
+      {6, 1},
+      Point<2>(disk_diameter, -height / 2.),
+      Point<2>(length - disk_position, -disk_diameter));
+
+    GridGenerator::merge_triangulations(
+      {&tria1, &tria2, &tria3, &tria4, &tria5, &tria6},
+      triangulation,
+      1.e-12,
+      true);
 
     triangulation.set_manifold(0, PolarManifold<2>(Point<2>()));
 
@@ -672,6 +685,7 @@ namespace Step69
                                 const Discretization<dim> &discretization,
                                 const std::string &        subsection)
     : ParameterAcceptor(subsection)
+    , dof_handler(discretization.triangulation)
     , mpi_communicator(mpi_communicator)
     , computing_timer(computing_timer)
     , discretization(&discretization)
@@ -691,8 +705,7 @@ namespace Step69
       TimerOutput::Scope scope(computing_timer,
                                "offline_data - distribute dofs");
 
-      dof_handler.initialize(discretization->triangulation,
-                             discretization->finite_element);
+      dof_handler.distribute_dofs(discretization->finite_element);
 
       locally_owned   = dof_handler.locally_owned_dofs();
       n_locally_owned = locally_owned.n_elements();
@@ -1316,7 +1329,7 @@ namespace Step69
   ProblemDescription<dim>::momentum(const state_type &U)
   {
     Tensor<1, dim> result;
-    std::copy(&U[1], &U[1 + dim], &result[0]);
+    std::copy_n(&U[1], dim, &result[0]);
     return result;
   }
 

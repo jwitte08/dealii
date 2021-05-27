@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -253,7 +253,7 @@ public:
    * formula or it is factored out, to be included in the integrand.
    */
   QGaussLogR(const unsigned int n,
-             const Point<dim>   x0                         = Point<dim>(),
+             const Point<dim> & x0                         = Point<dim>(),
              const double       alpha                      = 1,
              const bool         factor_out_singular_weight = false);
 
@@ -333,7 +333,7 @@ public:
    * @endcode
    */
   QGaussOneOverR(const unsigned int n,
-                 const Point<dim>   singularity,
+                 const Point<dim> & singularity,
                  const bool         factor_out_singular_weight = false);
   /**
    * The constructor takes three arguments: the order of the Gauss formula,
@@ -380,7 +380,7 @@ private:
    * the cell, on an edge of the cell, or on a corner of the cell.
    */
   static unsigned int
-  quad_size(const Point<dim> singularity, const unsigned int n);
+  quad_size(const Point<dim> &singularity, const unsigned int n);
 };
 
 
@@ -792,6 +792,94 @@ public:
   QSplit(const QSimplex<dim> &base, const Point<dim> &split_point);
 };
 
+/**
+ * Integration rule for simplex entities.
+ *
+ * Users specify a number `n_points_1D` as an indication of what polynomial
+ * degree to be integrated exactly, similarly to the number of points in a
+ * QGauss quadrature object, even though the present quadrature formula is not
+ * a tensor product. The given value is translated for n_points_1D=1,2,3,4 to
+ * following number of quadrature points for 2D and 3D:
+ *   - 2D: 1, 3, 7, 15
+ *   - 3D: 1, 4, 10, 35
+ *
+ * For 1D, the quadrature rule degenerates to a
+ * `dealii::QGauss<1>(n_points_1D)`.
+ *
+ * @ingroup simplex
+ */
+template <int dim>
+class QGaussSimplex : public QSimplex<dim>
+{
+public:
+  /**
+   * Constructor taking the number of quadrature points in 1D direction
+   * @p n_points_1D.
+   */
+  explicit QGaussSimplex(const unsigned int n_points_1D);
+};
+
+/**
+ * Witherden-Vincent rules for simplex entities.
+ *
+ * Like QGauss, users should specify a number `n_points_1D` as an indication
+ * of what polynomial degree to be integrated exactly (e.g., for $n$ points,
+ * the rule can integrate polynomials of degree $2 n - 1$ exactly). The given
+ * value for n_points_1D = 1, 2, 3, 4, 5 results in the following number of
+ * quadrature points in 2D and 3D:
+ * - 2D: 1, 6, 7, 15, 19
+ * - 3D: 1, 8, 14, 35, 59
+ *
+ * For 1D, the quadrature rule degenerates to a
+ * `dealii::QGauss<1>(n_points_1D)`.
+ *
+ * These rules match the ones listed for Witherden-Vincent in the quadpy
+ * @cite quadpy library and were first described in
+ * @cite witherden2015identification.
+ *
+ * @ingroup simplex
+ */
+template <int dim>
+class QWitherdenVincentSimplex : public QSimplex<dim>
+{
+public:
+  /**
+   * Constructor taking the number of quadrature points in 1D direction
+   * @p n_points_1D.
+   */
+  explicit QWitherdenVincentSimplex(const unsigned int n_points_1D);
+};
+
+/**
+ * Integration rule for wedge entities.
+ */
+template <int dim>
+class QGaussWedge : public Quadrature<dim>
+{
+public:
+  /**
+   * Users specify a number `n_points_1D` as an indication of what polynomial
+   * degree to be integrated exactly. For details, see the comments of
+   * QGaussSimplex.
+   */
+  explicit QGaussWedge(const unsigned int n_points_1D);
+};
+
+/**
+ * Integration rule for pyramid entities.
+ */
+template <int dim>
+class QGaussPyramid : public Quadrature<dim>
+{
+public:
+  /**
+   * Users specify a number `n_points_1D` as an indication of what polynomial
+   * degree to be integrated exactly. For details, see the comments of
+   * QGaussSimplex.
+   */
+  explicit QGaussPyramid(const unsigned int n_points_1D);
+};
+
 /*@}*/
 
 /* -------------- declaration of explicit specializations ------------- */
@@ -823,7 +911,7 @@ template <>
 QGaussLog<1>::QGaussLog(const unsigned int n, const bool revert);
 template <>
 QGaussLogR<1>::QGaussLogR(const unsigned int n,
-                          const Point<1>     x0,
+                          const Point<1> &   x0,
                           const double       alpha,
                           const bool         flag);
 template <>

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -261,7 +261,7 @@ namespace internal
       for (unsigned int i = 0; i < M; ++i)
         for (unsigned int j = 0; j < M; ++j)
           {
-            const Point<2> p =
+            const Point<2> &p =
               gl.point((i + 1) * (polynomial_degree + 1) + (j + 1));
             const unsigned int index_table = i * M + j;
             for (unsigned int v = 0; v < 4; ++v)
@@ -315,8 +315,8 @@ namespace internal
         for (unsigned int j = 0; j < M; ++j)
           for (unsigned int k = 0; k < M; ++k)
             {
-              const Point<3>     p = gl.point((i + 1) * (M + 2) * (M + 2) +
-                                          (j + 1) * (M + 2) + (k + 1));
+              const Point<3> &   p = gl.point((i + 1) * (M + 2) * (M + 2) +
+                                           (j + 1) * (M + 2) + (k + 1));
               const unsigned int index_table = i * M * M + j * M + k;
 
               // vertices
@@ -531,7 +531,7 @@ namespace internal
       //    p(x) - p = p(x) - p(x*)
       //             = -grad p(x) * (x*-x) + higher order terms
       // This suggest to measure with a norm that corresponds to
-      //    A = {[grad p(x]^T [grad p(x)]}^{-1}
+      //    A = {[grad p(x)]^T [grad p(x)]}^{-1}
       // because then
       //    \| p(x) - p \|_A  \approx  \| x - x* \|
       // Consequently, we will try to enforce that

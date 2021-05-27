@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -48,7 +48,7 @@ namespace VectorTools
               Vector<typename VectorType::value_type> &value)
   {
     if (dof.has_hp_capabilities() == false)
-      point_value(StaticMappingQ1<dim, spacedim>::mapping,
+      point_value(get_default_linear_mapping(dof.get_triangulation()),
                   dof,
                   fe_function,
                   point,
@@ -69,7 +69,7 @@ namespace VectorTools
               const Point<spacedim> &          point)
   {
     if (dof.has_hp_capabilities() == false)
-      return point_value(StaticMappingQ1<dim, spacedim>::mapping,
+      return point_value(get_default_linear_mapping(dof.get_triangulation()),
                          dof,
                          fe_function,
                          point);
@@ -103,7 +103,8 @@ namespace VectorTools
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof, point);
 
-    AssertThrow(cell_point.first->is_locally_owned(),
+    AssertThrow(cell_point.first.state() == IteratorState::valid &&
+                  cell_point.first->is_locally_owned(),
                 ExcPointNotAvailableHere());
     Assert(GeometryInfo<dim>::distance_to_unit_cell(cell_point.second) < 1e-10,
            ExcInternalError());
@@ -145,7 +146,8 @@ namespace VectorTools
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof, point);
 
-    AssertThrow(cell_point.first->is_locally_owned(),
+    AssertThrow(cell_point.first.state() == IteratorState::valid &&
+                  cell_point.first->is_locally_owned(),
                 ExcPointNotAvailableHere());
     Assert(GeometryInfo<dim>::distance_to_unit_cell(cell_point.second) < 1e-10,
            ExcInternalError());
@@ -247,7 +249,8 @@ namespace VectorTools
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof, point);
 
-    AssertThrow(cell_point.first->is_locally_owned(),
+    AssertThrow(cell_point.first.state() == IteratorState::valid &&
+                  cell_point.first->is_locally_owned(),
                 ExcPointNotAvailableHere());
     Assert(GeometryInfo<dim>::distance_to_unit_cell(cell_point.second) < 1e-10,
            ExcInternalError());
@@ -290,6 +293,9 @@ namespace VectorTools
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof_handler, p);
 
+    AssertThrow(cell_point.first.state() == IteratorState::valid,
+                ExcPointNotAvailableHere());
+
     Quadrature<dim> q(
       GeometryInfo<dim>::project_to_unit_cell(cell_point.second));
 
@@ -317,12 +323,14 @@ namespace VectorTools
                              Vector<double> &                 rhs_vector)
   {
     if (dof_handler.has_hp_capabilities())
-      create_point_source_vector(hp::StaticMappingQ1<dim>::mapping_collection,
-                                 dof_handler,
-                                 p,
-                                 rhs_vector);
+      create_point_source_vector(
+        hp::StaticMappingQ1<dim, spacedim>::mapping_collection,
+        dof_handler,
+        p,
+        rhs_vector);
     else
-      create_point_source_vector(StaticMappingQ1<dim, spacedim>::mapping,
+      create_point_source_vector(get_default_linear_mapping(
+                                   dof_handler.get_triangulation()),
                                  dof_handler,
                                  p,
                                  rhs_vector);
@@ -348,6 +356,9 @@ namespace VectorTools
               Point<spacedim>>
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof_handler, p);
+
+    AssertThrow(cell_point.first.state() == IteratorState::valid,
+                ExcPointNotAvailableHere());
 
     Quadrature<dim> q(
       GeometryInfo<dim>::project_to_unit_cell(cell_point.second));
@@ -391,6 +402,9 @@ namespace VectorTools
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof_handler, p);
 
+    AssertThrow(cell_point.first.state() == IteratorState::valid,
+                ExcPointNotAvailableHere());
+
     const Quadrature<dim> q(
       GeometryInfo<dim>::project_to_unit_cell(cell_point.second));
 
@@ -421,13 +435,15 @@ namespace VectorTools
                              Vector<double> &                 rhs_vector)
   {
     if (dof_handler.has_hp_capabilities())
-      create_point_source_vector(hp::StaticMappingQ1<dim>::mapping_collection,
-                                 dof_handler,
-                                 p,
-                                 orientation,
-                                 rhs_vector);
+      create_point_source_vector(
+        hp::StaticMappingQ1<dim, spacedim>::mapping_collection,
+        dof_handler,
+        p,
+        orientation,
+        rhs_vector);
     else
-      create_point_source_vector(StaticMappingQ1<dim, spacedim>::mapping,
+      create_point_source_vector(get_default_linear_mapping(
+                                   dof_handler.get_triangulation()),
                                  dof_handler,
                                  p,
                                  orientation,
@@ -456,6 +472,9 @@ namespace VectorTools
               Point<spacedim>>
       cell_point =
         GridTools::find_active_cell_around_point(mapping, dof_handler, p);
+
+    AssertThrow(cell_point.first.state() == IteratorState::valid,
+                ExcPointNotAvailableHere());
 
     Quadrature<dim> q(
       GeometryInfo<dim>::project_to_unit_cell(cell_point.second));

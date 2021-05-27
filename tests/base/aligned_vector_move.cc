@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2012 - 2018 by the deal.II authors
+// Copyright (C) 2012 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -24,7 +24,7 @@
 void
 test()
 {
-  typedef AlignedVector<unsigned int> VEC;
+  using VEC = AlignedVector<unsigned int>;
 
   VEC a(4, 2);
 

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2020 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -49,7 +49,7 @@ template <int dim, int fe_degree>
 void
 test()
 {
-  typedef double number;
+  using number = double;
 
   parallel::distributed::Triangulation<dim> tria(MPI_COMM_WORLD);
   GridGenerator::hyper_cube(tria);

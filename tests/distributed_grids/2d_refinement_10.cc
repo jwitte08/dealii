@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2015 - 2020 by the deal.II authors
+// Copyright (C) 2015 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -55,7 +55,7 @@ template <int dim>
 class TriaTest
 {
 private:
-  typedef typename parallel::distributed::Triangulation<dim> TypeTria;
+  using TypeTria = typename parallel::distributed::Triangulation<dim>;
 
 public:
   TriaTest(const typename dealii::Triangulation<dim>::MeshSmoothing

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2018 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -190,6 +190,21 @@ public:
   prolongate(const unsigned int to_level,
              VectorType &       dst,
              const VectorType & src) const = 0;
+
+  /**
+   * Prolongate a vector from level <tt>to_level-1</tt> to level
+   * <tt>to_level</tt>, summing into the previous content of <tt>dst</tt>.
+   *
+   * @arg src is a vector with as many elements as there are degrees of
+   * freedom on the coarser level involved.
+   *
+   * @arg dst has as many elements as there are degrees of freedom on the
+   * finer level.
+   */
+  virtual void
+  prolongate_and_add(const unsigned int to_level,
+                     VectorType &       dst,
+                     const VectorType & src) const;
 
   /**
    * Restrict a vector from level <tt>from_level</tt> to level

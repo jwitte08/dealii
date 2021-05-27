@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2020 by the deal.II authors
+// Copyright (C) 2003 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -35,14 +35,11 @@
 #include <memory>
 #include <sstream>
 
+DEAL_II_NAMESPACE_OPEN
 
 // TODO: implement the adjust_quad_dof_index_for_face_orientation_table and
 // adjust_line_dof_index_for_line_orientation_table fields, and write tests
 // similar to bits/face_orientation_and_fe_q_*
-
-
-DEAL_II_NAMESPACE_OPEN
-
 
 template <int dim>
 FE_ABF<dim>::FE_ABF(const unsigned int deg)
@@ -114,8 +111,24 @@ FE_ABF<dim>::FE_ABF(const unsigned int deg)
           this->interface_constraints(target_row, j) = face_embedding(i, j);
         ++target_row;
       }
+
+  // We need to initialize the dof permutation table and the one for the sign
+  // change.
+  initialize_quad_dof_index_permutation_and_sign_change();
 }
 
+
+template <int dim>
+void
+FE_ABF<dim>::initialize_quad_dof_index_permutation_and_sign_change()
+{
+  // for 1D and 2D, do nothing
+  if (dim < 3)
+    return;
+
+  // TODO: Implement this for this class
+  return;
+}
 
 
 template <int dim>
@@ -220,7 +233,7 @@ FE_ABF<dim>::initialize_support_points(const unsigned int deg)
         }
 
       Quadrature<dim> faces =
-        QProjector<dim>::project_to_all_faces(this->reference_cell_type(),
+        QProjector<dim>::project_to_all_faces(this->reference_cell(),
                                               face_points);
       for (; current < GeometryInfo<dim>::faces_per_cell * n_face_points;
            ++current)
@@ -348,9 +361,7 @@ FE_ABF<dim>::initialize_restriction()
       // in the quadrature points
       // of a full face.
       Quadrature<dim> q_face =
-        QProjector<dim>::project_to_face(this->reference_cell_type(),
-                                         q_base,
-                                         face);
+        QProjector<dim>::project_to_face(this->reference_cell(), q_base, face);
       // Store shape values, since the
       // evaluation suffers if not
       // ordered by point
@@ -369,7 +380,7 @@ FE_ABF<dim>::initialize_restriction()
           // evaluated on the subface
           // only.
           Quadrature<dim> q_sub = QProjector<dim>::project_to_subface(
-            this->reference_cell_type(), q_base, face, sub);
+            this->reference_cell(), q_base, face, sub);
           const unsigned int child = GeometryInfo<dim>::child_cell_on_face(
             RefinementCase<dim>::isotropic_refinement, face, sub);
 
@@ -451,7 +462,7 @@ FE_ABF<dim>::initialize_restriction()
        ++child)
     {
       Quadrature<dim> q_sub =
-        QProjector<dim>::project_to_child(this->reference_cell_type(),
+        QProjector<dim>::project_to_child(this->reference_cell(),
                                           q_cell,
                                           child);
 
@@ -613,12 +624,7 @@ FE_ABF<dim>::convert_generalized_support_point_values_to_dof_values(
           // TODO: Check what the face_orientation, face_flip and face_rotation
           // have to be in 3D
           unsigned int k = QProjector<dim>::DataSetDescriptor::face(
-            this->reference_cell_type(),
-            face,
-            false,
-            false,
-            false,
-            n_face_points);
+            this->reference_cell(), face, false, false, false, n_face_points);
           for (unsigned int i = 0; i < boundary_weights_abf.size(1); ++i)
             nodal_values[start_abf_dofs + i] +=
               n_orient * boundary_weights_abf(k + fp, i) *

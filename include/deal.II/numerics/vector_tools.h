@@ -22,6 +22,7 @@
 #include <deal.II/numerics/vector_tools_boundary.h>
 #include <deal.II/numerics/vector_tools_common.h>
 #include <deal.II/numerics/vector_tools_constraints.h>
+#include <deal.II/numerics/vector_tools_evaluate.h>
 #include <deal.II/numerics/vector_tools_integrate_difference.h>
 #include <deal.II/numerics/vector_tools_interpolate.h>
 #include <deal.II/numerics/vector_tools_mean_value.h>
@@ -146,7 +147,7 @@ DEAL_II_NAMESPACE_OPEN
  * a right hand side do, but without assembling a matrix.
  *
  * <li> Creation of right hand side vectors for point sources: The
- * create_point_source_vector() function computes the vector $f_i =
+ * create_point_source_vector() function computes the vector $F_i =
  * \int_\Omega \delta(x-x_0) \phi_i(x) dx$.
  *
  * <li> Creation of boundary right hand side vectors: The

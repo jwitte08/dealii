@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -156,12 +156,12 @@ FiniteElement<dim, spacedim>::FiniteElement(
 
       for (unsigned int f = 0; f < this->n_unique_quads(); ++f)
         {
-          adjust_quad_dof_index_for_face_orientation_table[f] = Table<2, int>(
-            this->n_dofs_per_quad(f),
-            ReferenceCell::internal::Info::get_cell(this->reference_cell_type())
-                  .face_reference_cell_type(f) == ReferenceCell::Type::Quad ?
-              8 :
-              6);
+          adjust_quad_dof_index_for_face_orientation_table[f] =
+            Table<2, int>(this->n_dofs_per_quad(f),
+                          this->reference_cell().face_reference_cell(f) ==
+                              ReferenceCells::Quadrilateral ?
+                            8 :
+                            6);
           adjust_quad_dof_index_for_face_orientation_table[f].fill(0);
         }
     }
@@ -571,11 +571,8 @@ FiniteElement<dim, spacedim>::face_to_cell_index(const unsigned int face_index,
                                                  const bool face_flip,
                                                  const bool face_rotation) const
 {
-  const auto &refence_cell =
-    ReferenceCell::internal::Info::get_cell(this->reference_cell_type());
-
   AssertIndexRange(face_index, this->n_dofs_per_face(face));
-  AssertIndexRange(face, refence_cell.n_faces());
+  AssertIndexRange(face, this->reference_cell().n_faces());
 
   // TODO: we could presumably solve the 3d case below using the
   // adjust_quad_dof_index_for_face_orientation_table field. for the
@@ -612,11 +609,11 @@ FiniteElement<dim, spacedim>::face_to_cell_index(const unsigned int face_index,
 
       // then get the number of this vertex on the cell and translate
       // this to a DoF number on the cell
-      return (refence_cell.face_to_cell_vertices(face,
-                                                 face_vertex,
-                                                 face_orientation +
-                                                   2 * face_rotation +
-                                                   4 * face_flip) *
+      return (this->reference_cell().face_to_cell_vertices(face,
+                                                           face_vertex,
+                                                           face_orientation +
+                                                             2 * face_rotation +
+                                                             4 * face_flip) *
                 this->n_dofs_per_vertex() +
               dof_index_on_vertex);
     }
@@ -632,11 +629,11 @@ FiniteElement<dim, spacedim>::face_to_cell_index(const unsigned int face_index,
       const unsigned int dof_index_on_line = index % this->n_dofs_per_line();
 
       return (this->get_first_line_index() +
-              refence_cell.face_to_cell_lines(face,
-                                              face_line,
-                                              face_orientation +
-                                                2 * face_rotation +
-                                                4 * face_flip) *
+              this->reference_cell().face_to_cell_lines(face,
+                                                        face_line,
+                                                        face_orientation +
+                                                          2 * face_rotation +
+                                                          4 * face_flip) *
                 this->n_dofs_per_line() +
               dof_index_on_line);
     }
@@ -684,12 +681,11 @@ FiniteElement<dim, spacedim>::adjust_quad_dof_index_for_face_orientation(
   AssertIndexRange(index, this->n_dofs_per_quad(face));
   Assert(adjust_quad_dof_index_for_face_orientation_table
              [this->n_unique_quads() == 1 ? 0 : face]
-               .n_elements() ==
-           (ReferenceCell::internal::Info::get_cell(this->reference_cell_type())
-                  .face_reference_cell_type(face) == ReferenceCell::Type::Quad ?
-              8 :
-              6) *
-             this->n_dofs_per_quad(face),
+               .n_elements() == (this->reference_cell().face_reference_cell(
+                                   face) == ReferenceCells::Quadrilateral ?
+                                   8 :
+                                   6) *
+                                  this->n_dofs_per_quad(face),
          ExcInternalError());
   return index +
          adjust_quad_dof_index_for_face_orientation_table
@@ -1281,6 +1277,26 @@ FiniteElement<dim, spacedim>::compute_n_nonzero_components(
 
 /*------------------------------- FiniteElement ----------------------*/
 
+#ifndef DOXYGEN
+template <int dim, int spacedim>
+std::unique_ptr<typename FiniteElement<dim, spacedim>::InternalDataBase>
+FiniteElement<dim, spacedim>::get_face_data(
+  const UpdateFlags               flags,
+  const Mapping<dim, spacedim> &  mapping,
+  const hp::QCollection<dim - 1> &quadrature,
+  dealii::internal::FEValuesImplementation::FiniteElementRelatedData<dim,
+                                                                     spacedim>
+    &output_data) const
+{
+  return get_data(flags,
+                  mapping,
+                  QProjector<dim>::project_to_all_faces(this->reference_cell(),
+                                                        quadrature),
+                  output_data);
+}
+
+
+
 template <int dim, int spacedim>
 std::unique_ptr<typename FiniteElement<dim, spacedim>::InternalDataBase>
 FiniteElement<dim, spacedim>::get_face_data(
@@ -1293,10 +1309,72 @@ FiniteElement<dim, spacedim>::get_face_data(
 {
   return get_data(flags,
                   mapping,
-                  QProjector<dim>::project_to_all_faces(
-                    this->reference_cell_type(), quadrature),
+                  QProjector<dim>::project_to_all_faces(this->reference_cell(),
+                                                        quadrature),
                   output_data);
 }
+
+
+
+template <int dim, int spacedim>
+inline void
+FiniteElement<dim, spacedim>::fill_fe_face_values(
+  const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+  const unsigned int                                          face_no,
+  const hp::QCollection<dim - 1> &                            quadrature,
+  const Mapping<dim, spacedim> &                              mapping,
+  const typename Mapping<dim, spacedim>::InternalDataBase &   mapping_internal,
+  const dealii::internal::FEValuesImplementation::MappingRelatedData<dim,
+                                                                     spacedim>
+    &                                                            mapping_data,
+  const typename FiniteElement<dim, spacedim>::InternalDataBase &fe_internal,
+  dealii::internal::FEValuesImplementation::FiniteElementRelatedData<dim,
+                                                                     spacedim>
+    &output_data) const
+{
+  // base class version, implement overridden function in derived classes
+  AssertDimension(quadrature.size(), 1);
+  fill_fe_face_values(cell,
+                      face_no,
+                      quadrature[0],
+                      mapping,
+                      mapping_internal,
+                      mapping_data,
+                      fe_internal,
+                      output_data);
+}
+
+
+
+template <int dim, int spacedim>
+inline void
+FiniteElement<dim, spacedim>::fill_fe_face_values(
+  const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+  const unsigned int                                          face_no,
+  const Quadrature<dim - 1> &                                 quadrature,
+  const Mapping<dim, spacedim> &                              mapping,
+  const typename Mapping<dim, spacedim>::InternalDataBase &   mapping_internal,
+  const dealii::internal::FEValuesImplementation::MappingRelatedData<dim,
+                                                                     spacedim>
+    &                                                            mapping_data,
+  const typename FiniteElement<dim, spacedim>::InternalDataBase &fe_internal,
+  dealii::internal::FEValuesImplementation::FiniteElementRelatedData<dim,
+                                                                     spacedim>
+    &output_data) const
+{
+  Assert(false,
+         ExcMessage("Use of a deprecated interface, please implement "
+                    "fill_fe_face_values taking a hp::QCollection argument"));
+  (void)cell;
+  (void)face_no;
+  (void)quadrature;
+  (void)mapping;
+  (void)mapping_internal;
+  (void)mapping_data;
+  (void)fe_internal;
+  (void)output_data;
+}
+#endif
 
 
 
@@ -1313,7 +1391,7 @@ FiniteElement<dim, spacedim>::get_subface_data(
   return get_data(flags,
                   mapping,
                   QProjector<dim>::project_to_all_subfaces(
-                    this->reference_cell_type(), quadrature),
+                    this->reference_cell(), quadrature),
                   output_data);
 }
 

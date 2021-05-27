@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2020 by the deal.II authors
+// Copyright (C) 2001 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -21,12 +21,16 @@
 #include <deal.II/fe/fe_bernstein.h>
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_nothing.h>
+#include <deal.II/fe/fe_pyramid_p.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_q_bubbles.h>
 #include <deal.II/fe/fe_q_dg0.h>
 #include <deal.II/fe/fe_q_hierarchical.h>
 #include <deal.II/fe/fe_q_iso_q1.h>
+#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_simplex_p_bubbles.h>
 #include <deal.II/fe/fe_tools.h>
+#include <deal.II/fe/fe_wedge_p.h>
 
 #include <deal.II/lac/vector.h>
 
@@ -690,6 +694,16 @@ FE_DGQ<dim, spacedim>::compare_for_domination(
       if (this->degree < fe_hierarchical_other->degree)
         return FiniteElementDomination::this_element_dominates;
       else if (this->degree == fe_hierarchical_other->degree)
+        return FiniteElementDomination::either_element_can_dominate;
+      else
+        return FiniteElementDomination::other_element_dominates;
+    }
+  else if (const FE_SimplexDGP<dim, spacedim> *fe_dgp_other =
+             dynamic_cast<const FE_SimplexDGP<dim, spacedim> *>(&fe_other))
+    {
+      if (this->degree < fe_dgp_other->degree)
+        return FiniteElementDomination::this_element_dominates;
+      else if (this->degree == fe_dgp_other->degree)
         return FiniteElementDomination::either_element_can_dominate;
       else
         return FiniteElementDomination::other_element_dominates;

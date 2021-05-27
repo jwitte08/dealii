@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2004 - 2018 by the deal.II authors
+// Copyright (C) 2004 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -217,7 +217,7 @@ test(std::string solver_name, std::string preconditioner_name)
 
   // test SLEPc by
   {
-    PETScWrappers::PreconditionerBase *preconditioner;
+    PETScWrappers::PreconditionBase *preconditioner;
 
     dealii::deallog << preconditioner_name << std::endl;
     if (preconditioner_name == "Jacobi")

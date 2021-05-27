@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2020 by the deal.II authors
+// Copyright (C) 2013 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -37,11 +37,6 @@
 #include <memory>
 #include <sstream>
 
-// TODO: implement the adjust_quad_dof_index_for_face_orientation_table and
-// adjust_line_dof_index_for_line_orientation_table fields, and write tests
-// similar to bits/face_orientation_and_fe_q_*
-
-
 DEAL_II_NAMESPACE_OPEN
 
 //#define DEBUG_NEDELEC
@@ -66,6 +61,10 @@ namespace internal
   }   // namespace FE_Nedelec
 } // namespace internal
 
+
+// TODO: implement the adjust_quad_dof_index_for_face_orientation_table and
+// adjust_line_dof_index_for_line_orientation_table fields, and write tests
+// similar to bits/face_orientation_and_fe_q_*
 
 template <int dim>
 FE_Nedelec<dim>::FE_Nedelec(const unsigned int order)
@@ -207,8 +206,24 @@ FE_Nedelec<dim>::FE_Nedelec(const unsigned int order)
       default:
         Assert(false, ExcNotImplemented());
     }
+
+  // We need to initialize the dof permutation table and the one for the sign
+  // change.
+  initialize_quad_dof_index_permutation_and_sign_change();
 }
 
+
+template <int dim>
+void
+FE_Nedelec<dim>::initialize_quad_dof_index_permutation_and_sign_change()
+{
+  // for 1D and 2D, do nothing
+  if (dim < 3)
+    return;
+
+  // TODO: Implement this for this class
+  return;
+}
 
 
 template <int dim>
@@ -284,7 +299,7 @@ FE_Nedelec<2>::initialize_support_points(const unsigned int order)
   const unsigned int    n_boundary_points =
     GeometryInfo<dim>::lines_per_cell * n_edge_points;
   const Quadrature<dim> edge_quadrature =
-    QProjector<dim>::project_to_all_faces(this->reference_cell_type(),
+    QProjector<dim>::project_to_all_faces(this->reference_cell(),
                                           reference_edge_quadrature);
 
   this->generalized_face_support_points[face_no].resize(n_edge_points);
@@ -311,14 +326,14 @@ FE_Nedelec<2>::initialize_support_points(const unsigned int order)
           for (unsigned int line = 0; line < GeometryInfo<dim>::lines_per_cell;
                ++line)
             this->generalized_support_points[line * n_edge_points + q_point] =
-              edge_quadrature.point(QProjector<dim>::DataSetDescriptor::face(
-                                      this->reference_cell_type(),
-                                      line,
-                                      true,
-                                      false,
-                                      false,
-                                      n_edge_points) +
-                                    q_point);
+              edge_quadrature.point(
+                QProjector<dim>::DataSetDescriptor::face(this->reference_cell(),
+                                                         line,
+                                                         true,
+                                                         false,
+                                                         false,
+                                                         n_edge_points) +
+                q_point);
 
           for (unsigned int i = 0; i < order; ++i)
             boundary_weights(q_point, i) =
@@ -342,14 +357,14 @@ FE_Nedelec<2>::initialize_support_points(const unsigned int order)
            ++line)
         for (unsigned int q_point = 0; q_point < n_edge_points; ++q_point)
           this->generalized_support_points[line * n_edge_points + q_point] =
-            edge_quadrature.point(QProjector<dim>::DataSetDescriptor::face(
-                                    this->reference_cell_type(),
-                                    line,
-                                    true,
-                                    false,
-                                    false,
-                                    n_edge_points) +
-                                  q_point);
+            edge_quadrature.point(
+              QProjector<dim>::DataSetDescriptor::face(this->reference_cell(),
+                                                       line,
+                                                       true,
+                                                       false,
+                                                       false,
+                                                       n_edge_points) +
+              q_point);
     }
 }
 
@@ -380,9 +395,8 @@ FE_Nedelec<3>::initialize_support_points(const unsigned int order)
   const QGauss<1>            reference_edge_quadrature(order + 1);
   const unsigned int         n_edge_points = reference_edge_quadrature.size();
   const Quadrature<dim - 1> &edge_quadrature =
-    QProjector<dim - 1>::project_to_all_faces(ReferenceCell::get_hypercube(dim -
-                                                                           1),
-                                              reference_edge_quadrature);
+    QProjector<dim - 1>::project_to_all_faces(
+      ReferenceCells::get_hypercube<dim - 1>(), reference_edge_quadrature);
 
   if (order > 0)
     {
@@ -415,7 +429,7 @@ FE_Nedelec<3>::initialize_support_points(const unsigned int order)
                                                          q_point] =
               edge_quadrature.point(
                 QProjector<dim - 1>::DataSetDescriptor::face(
-                  ReferenceCell::get_hypercube(dim - 1),
+                  ReferenceCells::get_hypercube<dim - 1>(),
                   line,
                   true,
                   false,
@@ -475,7 +489,7 @@ FE_Nedelec<3>::initialize_support_points(const unsigned int order)
         }
 
       const Quadrature<dim> &face_quadrature =
-        QProjector<dim>::project_to_all_faces(this->reference_cell_type(),
+        QProjector<dim>::project_to_all_faces(this->reference_cell(),
                                               reference_face_quadrature);
 
       for (const unsigned int face : GeometryInfo<dim>::face_indices())
@@ -484,14 +498,14 @@ FE_Nedelec<3>::initialize_support_points(const unsigned int order)
             this->generalized_support_points[face * n_face_points + q_point +
                                              GeometryInfo<dim>::lines_per_cell *
                                                n_edge_points] =
-              face_quadrature.point(QProjector<dim>::DataSetDescriptor::face(
-                                      this->reference_cell_type(),
-                                      face,
-                                      true,
-                                      false,
-                                      false,
-                                      n_face_points) +
-                                    q_point);
+              face_quadrature.point(
+                QProjector<dim>::DataSetDescriptor::face(this->reference_cell(),
+                                                         face,
+                                                         true,
+                                                         false,
+                                                         false,
+                                                         n_face_points) +
+                q_point);
           }
 
       // Create support points in the interior.
@@ -516,7 +530,7 @@ FE_Nedelec<3>::initialize_support_points(const unsigned int order)
                                                          q_point] =
               edge_quadrature.point(
                 QProjector<dim - 1>::DataSetDescriptor::face(
-                  ReferenceCell::get_hypercube(dim - 1),
+                  ReferenceCells::get_hypercube<dim - 1>(),
                   line,
                   true,
                   false,
@@ -2046,20 +2060,21 @@ template <int dim>
 std::vector<unsigned int>
 FE_Nedelec<dim>::get_dpo_vector(const unsigned int degree, bool dg)
 {
-  std::vector<unsigned int> dpo(dim + 1);
+  std::vector<unsigned int> dpo;
 
   if (dg)
     {
+      dpo.resize(dim + 1);
       dpo[dim] = PolynomialsNedelec<dim>::n_polynomials(degree);
     }
   else
     {
-      dpo[0] = 0;
-      dpo[1] = degree + 1;
-      dpo[2] = 2 * degree * (degree + 1);
-
-      if (dim == 3)
-        dpo[3] = 3 * degree * degree * (degree + 1);
+      dpo.push_back(0);
+      dpo.push_back(degree + 1);
+      if (dim > 1)
+        dpo.push_back(2 * degree * (degree + 1));
+      if (dim > 2)
+        dpo.push_back(3 * degree * degree * (degree + 1));
     }
 
   return dpo;
@@ -2500,7 +2515,7 @@ FE_Nedelec<dim>::get_face_interpolation_matrix(
   // satisfied. But the matrices
   // produced in that case might
   // lead to problems in the
-  // hp procedures, which use this
+  // hp-procedures, which use this
   // method.
   Assert(this->n_dofs_per_face(face_no) <= source_fe.n_dofs_per_face(face_no),
          (typename FiniteElement<dim>::ExcInterpolationNotImplemented()));
@@ -2607,7 +2622,7 @@ FE_Nedelec<dim>::get_subface_interpolation_matrix(
   // satisfied. But the matrices
   // produced in that case might
   // lead to problems in the
-  // hp procedures, which use this
+  // hp-procedures, which use this
   // method.
   Assert(this->n_dofs_per_face(face_no) <= source_fe.n_dofs_per_face(face_no),
          (typename FiniteElement<dim>::ExcInterpolationNotImplemented()));
@@ -3157,7 +3172,7 @@ FE_Nedelec<dim>::convert_generalized_support_point_values_to_dof_values(
         {
           // Let us begin with the
           // interpolation part.
-          const QGauss<dim - 1> reference_edge_quadrature(this->degree);
+          const QGauss<1>    reference_edge_quadrature(this->degree);
           const unsigned int n_edge_points = reference_edge_quadrature.size();
 
           for (unsigned int i = 0; i < 2; ++i)
@@ -3177,17 +3192,17 @@ FE_Nedelec<dim>::convert_generalized_support_point_values_to_dof_values(
                   nodal_values[(i + 2 * j) * this->degree] = 0.0;
               }
 
-          // If the degree is greater
-          // than 0, then we have still
-          // some higher order edge
-          // shape functions to
-          // consider.
-          // Here the projection part
-          // starts. The dof support_point_values
-          // are obtained by solving
+          // If the Nedelec element degree is greater
+          // than 0 (i.e., the polynomial degree is greater than 1),
+          // then we have still some higher order edge
+          // shape functions to consider.
+          // Note that this->degree returns the polynomial
+          // degree.
+          // Here the projection part starts.
+          // The dof support_point_values are obtained by solving
           // a linear system of
           // equations.
-          if (this->degree - 1 > 1)
+          if (this->degree > 1)
             {
               // We start with projection
               // on the higher order edge

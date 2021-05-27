@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2014 - 2020 by the deal.II authors
+// Copyright (C) 2014 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -841,7 +841,7 @@ namespace OpenCASCADE
         default:
           Assert(false, ExcUnsupportedShape());
       }
-    return Point<dim>();
+    return {};
   }
 
   std::tuple<Point<3>, Tensor<1, 3>, double, double>

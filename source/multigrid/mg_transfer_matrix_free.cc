@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2020 by the deal.II authors
+// Copyright (C) 2016 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -185,6 +185,19 @@ MGTransferMatrixFree<dim, Number>::prolongate(
   LinearAlgebra::distributed::Vector<Number> &      dst,
   const LinearAlgebra::distributed::Vector<Number> &src) const
 {
+  dst = 0;
+  prolongate_and_add(to_level, dst, src);
+}
+
+
+
+template <int dim, typename Number>
+void
+MGTransferMatrixFree<dim, Number>::prolongate_and_add(
+  const unsigned int                                to_level,
+  LinearAlgebra::distributed::Vector<Number> &      dst,
+  const LinearAlgebra::distributed::Vector<Number> &src) const
+{
   Assert((to_level >= 1) && (to_level <= level_dof_indices.size()),
          ExcIndexRange(to_level, 1, level_dof_indices.size() + 1));
 
@@ -208,16 +221,15 @@ MGTransferMatrixFree<dim, Number>::prolongate(
           this->vector_partitioners[to_level].get())
         this->ghosted_level_vector[to_level].reinit(
           this->vector_partitioners[to_level]);
-      AssertDimension(this->ghosted_level_vector[to_level].local_size(),
-                      dst.local_size());
+      AssertDimension(this->ghosted_level_vector[to_level].locally_owned_size(),
+                      dst.locally_owned_size());
+      this->ghosted_level_vector[to_level] = 0.;
     }
 
   const LinearAlgebra::distributed::Vector<Number> &src_vec =
     src_inplace ? src : this->ghosted_level_vector[to_level - 1];
   LinearAlgebra::distributed::Vector<Number> &dst_vec =
     dst_inplace ? dst : this->ghosted_level_vector[to_level];
-
-  dst_vec = 0.;
 
   src_vec.update_ghost_values();
   // the implementation in do_prolongate_add is templated in the degree of the
@@ -250,10 +262,10 @@ MGTransferMatrixFree<dim, Number>::prolongate(
 
   dst_vec.compress(VectorOperation::add);
   if (dst_inplace == false)
-    dst.copy_locally_owned_data_from(this->ghosted_level_vector[to_level]);
+    dst += dst_vec;
 
   if (src_inplace == true)
-    src.zero_out_ghosts();
+    src.zero_out_ghost_values();
 }
 
 
@@ -287,8 +299,9 @@ MGTransferMatrixFree<dim, Number>::restrict_and_add(
           this->vector_partitioners[from_level - 1].get())
         this->ghosted_level_vector[from_level - 1].reinit(
           this->vector_partitioners[from_level - 1]);
-      AssertDimension(this->ghosted_level_vector[from_level - 1].local_size(),
-                      dst.local_size());
+      AssertDimension(
+        this->ghosted_level_vector[from_level - 1].locally_owned_size(),
+        dst.locally_owned_size());
       this->ghosted_level_vector[from_level - 1] = 0.;
     }
 
@@ -330,7 +343,7 @@ MGTransferMatrixFree<dim, Number>::restrict_and_add(
     dst += dst_vec;
 
   if (src_inplace == true)
-    src.zero_out_ghosts();
+    src.zero_out_ghost_values();
 }
 
 
@@ -771,6 +784,30 @@ MGTransferBlockMatrixFree<dim, Number>::prolongate(
       matrix_free_transfer_vector[data_block].prolongate(to_level,
                                                          dst.block(b),
                                                          src.block(b));
+    }
+}
+
+
+
+template <int dim, typename Number>
+void
+MGTransferBlockMatrixFree<dim, Number>::prolongate_and_add(
+  const unsigned int                                     to_level,
+  LinearAlgebra::distributed::BlockVector<Number> &      dst,
+  const LinearAlgebra::distributed::BlockVector<Number> &src) const
+{
+  const unsigned int n_blocks = src.n_blocks();
+  AssertDimension(dst.n_blocks(), n_blocks);
+
+  if (!same_for_all)
+    AssertDimension(matrix_free_transfer_vector.size(), n_blocks);
+
+  for (unsigned int b = 0; b < n_blocks; ++b)
+    {
+      const unsigned int data_block = same_for_all ? 0 : b;
+      matrix_free_transfer_vector[data_block].prolongate_and_add(to_level,
+                                                                 dst.block(b),
+                                                                 src.block(b));
     }
 }
 

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2009 - 2020 by the deal.II authors
+ * Copyright (C) 2009 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -30,12 +30,9 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_out.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/numerics/vector_tools.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/fe/mapping_q1.h>
@@ -123,9 +120,9 @@ namespace Step12
   {
     Assert(dim >= 2, ExcNotImplemented());
 
-    Point<dim> wind_field;
-    wind_field(0) = -p(1);
-    wind_field(1) = p(0);
+    Tensor<1, dim> wind_field;
+    wind_field[0] = -p[1];
+    wind_field[1] = p[0];
 
     if (wind_field.norm() > 1e-10)
       wind_field /= wind_field.norm();
@@ -145,20 +142,21 @@ namespace Step12
   template <int dim>
   struct ScratchData
   {
-    ScratchData(const Mapping<dim> &      mapping,
-                const FiniteElement<dim> &fe,
-                const unsigned int        quadrature_degree,
-                const UpdateFlags         update_flags = update_values |
+    ScratchData(const Mapping<dim> &       mapping,
+                const FiniteElement<dim> & fe,
+                const Quadrature<dim> &    quadrature,
+                const Quadrature<dim - 1> &quadrature_face,
+                const UpdateFlags          update_flags = update_values |
                                                  update_gradients |
                                                  update_quadrature_points |
                                                  update_JxW_values,
                 const UpdateFlags interface_update_flags =
                   update_values | update_gradients | update_quadrature_points |
                   update_JxW_values | update_normal_vectors)
-      : fe_values(mapping, fe, QGauss<dim>(quadrature_degree), update_flags)
+      : fe_values(mapping, fe, quadrature, update_flags)
       , fe_interface_values(mapping,
                             fe,
-                            QGauss<dim - 1>(quadrature_degree),
+                            quadrature_face,
                             interface_update_flags)
     {}
 
@@ -232,8 +230,11 @@ namespace Step12
     const MappingQ1<dim> mapping;
 
     // Furthermore we want to use DG elements.
-    FE_DGQ<dim>     fe;
-    DoFHandler<dim> dof_handler;
+    const FE_DGQ<dim> fe;
+    DoFHandler<dim>   dof_handler;
+
+    const QGauss<dim>     quadrature;
+    const QGauss<dim - 1> quadrature_face;
 
     // The next four members represent the linear system to be solved.
     // <code>system_matrix</code> and <code>right_hand_side</code> are generated
@@ -255,6 +256,8 @@ namespace Step12
     : mapping()
     , fe(1)
     , dof_handler(triangulation)
+    , quadrature(fe.tensor_degree() + 1)
+    , quadrature_face(fe.tensor_degree() + 1)
   {}
 
 
@@ -435,9 +438,7 @@ namespace Step12
         }
     };
 
-    const unsigned int n_gauss_points = dof_handler.get_fe().degree + 1;
-
-    ScratchData<dim> scratch_data(mapping, fe, n_gauss_points);
+    ScratchData<dim> scratch_data(mapping, fe, quadrature, quadrature_face);
     CopyData         copy_data;
 
     // Here, we finally handle the assembly. We pass in ScratchData and
@@ -550,7 +551,7 @@ namespace Step12
     data_out.attach_dof_handler(dof_handler);
     data_out.add_data_vector(solution, "u", DataOut<dim>::type_dof_data);
 
-    data_out.build_patches();
+    data_out.build_patches(mapping);
 
     data_out.write_vtk(output);
 
@@ -561,7 +562,7 @@ namespace Step12
                                         solution,
                                         Functions::ZeroFunction<dim>(),
                                         values,
-                                        QGauss<dim>(fe.degree + 1),
+                                        quadrature,
                                         VectorTools::Linfty_norm);
       const double l_infty =
         VectorTools::compute_global_error(triangulation,

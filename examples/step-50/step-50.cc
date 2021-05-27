@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2019 - 2020 by the deal.II authors
+ * Copyright (C) 2019 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -34,15 +34,12 @@
 #include <deal.II/base/parameter_handler.h>
 #include <deal.II/distributed/grid_refinement.h>
 #include <deal.II/distributed/tria.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_refinement.h>
 #include <deal.II/grid/tria.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/dynamic_sparsity_pattern.h>
 #include <deal.II/lac/solver_cg.h>
@@ -251,7 +248,7 @@ Coefficient<dim>::make_coefficient_table(
 
   FEEvaluation<dim, -1, 0, 1, number> fe_eval(mf_storage);
 
-  const unsigned int n_cells    = mf_storage.n_macro_cells();
+  const unsigned int n_cells    = mf_storage.n_cell_batches();
   const unsigned int n_q_points = fe_eval.n_q_points;
 
   coefficient_table->reinit(n_cells, 1);
@@ -377,7 +374,7 @@ bool Settings::try_parse(const std::string &prm_filename)
 // MatrixFreeOperators::LaplaceOperator class which defines `local_apply()`,
 // `compute_diagonal()`, and `set_coefficient()` functions internally. Note that
 // the polynomial degree is a template parameter of this class. This is
-// necesary for the matrix-free code.
+// necessary for the matrix-free code.
 template <int dim, int degree>
 class LaplaceProblem
 {
@@ -513,7 +510,8 @@ void LaplaceProblem<dim, degree>::setup_system()
             (update_gradients | update_JxW_values | update_quadrature_points);
           std::shared_ptr<MatrixFree<dim, double>> mf_storage =
             std::make_shared<MatrixFree<dim, double>>();
-          mf_storage->reinit(dof_handler,
+          mf_storage->reinit(mapping,
+                             dof_handler,
                              constraints,
                              QGauss<1>(degree + 1),
                              additional_data);
@@ -615,7 +613,8 @@ void LaplaceProblem<dim, degree>::setup_multigrid()
               additional_data.mg_level = level;
               std::shared_ptr<MatrixFree<dim, float>> mf_storage_level(
                 new MatrixFree<dim, float>());
-              mf_storage_level->reinit(dof_handler,
+              mf_storage_level->reinit(mapping,
+                                       dof_handler,
                                        level_constraints,
                                        QGauss<1>(degree + 1),
                                        additional_data);
@@ -920,7 +919,7 @@ void LaplaceProblem<dim, degree>::assemble_multigrid()
 // Finally, the system_rhs vector is of type LA::MPI::Vector, but the
 // MatrixFree class only work for
 // dealii::LinearAlgebra::distributed::Vector.  Therefore we must
-// compute the right-hand side using MatrixFree funtionality and then
+// compute the right-hand side using MatrixFree functionality and then
 // use the functions in the `ChangeVectorType` namespace to copy it to
 // the correct type.
 template <int dim, int degree>
@@ -946,7 +945,7 @@ void LaplaceProblem<dim, degree>::assemble_rhs()
     *mf_system_matrix.get_matrix_free());
 
   for (unsigned int cell = 0;
-       cell < mf_system_matrix.get_matrix_free()->n_macro_cells();
+       cell < mf_system_matrix.get_matrix_free()->n_cell_batches();
        ++cell)
     {
       phi.reinit(cell);

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2017 - 2020 by the deal.II authors
+// Copyright (C) 2017 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -33,6 +33,7 @@
 
 #include <deal.II/particles/particle.h>
 #include <deal.II/particles/particle_iterator.h>
+#include <deal.II/particles/partitioner.h>
 #include <deal.II/particles/property_pool.h>
 
 #include <boost/range/iterator_range.hpp>
@@ -204,10 +205,10 @@ namespace Particles
      * @note While this function is used in step-19, it is not an efficient
      *   function to use if the number of particles is large. That is because
      *   to find the particles that are located in one cell costs
-     *   ${\cal O)(\log N)$ where $N$ is the number of overall particles. Since
+     *   ${\cal O}(\log N)$ where $N$ is the number of overall particles. Since
      *   you will likely do this for every cell, and assuming that the number
      *   of particles and the number of cells are roughly proportional,
-     *   you end up with an ${\cal O)(N \log N)$ algorithm. A better approach
+     *   you end up with an ${\cal O}(N \log N)$ algorithm. A better approach
      *   is to use the fact that internally, particles are arranged in the
      *   order of the active cells they are in. In other words, if you iterate
      *   over all particles, you will encounter them in the same order as
@@ -216,7 +217,7 @@ namespace Particles
      *   to the next cell, you increment the particle iterator as well until
      *   you find a particle located on that next cell. Counting how many
      *   steps this took will then give you the number you are looking for,
-     *   at a cost of ${\cal O)(\log N)$ when accumulated over all cells.
+     *   at a cost of ${\cal O}(\log N)$ when accumulated over all cells.
      *   This is the approach used in step-70, for example. The approach is
      *   also detailed in the "Possibilities for extensions section"
      *   of step-19.
@@ -237,10 +238,10 @@ namespace Particles
      * @note While this function is used in step-19, it is not an efficient
      *   function to use if the number of particles is large. That is because
      *   to find the particles that are located in one cell costs
-     *   ${\cal O)(\log N)$ where $N$ is the number of overall particles. Since
+     *   ${\cal O}(\log N)$ where $N$ is the number of overall particles. Since
      *   you will likely do this for every cell, and assuming that the number
      *   of particles and the number of cells are roughly proportional,
-     *   you end up with an ${\cal O)(N \log N)$ algorithm. A better approach
+     *   you end up with an ${\cal O}(N \log N)$ algorithm. A better approach
      *   is to use the fact that internally, particles are arranged in the
      *   order of the active cells they are in. In other words, if you iterate
      *   over all particles, you will encounter them in the same order as
@@ -249,7 +250,7 @@ namespace Particles
      *   to the next cell, you increment the particle iterator as well until
      *   you find a particle located on that next cell. This is the approach
      *   used in step-70, for example, and has an overall cost of
-     *   ${\cal O)(\log N)$ when accumulated over all cells. The approach is
+     *   ${\cal O}(\log N)$ when accumulated over all cells. The approach is
      *   also detailed in the "Possibilities for extensions section"
      *   of step-19.
      */
@@ -268,10 +269,10 @@ namespace Particles
      * @note While this function is used in step-19, it is not an efficient
      *   function to use if the number of particles is large. That is because
      *   to find the particles that are located in one cell costs
-     *   ${\cal O)(\log N)$ where $N$ is the number of overall particles. Since
+     *   ${\cal O}(\log N)$ where $N$ is the number of overall particles. Since
      *   you will likely do this for every cell, and assuming that the number
      *   of particles and the number of cells are roughly proportional,
-     *   you end up with an ${\cal O)(N \log N)$ algorithm. A better approach
+     *   you end up with an ${\cal O}(N \log N)$ algorithm. A better approach
      *   is to use the fact that internally, particles are arranged in the
      *   order of the active cells they are in. In other words, if you iterate
      *   over all particles, you will encounter them in the same order as
@@ -280,7 +281,7 @@ namespace Particles
      *   to the next cell, you increment the particle iterator as well until
      *   you find a particle located on that next cell. This is the approach
      *   used in step-70, for example, and has an overall cost of
-     *   ${\cal O)(\log N)$ when accumulated over all cells. The approach is
+     *   ${\cal O}(\log N)$ when accumulated over all cells. The approach is
      *   also detailed in the "Possibilities for extensions section"
      *   of step-19.
      */
@@ -334,7 +335,7 @@ namespace Particles
      * Create and insert a number of particles into the collection of particles.
      * This function takes a list of positions and creates a set of particles
      * at these positions, which are then distributed and added to the local
-     * particle collection of a procesor. Note that this function uses
+     * particle collection of a processor. Note that this function uses
      * GridTools::distributed_compute_point_locations(). Consequently, it can
      * require intense communications between the processors. This function
      * is used in step-70.
@@ -373,7 +374,7 @@ namespace Particles
      *
      * @param[in] properties (Optional) A vector of vector of properties
      * associated with each local point. The size of the vector should be either
-     * zero (no properties will be transfered nor attached to the generated
+     * zero (no properties will be transferred nor attached to the generated
      * particles) or it should be a vector of `positions.size()` vectors of size
      * `n_properties_per_particle()`. Notice that this function call will
      * transfer the properties from the local mpi process to the final mpi
@@ -402,7 +403,7 @@ namespace Particles
      * Insert a number of particles into the collection of particles. This
      * function takes a list of particles for which we don't know the associated
      * cell iterator, and distributes them to the correct local particle
-     * collection of a procesor, by unpacking the locations, figuring out where
+     * collection of a processor, by unpacking the locations, figuring out where
      * to send the particles by calling
      * GridTools::distributed_compute_point_locations(), and sending the
      * particles to the corresponding process.
@@ -443,10 +444,10 @@ namespace Particles
      *
      * The vector @p input_vector should have read access to the indices
      * created by extracting the locally relevant ids with
-     * locally_relevant_ids(), and taking its tensor
+     * locally_owned_particle_ids(), and taking its tensor
      * product with the index set representing the range `[0, spacedim)`, i.e.:
      * @code
-     * IndexSet ids = particle_handler.locally_relevant_ids().
+     * IndexSet ids = particle_handler.locally_owned_particle_ids().
      *  tensor_product(complete_index_set(spacedim));
      * @endcode
      *
@@ -512,7 +513,7 @@ namespace Particles
     /**
      * Set the position of the particles within the particle handler using a
      * function with spacedim components. The new set of point defined by the
-     * fuction has to be sufficiently close to the original one to ensure that
+     * function has to be sufficiently close to the original one to ensure that
      * the sort_particles_into_subdomains_and_cells algorithm manages to find
      * the new cells in which the particles belong.
      *
@@ -665,9 +666,30 @@ namespace Particles
      *
      * @return An IndexSet of size get_next_free_particle_index(), containing
      * n_locally_owned_particle() indices.
+     *
+     * @deprecated Use locally_owned_particle_ids() instead.
+     */
+    DEAL_II_DEPRECATED IndexSet
+                       locally_relevant_ids() const;
+
+    /**
+     * Extract an IndexSet with global dimensions equal to
+     * get_next_free_particle_index(), containing the locally owned
+     * particle indices.
+     *
+     * This function can be used to construct distributed vectors and matrices
+     * to manipulate particles using linear algebra operations.
+     *
+     * Notice that it is the user's responsibility to guarantee that particle
+     * indices are unique, and no check is performed to verify that this is the
+     * case, nor that the union of all IndexSet objects on each mpi process is
+     * complete.
+     *
+     * @return An IndexSet of size get_next_free_particle_index(), containing
+     * n_locally_owned_particle() indices.
      */
     IndexSet
-    locally_relevant_ids() const;
+    locally_owned_particle_ids() const;
 
     /**
      * Return the number of properties each particle has.
@@ -679,7 +701,7 @@ namespace Particles
      * Return a reference to the property pool that owns all particle
      * properties, and organizes them physically.
      */
-    PropertyPool &
+    PropertyPool<dim, spacedim> &
     get_property_pool() const;
 
     /**
@@ -705,13 +727,13 @@ namespace Particles
      * member variable.
      */
     void
-    exchange_ghost_particles();
+    exchange_ghost_particles(const bool enable_ghost_cache = false);
 
     /**
      * Update all particles that live in cells that are ghost cells to
      * other processes. In this context, update means to update the
      * location and the properties of the ghost particles assuming that
-     * the ghost particles have not changed cells. Consquently, this will
+     * the ghost particles have not changed cells. Consequently, this will
      * not update the reference location of the particles.
      */
     void
@@ -736,7 +758,8 @@ namespace Particles
     register_load_callback_function(const bool serialization);
 
     /**
-     * Serialize the contents of this class.
+     * Serialize the contents of this class using the [BOOST serialization
+     * library](https://www.boost.org/doc/libs/1_74_0/libs/serialization/doc/index.html).
      */
     template <class Archive>
     void
@@ -804,7 +827,7 @@ namespace Particles
      * precedes the declaration of the `particles` and `ghost_particles`
      * members.
      */
-    std::unique_ptr<PropertyPool> property_pool;
+    std::unique_ptr<PropertyPool<dim, spacedim>> property_pool;
 
     /**
      * Set of particles currently living in the local domain, organized by
@@ -818,14 +841,6 @@ namespace Particles
      * particles are equivalent to the ghost entries in distributed vectors.
      */
     std::multimap<internal::LevelInd, Particle<dim, spacedim>> ghost_particles;
-
-    /**
-     * Set of particles that currently live in the ghost cells of the local
-     * domain, organized by the subdomain_id. These
-     * particles are equivalent to the ghost entries in distributed vectors.
-     */
-    std::map<types::subdomain_id, std::vector<particle_iterator>>
-      ghost_particles_by_domain;
 
     /**
      * This variable stores how many particles are stored globally. It is
@@ -927,6 +942,13 @@ namespace Particles
      * particle to be send in which the particle belongs. This parameter
      * is necessary if the cell information of the particle iterator is
      * outdated (e.g. after particle movement).
+     *
+     * @param [in] enable_cache Optional bool that enables updating
+     * the ghost particles without rebuilding them from scratch by
+     * building a cache of type GhostParticlePartitioner, which
+     * stores the necessary information to update the ghost particles.
+     * Once this cache is built, the ghost particles can be updated
+     * by a call to send_recv_particles_properties_and_location().
      */
     void
     send_recv_particles(
@@ -941,8 +963,43 @@ namespace Particles
         &new_cells_for_particles = std::map<
           types::subdomain_id,
           std::vector<
-            typename Triangulation<dim, spacedim>::active_cell_iterator>>());
+            typename Triangulation<dim, spacedim>::active_cell_iterator>>(),
+      const bool enable_cache = false);
+
+    /**
+     * Transfer particles position and properties assuming that
+     * the particles have not changed cells. This routine uses the
+     * GhostParticlePartitioner as a caching structure to update the particles.
+     * It inherently assumes that particles cannot have changed cell.
+     * All updated particles will be appended to the
+     * @p received_particles container.
+     *
+     * @param [in] particles_to_send All particles for which information
+     * should be sent and their new subdomain_ids are in this map.
+     *
+     * @param [in,out] received_particles A map with all received
+     * particles. Note that it is not required nor checked that the container
+     * is empty, received particles are simply inserted into
+     * the map.
+     *
+     */
+    void
+    send_recv_particles_properties_and_location(
+      const std::map<types::subdomain_id, std::vector<particle_iterator>>
+        &particles_to_send,
+      std::multimap<internal::LevelInd, Particle<dim, spacedim>>
+        &received_particles);
+
+
 #endif
+
+    /**
+     * Cache structure used to store the elements which are required to
+     * exchange the particle information (location and properties) across
+     * processors in order to update the ghost particles. This structure
+     * is only used to update the ghost particles.
+     */
+    internal::GhostParticlePartitioner<dim, spacedim> ghost_particles_cache;
 
     /**
      * Called by listener functions from Triangulation for every cell
@@ -1108,6 +1165,15 @@ namespace Particles
       output_vector.compress(VectorOperation::add);
     else
       output_vector.compress(VectorOperation::insert);
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline IndexSet
+  ParticleHandler<dim, spacedim>::locally_relevant_ids() const
+  {
+    return this->locally_owned_particle_ids();
   }
 
 } // namespace Particles

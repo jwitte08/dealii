@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2013 - 2020 by the deal.II authors
+## Copyright (C) 2013 - 2021 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -21,7 +21,7 @@
 #    prune_tests    - remove all testsuite subprojects
 #
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.1.0)
 
 MACRO(SET_IF_EMPTY _variable)
   IF("${${_variable}}" STREQUAL "")

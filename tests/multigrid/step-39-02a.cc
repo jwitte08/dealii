@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2013 - 2020 by the deal.II authors
+// Copyright (C) 2013 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -388,7 +388,7 @@ namespace Step39
   class InteriorPenaltyProblem
   {
   public:
-    typedef MeshWorker::IntegrationInfo<dim> CellInfo;
+    using CellInfo = MeshWorker::IntegrationInfo<dim>;
 
     InteriorPenaltyProblem(const FiniteElement<dim> &fe);
 
@@ -603,8 +603,8 @@ namespace Step39
     MGCoarseGridHouseholder<double, Vector<double>> mg_coarse;
     mg_coarse.initialize(coarse_matrix);
 
-    GrowingVectorMemory<Vector<double>>                mem;
-    typedef PreconditionSOR<SparseMatrix<double>>      RELAXATION;
+    GrowingVectorMemory<Vector<double>> mem;
+    using RELAXATION = PreconditionSOR<SparseMatrix<double>>;
     mg::SmootherRelaxation<RELAXATION, Vector<double>> mg_smoother;
     RELAXATION::AdditionalData                         smoother_data(1.);
     mg_smoother.initialize(mg_matrix, smoother_data);

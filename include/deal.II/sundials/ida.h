@@ -20,7 +20,6 @@
 
 #include <deal.II/base/mpi.h>
 #ifdef DEAL_II_WITH_SUNDIALS
-
 #  include <deal.II/base/conditional_ostream.h>
 #  include <deal.II/base/exceptions.h>
 #  include <deal.II/base/logstream.h>
@@ -44,6 +43,8 @@
 #    include <ida/ida_spgmr.h>
 #    include <ida/ida_sptfqmr.h>
 #  endif
+#  include <deal.II/sundials/sunlinsol_wrapper.h>
+
 #  include <boost/signals2.hpp>
 
 #  include <nvector/nvector_serial.h>
@@ -71,9 +72,14 @@ namespace SUNDIALS
    *  - reinit_vector;
    *  - residual;
    *  - setup_jacobian;
-   *  - solve_jacobian_system;
+   *  - solve_jacobian_system/solve_with_jacobian;
    *
-   * Optionally, also the following functions could be rewritten. By default
+   * The function `solve_jacobian_system` should be implemented for SUNDIALS
+   * < 4.0.0. For later versions, you should use
+   * `solve_with_jacobian` to leverage better non-linear
+   * algorithms.
+   *
+   * Optionally, also the following functions could be provided. By default
    * they do nothing, or are not required. If you call the constructor in a way
    * that requires a not-implemented function, an Assertion will be
    * thrown.
@@ -285,6 +291,9 @@ namespace SUNDIALS
        * @param maximum_order Maximum BDF order
        * @param maximum_non_linear_iterations Maximum number of nonlinear
        * iterations
+       * @param ls_norm_factor Converting factor from the integrator tolerance
+       * to the linear solver tolerance
+       * iterations
        *
        * Error parameters:
        *
@@ -309,6 +318,7 @@ namespace SUNDIALS
         const double       minimum_step_size             = 1e-6,
         const unsigned int maximum_order                 = 5,
         const unsigned int maximum_non_linear_iterations = 10,
+        const double       ls_norm_factor                = 0,
         // Error parameters
         const double absolute_tolerance                = 1e-6,
         const double relative_tolerance                = 1e-5,
@@ -330,6 +340,7 @@ namespace SUNDIALS
         , reset_type(reset_type)
         , maximum_non_linear_iterations_ic(maximum_non_linear_iterations_ic)
         , maximum_non_linear_iterations(maximum_non_linear_iterations)
+        , ls_norm_factor(ls_norm_factor)
       {}
 
       /**
@@ -451,6 +462,9 @@ namespace SUNDIALS
                        });
         prm.add_parameter("Maximum number of nonlinear iterations",
                           maximum_non_linear_iterations_ic);
+        prm.add_parameter(
+          "Factor to use when converting from the integrator tolerance to the linear solver tolerance",
+          ls_norm_factor);
         prm.leave_subsection();
       }
 
@@ -536,6 +550,12 @@ namespace SUNDIALS
        * Maximum number of iterations for Newton method during time advancement.
        */
       unsigned int maximum_non_linear_iterations;
+
+      /**
+       * Factor to use when converting from the integrator tolerance to the
+       * linear solver tolerance
+       */
+      double ls_norm_factor;
     };
 
     /**
@@ -580,7 +600,7 @@ namespace SUNDIALS
      * @param mpi_comm MPI communicator
      */
     IDA(const AdditionalData &data     = AdditionalData(),
-        const MPI_Comm        mpi_comm = MPI_COMM_WORLD);
+        const MPI_Comm &      mpi_comm = MPI_COMM_WORLD);
 
     /**
      * Destructor.
@@ -643,7 +663,9 @@ namespace SUNDIALS
      * Compute Jacobian. This function is called by IDA any time a Jacobian
      * update is required. The user should compute the Jacobian (or update all
      * the variables that allow the application of the Jacobian). This function
-     * is called by IDA once, before any call to solve_jacobian_system().
+     * is called by IDA once, before any call to solve_jacobian_system() (for
+     * SUNDIALS < 4.0.0) or solve_with_jacobian() (for
+     * SUNDIALS >= 4.0.0).
      *
      * The Jacobian $J$ should be a (possibly inexact) computation of
      * \f[
@@ -654,13 +676,15 @@ namespace SUNDIALS
      * If the user uses a matrix based computation of the Jacobian, than this
      * is the right place where an assembly routine should be called to
      * assemble both a matrix and a preconditioner for the Jacobian system.
-     * Subsequent calls (possibly more than one) to solve_jacobian_system() can
-     * assume that this function has been called at least once.
+     * Subsequent calls (possibly more than one) to solve_jacobian_system() or
+     * solve_with_jacobian() can assume that this function has
+     * been called at least once.
      *
      * Notice that no assumption is made by this interface on what the user
      * should do in this function. IDA only assumes that after a call to
-     * setup_jacobian() it is possible to call solve_jacobian_system(), to
-     * obtain a solution $x$ to the system $J x = b$.
+     * setup_jacobian() it is possible to call solve_jacobian_system() or
+     * solve_with_jacobian() to obtain a solution $x$ to the
+     * system $J x = b$.
      *
      * This function should return:
      * - 0: Success
@@ -702,9 +726,59 @@ namespace SUNDIALS
      *       then last function will be attempted again
      * - <0: Unrecoverable error the computation will be aborted and an
      * assertion will be thrown.
+     *
+     * @warning Starting with SUNDIALS 4.1, SUNDIALS provides the possibility of
+     * specifying the tolerance for the resolution. A part from the tolerance
+     * only `rhs` is provided and `dst` needs to be returned.
      */
+    DEAL_II_DEPRECATED
     std::function<int(const VectorType &rhs, VectorType &dst)>
       solve_jacobian_system;
+
+    /**
+     * Solve the Jacobian linear system up to a specified tolerance. This
+     * function will be called by IDA (possibly several times) after
+     * setup_jacobian() has been called at least once. IDA tries to do its best
+     * to call setup_jacobian() the minimum number of times. If convergence can
+     * be achieved without updating the Jacobian, then IDA does not call
+     * setup_jacobian() again. If, on the contrary, internal IDA convergence
+     * tests fail, then IDA calls again setup_jacobian() with updated vectors
+     * and coefficients so that successive calls to
+     * solve_with_jacobian() lead to better convergence in the
+     * Newton process.
+     *
+     * The Jacobian $J$ should be (an approximation of) the system Jacobian
+     * \f[
+     *   J=\dfrac{\partial G}{\partial y} = \dfrac{\partial F}{\partial y} +
+     *  \alpha \dfrac{\partial F}{\partial \dot y}.
+     * \f]
+     *
+     * Arguments to the function are:
+     *
+     * @param[in] rhs The system right hand side to solve for.
+     * @param[out] dst The solution of $J^{-1} * src$.
+     * @param[in] tolerance The tolerance with which to solve the linear system
+     *   of equations.
+     *
+     * A call to this function should store in `dst` the result of $J^{-1}$
+     * applied to `src`, i.e., the solution of the linear system `J*dst = src`.
+     * It is the user's responsibility to set up proper solvers and
+     * preconditioners either inside this function, or already within the
+     * `setup_jacobian()` function. (The latter is, for example, what the
+     * step-77 program does: All expensive operations happen in
+     * `setup_jacobian()`, given that that function is called far less often
+     * than the current one.)
+     *
+     * This function should return:
+     * - 0: Success
+     * - >0: Recoverable error (IDAReinit will be called if this happens, and
+     *       then the last function will be attempted again).
+     * - <0: Unrecoverable error the computation will be aborted and an
+     * assertion will be thrown.
+     */
+    std::function<
+      int(const VectorType &rhs, VectorType &dst, const double tolerance)>
+      solve_with_jacobian;
 
     /**
      * Process solution. This function is called by IDA at fixed time steps,
@@ -752,6 +826,12 @@ namespace SUNDIALS
      * contains algebraic constraints, or Lagrange multipliers), you should
      * overwrite this function in order to return only the differential
      * components of your system.
+     *
+     * When running in parallel, every process will call this function
+     * independently, and synchronization will happen at the end of the
+     * initialization setup to communicate what components are local. Make sure
+     * you only return the locally owned (or locally relevant) components, in
+     * order to minimize communication between processes.
      */
     std::function<IndexSet()> differential_components;
 
@@ -794,32 +874,12 @@ namespace SUNDIALS
     /**
      * IDA configuration data.
      */
-    AdditionalData data;
+    const AdditionalData data;
 
     /**
      * IDA memory object.
      */
     void *ida_mem;
-
-    /**
-     * IDA solution vector.
-     */
-    N_Vector yy;
-
-    /**
-     * IDA solution derivative vector.
-     */
-    N_Vector yp;
-
-    /**
-     * IDA absolute tolerances vector.
-     */
-    N_Vector abs_tolls;
-
-    /**
-     * IDA differential components vector.
-     */
-    N_Vector diff_id;
 
     /**
      * MPI communicator. SUNDIALS solver runs happily in
@@ -846,7 +906,6 @@ namespace SUNDIALS
 #    endif // PETSC_USE_COMPLEX
 #  endif   // DEAL_II_WITH_PETSC
   };
-
 } // namespace SUNDIALS
 
 DEAL_II_NAMESPACE_CLOSE

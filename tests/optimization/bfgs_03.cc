@@ -1,6 +1,6 @@
 //-----------------------------------------------------------
 //
-//    Copyright (C) 2018 - 2020 by the deal.II authors
+//    Copyright (C) 2018 - 2021 by the deal.II authors
 //
 //    This file is part of the deal.II library.
 //
@@ -39,7 +39,7 @@ template <typename number>
 void
 test()
 {
-  typedef Vector<number> VectorType;
+  using VectorType = Vector<number>;
 
   // size of the problem
   const unsigned int N = 10;

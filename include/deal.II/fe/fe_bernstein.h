@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2018 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -60,8 +60,7 @@ DEAL_II_NAMESPACE_OPEN
  */
 
 template <int dim, int spacedim = dim>
-class FE_Bernstein
-  : public FE_Q_Base<TensorProductPolynomials<dim>, dim, spacedim>
+class FE_Bernstein : public FE_Q_Base<dim, spacedim>
 {
 public:
   /**
@@ -138,13 +137,13 @@ public:
 
   /**
    * Return whether this element implements its hanging node constraints in
-   * the new way, which has to be used to make elements "hp compatible".
+   * the new way, which has to be used to make elements "hp-compatible".
    */
   virtual bool
   hp_constraints_are_implemented() const override;
 
   /**
-   * If, on a vertex, several finite elements are active, the hp code first
+   * If, on a vertex, several finite elements are active, the hp-code first
    * assigns the degrees of freedom of each of these FEs different global
    * indices. It then calls this function to find out which of them should get
    * identical values, and consequently can receive the same global DoF index.

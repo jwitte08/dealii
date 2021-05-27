@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -173,11 +173,25 @@ namespace VectorTools
       (void)project_to_boundary_first;
       (void)q_boundary;
 
+      AssertDimension(dof.get_fe_collection().size(), 1);
+
       Assert(dof.get_fe(0).n_components() == function.n_components,
              ExcDimensionMismatch(dof.get_fe(0).n_components(),
                                   function.n_components));
       Assert(dof.get_fe(0).n_components() == components,
              ExcDimensionMismatch(components, dof.get_fe(0).n_components()));
+
+      Quadrature<dim> quadrature_mf;
+
+      if (dof.get_fe(0).reference_cell() ==
+          ReferenceCells::get_hypercube<dim>())
+        quadrature_mf = QGauss<dim>(dof.get_fe().degree + 2);
+      else
+        // TODO: since we have currently only implemented a handful quadrature
+        // rules for non-hypercube objects, we do not construct a new
+        // quadrature rule with degree + 2 here but  use the user-provided
+        // quadrature rule (which is guaranteed to be tabulated).
+        quadrature_mf = quadrature;
 
       // set up mass matrix and right hand side
       typename MatrixFree<dim, Number>::AdditionalData additional_data;
@@ -187,11 +201,8 @@ namespace VectorTools
         (update_values | update_JxW_values);
       std::shared_ptr<MatrixFree<dim, Number>> matrix_free(
         new MatrixFree<dim, Number>());
-      matrix_free->reinit(mapping,
-                          dof,
-                          constraints,
-                          QGauss<1>(dof.get_fe().degree + 2),
-                          additional_data);
+      matrix_free->reinit(
+        mapping, dof, constraints, quadrature_mf, additional_data);
       using MatrixType = MatrixFreeOperators::MassOperator<
         dim,
         -1,
@@ -216,15 +227,16 @@ namespace VectorTools
         // account for inhomogeneous constraints
         inhomogeneities.update_ghost_values();
         FEEvaluation<dim, -1, 0, components, Number> phi(*matrix_free);
-        for (unsigned int cell = 0; cell < matrix_free->n_macro_cells(); ++cell)
+        for (unsigned int cell = 0; cell < matrix_free->n_cell_batches();
+             ++cell)
           {
             phi.reinit(cell);
             phi.read_dof_values_plain(inhomogeneities);
-            phi.evaluate(EvaluationFlags::values);
+            phi.evaluate(::dealii::EvaluationFlags::values);
             for (unsigned int q = 0; q < phi.n_q_points; ++q)
               phi.submit_value(phi.get_value(q), q);
 
-            phi.integrate(EvaluationFlags::values);
+            phi.integrate(::dealii::EvaluationFlags::values);
             phi.distribute_local_to_global(rhs);
           }
         rhs.compress(VectorOperation::add);
@@ -653,7 +665,7 @@ namespace VectorTools
             for (unsigned int q = 0; q < n_q_points; ++q)
               fe_eval.submit_value(func(cell, q), q);
 
-            fe_eval.integrate(EvaluationFlags::values);
+            fe_eval.integrate(::dealii::EvaluationFlags::values);
             fe_eval.distribute_local_to_global(rhs);
           }
         rhs.compress(VectorOperation::add);
@@ -875,7 +887,7 @@ namespace VectorTools
            ExcMessage("Please specify the mapping explicitly "
                       "when building with MSVC!"));
 #else
-    project(StaticMappingQ1<dim, spacedim>::mapping,
+    project(get_default_linear_mapping(dof.get_triangulation()),
             dof,
             constraints,
             quadrature,

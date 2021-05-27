@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -42,7 +42,7 @@
 #include <deal.II/multigrid/mg_constrained_dofs.h>
 #include <deal.II/multigrid/mg_transfer_global_coarsening.h>
 
-#include "test.h"
+#include "mg_transfer_util.h"
 
 using namespace dealii;
 

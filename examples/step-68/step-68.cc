@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2020 by the deal.II authors
+ * Copyright (C) 2020 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -39,8 +39,6 @@
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 
 #include <deal.II/lac/la_parallel_vector.h>
 #include <deal.II/lac/vector.h>
@@ -502,7 +500,7 @@ namespace Step68
   template <int dim>
   void ParticleTracking<dim>::interpolate_function_to_field()
   {
-    velocity_field.zero_out_ghosts();
+    velocity_field.zero_out_ghost_values();
     VectorTools::interpolate(mapping, fluid_dh, velocity, velocity_field);
     velocity_field.update_ghost_values();
   }
@@ -632,8 +630,6 @@ namespace Step68
 
     std::vector<std::string> solution_names(dim, "velocity");
     solution_names.push_back("process_id");
-    std::vector<DataComponentInterpretation::DataComponentInterpretation>
-      data_interpretations;
 
     std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_component_interpretation(

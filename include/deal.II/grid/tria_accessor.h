@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -29,6 +29,10 @@
 #include <deal.II/grid/tria_iterator_base.h>
 #include <deal.II/grid/tria_iterator_selector.h>
 
+DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
+#include <boost/container/small_vector.hpp>
+DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
+
 #include <utility>
 
 
@@ -53,6 +57,9 @@ namespace parallel
 
 template <int dim, int spacedim>
 class Manifold;
+
+template <int dim, int spacedim>
+class Mapping;
 #endif
 
 namespace internal
@@ -61,6 +68,7 @@ namespace internal
   {
     class TriaObjects;
     struct Implementation;
+    struct ImplementationMixedMesh;
   } // namespace TriangulationImplementation
 
   namespace TriaAccessorImplementation
@@ -124,7 +132,6 @@ namespace internal
     {
       using type = int;
     };
-
   } // namespace TriaAccessorImplementation
 } // namespace internal
 template <int structdim, int dim, int spacedim>
@@ -714,6 +721,17 @@ public:
                const AccessorData *                local_data = nullptr);
 
   /**
+   * The copy constructor is not deleted but copied constructed elements should
+   * not be modified, also the comments to the copy assignment operator.
+   */
+  TriaAccessor(const TriaAccessor &) = default;
+
+  /**
+   * Move constructor.
+   */
+  TriaAccessor(TriaAccessor &&) noexcept = default;
+
+  /**
    * Conversion constructor. This constructor exists to make certain
    * constructs simpler to write in dimension independent code. For example,
    * it allows assigning a face iterator to a line iterator, an operation that
@@ -744,8 +762,19 @@ public:
    * this operation is not useful for iterators on triangulations.
    * Consequently, this operator is declared as deleted and can not be used.
    */
-  void
+  TriaAccessor &
   operator=(const TriaAccessor &) = delete;
+
+  /**
+   * Move assignment operator. Moving is allowed.
+   */
+  TriaAccessor &
+  operator=(TriaAccessor &&) noexcept = default;
+
+  /**
+   * Defaulted destructor.
+   */
+  ~TriaAccessor() = default;
 
   /**
    * Test for the element being used or not.  The return value is @p true for
@@ -917,6 +946,8 @@ public:
    *
    * This function is really only for internal use in the library unless you
    * absolutely know what this is all about.
+   *
+   * This function queries ReferenceCell::standard_vs_true_line_orientation().
    */
   bool
   line_orientation(const unsigned int line) const;
@@ -945,6 +976,13 @@ public:
   n_children() const;
 
   /**
+   * @deprecated Use n_active_descendants() instead.
+   */
+  DEAL_II_DEPRECATED
+  unsigned int
+  number_of_children() const;
+
+  /**
    * Compute and return the number of active descendants of this objects. For
    * example, if all of the eight children of a hex are further refined
    * isotropically exactly once, the returned number will be 64, not 80.
@@ -958,7 +996,7 @@ public:
    * current object is not further refined, the answer is one.
    */
   unsigned int
-  number_of_children() const;
+  n_active_descendants() const;
 
   /**
    * Return the number of times that this object is refined. Note that not all
@@ -1402,9 +1440,25 @@ public:
   /**
    * Diameter of the object.
    *
-   * The diameter of an object is computed to be the largest diagonal. This is
-   * not necessarily the true diameter for objects that may use higher order
-   * mappings, but completely sufficient for most computations.
+   * The diameter of an object is computed to be the largest diagonal of the
+   * current object. If this object is a quadrilateral, then there are two
+   * such diagonal, and if it is a hexahedron, then there are four diagonals
+   * that connect "opposite" points. For triangles and tetrahedra, the function
+   * simply returns the length of the longest edge.
+   *
+   * The situation is more difficult for wedges and pyramids: For wedges, we
+   * return the length of the longest diagonal of the three quadrilateral faces
+   * or the longest edge length of the two triangular faces. For pyramids,
+   * the same principle is applied.
+   *
+   * In all of these cases, this definition of "diameter" is
+   * not necessarily the true diameter in the sense of the largest distance
+   * between points inside the object. Indeed, one can often construct objects
+   * for which it is not, though these are generally quite deformed compared to
+   * the reference shape. Furthermore, for objects that may use higher order
+   * mappings, one may have bulging faces that also create trouble for
+   * computing an exact representation of the diameter of the object. That said,
+   * the definition used above is completely sufficient for most computations.
    */
   double
   diameter() const;
@@ -1615,8 +1669,8 @@ public:
   /**
    * Reference cell type of the current object.
    */
-  ReferenceCell::Type
-  reference_cell_type() const;
+  ReferenceCell
+  reference_cell() const;
 
   /**
    * Number of vertices.
@@ -1664,14 +1718,6 @@ public:
   /**
    * @}
    */
-
-protected:
-  /**
-   * Return additional information related to the current geometric entity
-   * type.
-   */
-  inline const ReferenceCell::internal::Info::Base &
-  reference_cell_info() const;
 
 private:
   /**
@@ -1794,6 +1840,8 @@ private:
   friend class Triangulation;
 
   friend struct dealii::internal::TriangulationImplementation::Implementation;
+  friend struct dealii::internal::TriangulationImplementation::
+    ImplementationMixedMesh;
   friend struct dealii::internal::TriaAccessorImplementation::Implementation;
 };
 
@@ -2109,7 +2157,15 @@ public:
    * Always zero.
    */
   static unsigned int
+  n_active_descendants();
+
+  /**
+   * @deprecated Use n_active_descendants() instead.
+   */
+  DEAL_II_DEPRECATED
+  static unsigned int
   number_of_children();
+
 
   /**
    * Return the number of times that this object is refined. Always 0.
@@ -2567,7 +2623,15 @@ public:
    * Always zero.
    */
   static unsigned int
+  n_active_descendants();
+
+  /**
+   * @deprecated Use n_active_descendants() instead.
+   */
+  DEAL_II_DEPRECATED
+  static unsigned int
   number_of_children();
+
 
   /**
    * Return the number of times that this object is refined. Always 0.
@@ -2694,8 +2758,8 @@ public:
   /**
    * Reference cell type of the current object.
    */
-  ReferenceCell::Type
-  reference_cell_type() const;
+  ReferenceCell
+  reference_cell() const;
 
   /**
    * Number of vertices.
@@ -3701,6 +3765,14 @@ public:
   CellId
   id() const;
 
+  using TriaAccessor<dim, dim, spacedim>::diameter;
+
+  /**
+   * The same as TriaAccessor::diameter() but also taking a Mapping class.
+   */
+  double
+  diameter(const Mapping<dim, spacedim> &mapping) const;
+
   /**
    * @}
    */
@@ -3791,6 +3863,8 @@ private:
   friend class parallel::TriangulationBase;
 
   friend struct dealii::internal::TriangulationImplementation::Implementation;
+  friend struct dealii::internal::TriangulationImplementation::
+    ImplementationMixedMesh;
 };
 
 

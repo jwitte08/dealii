@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2011 - 2020 by the deal.II authors
+// Copyright (C) 2011 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -304,13 +304,13 @@ namespace DynamicSparsityPatternIterators
  *
  * <h3>Usage</h3>
  *
- * Use this class as follows:
+ * Usage of this class is explained in step-2 (without constraints) and step-6
+ * (with AffineConstraints) and typically looks as follows:
  * @code
  * DynamicSparsityPattern dynamic_pattern (dof_handler.n_dofs());
  * DoFTools::make_sparsity_pattern (dof_handler,
- *                                  dynamic_pattern);
- * constraints.condense (dynamic_pattern);
- *
+ *                                  dynamic_pattern,
+ *                                  constraints);
  * SparsityPattern sp;
  * sp.copy_from (dynamic_pattern);
  * @endcode
@@ -472,7 +472,7 @@ public:
 
   /**
    * Construct and store in this object the sparsity pattern corresponding to
-   * the product of transposed @p left and and non-transpose @p right sparsity pattern.
+   * the product of transposed @p left and non-transpose @p right sparsity pattern.
    */
   template <typename SparsityPatternTypeLeft, typename SparsityPatternTypeRight>
   void
@@ -1177,7 +1177,7 @@ DynamicSparsityPattern::end(const size_type r) const
 {
   AssertIndexRange(r, n_rows());
 
-  unsigned int row = r + 1;
+  const size_type row = r + 1;
   if (row == n_rows())
     return {this};
   else

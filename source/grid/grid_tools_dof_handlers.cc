@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2020 by the deal.II authors
+// Copyright (C) 2001 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -266,27 +266,23 @@ namespace GridTools
               // (possibly) coarser neighbor. if this is the case,
               // then we need to also add this neighbor
               if (dim >= 2)
-                for (unsigned int vface = 0; vface < dim; vface++)
-                  {
-                    const unsigned int face =
-                      GeometryInfo<dim>::vertex_to_face[v][vface];
-
-                    if (!cell->at_boundary(face) &&
-                        cell->neighbor(face)->is_active())
-                      {
-                        // there is a (possibly) coarser cell behind a
-                        // face to which the vertex belongs. the
-                        // vertex we are looking at is then either a
-                        // vertex of that coarser neighbor, or it is a
-                        // hanging node on one of the faces of that
-                        // cell. in either case, it is adjacent to the
-                        // vertex, so add it to the list as well (if
-                        // the cell was already in the list then the
-                        // std::set makes sure that we get it only
-                        // once)
-                        adjacent_cells.insert(cell->neighbor(face));
-                      }
-                  }
+                for (const auto face :
+                     cell->reference_cell().faces_for_given_vertex(v))
+                  if (!cell->at_boundary(face) &&
+                      cell->neighbor(face)->is_active())
+                    {
+                      // there is a (possibly) coarser cell behind a
+                      // face to which the vertex belongs. the
+                      // vertex we are looking at is then either a
+                      // vertex of that coarser neighbor, or it is a
+                      // hanging node on one of the faces of that
+                      // cell. in either case, it is adjacent to the
+                      // vertex, so add it to the list as well (if
+                      // the cell was already in the list then the
+                      // std::set makes sure that we get it only
+                      // once)
+                      adjacent_cells.insert(cell->neighbor(face));
+                    }
 
               // in any case, we have found a cell, so go to the next cell
               goto next_cell;
@@ -419,7 +415,7 @@ namespace GridTools
                                 const double                   tolerance)
   {
     return find_active_cell_around_point<dim, MeshType, spacedim>(
-             StaticMappingQ1<dim, spacedim>::mapping,
+             get_default_linear_mapping(mesh.get_triangulation()),
              mesh,
              p,
              marked_vertices,
@@ -453,6 +449,9 @@ namespace GridTools
     double                                      best_distance = tolerance;
     int                                         best_level    = -1;
     std::pair<active_cell_iterator, Point<dim>> best_cell;
+
+    // Initialize best_cell.first to the end iterator
+    best_cell.first = mesh.end();
 
     // Find closest vertex and determine
     // all adjacent cells
@@ -554,9 +553,6 @@ namespace GridTools
           }
       }
 
-    AssertThrow(best_cell.first.state() == IteratorState::valid,
-                ExcPointNotFound<spacedim>(p));
-
     return best_cell;
   }
 
@@ -578,18 +574,14 @@ namespace GridTools
                                      const double                   tolerance,
                                      const std::vector<bool> &marked_vertices)
   {
-    try
-      {
-        const auto cell_and_point = find_active_cell_around_point(
-          mapping, mesh, p, marked_vertices, tolerance);
+    const auto cell_and_point = find_active_cell_around_point(
+      mapping, mesh, p, marked_vertices, tolerance);
 
-        return find_all_active_cells_around_point(
-          mapping, mesh, p, tolerance, cell_and_point);
-      }
-    catch (ExcPointNotFound<spacedim> &)
-      {}
+    if (cell_and_point.first == mesh.end())
+      return {};
 
-    return {};
+    return find_all_active_cells_around_point(
+      mapping, mesh, p, tolerance, cell_and_point);
   }
 
 
@@ -620,7 +612,7 @@ namespace GridTools
     // insert the fist cell and point into the vector
     cells_and_points.push_back(first_cell);
 
-    // check if the given point is on the surface of the unit cell. if yes,
+    // check if the given point is on the surface of the unit cell. If yes,
     // need to find all neighbors
     const Point<dim> unit_point = cells_and_points.front().second;
     const auto       my_cell    = cells_and_points.front().first;
@@ -1387,9 +1379,6 @@ namespace GridTools
               }
           }
       }
-
-    AssertThrow(best_cell.first.state() == IteratorState::valid,
-                ExcPointNotFound<spacedim>(p));
 
     return best_cell;
   }
@@ -2379,6 +2368,7 @@ namespace GridTools
   {
     using MATCH_T =
       std::array<unsigned int, GeometryInfo<3>::vertices_per_face>;
+
     static inline std::bitset<3>
     lookup(const MATCH_T &matching)
     {

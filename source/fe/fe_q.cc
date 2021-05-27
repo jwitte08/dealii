@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2000 - 2018 by the deal.II authors
+// Copyright (C) 2000 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -18,7 +18,11 @@
 
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_nothing.h>
+#include <deal.II/fe/fe_pyramid_p.h>
 #include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_simplex_p_bubbles.h>
+#include <deal.II/fe/fe_wedge_p.h>
 
 #include <deal.II/lac/vector.h>
 
@@ -42,7 +46,7 @@ namespace internal
           return QGaussLobatto<1>(degree + 1).get_points();
         else
           {
-            using FEQ = dealii::FE_Q_Base<TensorProductPolynomials<1>, 1, 1>;
+            using FEQ = dealii::FE_Q_Base<1, 1>;
             AssertThrow(false, FEQ::ExcFEQCannotHaveDegree0());
           }
         return std::vector<Point<1>>();
@@ -55,7 +59,7 @@ namespace internal
 
 template <int dim, int spacedim>
 FE_Q<dim, spacedim>::FE_Q(const unsigned int degree)
-  : FE_Q_Base<TensorProductPolynomials<dim>, dim, spacedim>(
+  : FE_Q_Base<dim, spacedim>(
       TensorProductPolynomials<dim>(
         Polynomials::generate_complete_Lagrange_basis(
           internal::FE_Q::get_QGaussLobatto_points(degree))),
@@ -72,7 +76,7 @@ FE_Q<dim, spacedim>::FE_Q(const unsigned int degree)
 
 template <int dim, int spacedim>
 FE_Q<dim, spacedim>::FE_Q(const Quadrature<1> &points)
-  : FE_Q_Base<TensorProductPolynomials<dim>, dim, spacedim>(
+  : FE_Q_Base<dim, spacedim>(
       TensorProductPolynomials<dim>(
         Polynomials::generate_complete_Lagrange_basis(points.get_points())),
       FiniteElementData<dim>(this->get_dpo_vector(points.size() - 1),
@@ -202,6 +206,36 @@ FE_Q<dim, spacedim>::compare_for_domination(
       if (this->degree < fe_q_other->degree)
         return FiniteElementDomination::this_element_dominates;
       else if (this->degree == fe_q_other->degree)
+        return FiniteElementDomination::either_element_can_dominate;
+      else
+        return FiniteElementDomination::other_element_dominates;
+    }
+  else if (const FE_SimplexP<dim, spacedim> *fe_p_other =
+             dynamic_cast<const FE_SimplexP<dim, spacedim> *>(&fe_other))
+    {
+      if (this->degree < fe_p_other->degree)
+        return FiniteElementDomination::this_element_dominates;
+      else if (this->degree == fe_p_other->degree)
+        return FiniteElementDomination::either_element_can_dominate;
+      else
+        return FiniteElementDomination::other_element_dominates;
+    }
+  else if (const FE_WedgeP<dim, spacedim> *fe_wp_other =
+             dynamic_cast<const FE_WedgeP<dim, spacedim> *>(&fe_other))
+    {
+      if (this->degree < fe_wp_other->degree)
+        return FiniteElementDomination::this_element_dominates;
+      else if (this->degree == fe_wp_other->degree)
+        return FiniteElementDomination::either_element_can_dominate;
+      else
+        return FiniteElementDomination::other_element_dominates;
+    }
+  else if (const FE_PyramidP<dim, spacedim> *fe_pp_other =
+             dynamic_cast<const FE_PyramidP<dim, spacedim> *>(&fe_other))
+    {
+      if (this->degree < fe_pp_other->degree)
+        return FiniteElementDomination::this_element_dominates;
+      else if (this->degree == fe_pp_other->degree)
         return FiniteElementDomination::either_element_can_dominate;
       else
         return FiniteElementDomination::other_element_dominates;

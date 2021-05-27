@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2008 - 2020 by the deal.II authors
+// Copyright (C) 2008 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -969,9 +969,9 @@ namespace TrilinosWrappers
                    size_type,
                    << "You tried to access element (" << arg1 << "/" << arg2
                    << ")"
-                   << " of a distributed matrix, but only rows " << arg3
-                   << " through " << arg4
-                   << " are stored locally and can be accessed.");
+                   << " of a distributed matrix, but only rows in range ["
+                   << arg3 << "," << arg4
+                   << "] are stored locally and can be accessed.");
 
     /**
      * Exception

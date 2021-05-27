@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2018 - 2020 by the deal.II authors
+// Copyright (C) 2018 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -20,7 +20,7 @@
 
 #include <deal.II/distributed/tria_base.h>
 
-#include <deal.II/hp/dof_handler.h>
+#include <deal.II/dofs/dof_handler.h>
 
 
 DEAL_II_NAMESPACE_OPEN
@@ -31,14 +31,17 @@ namespace parallel
    * Anytime a parallel::TriangulationBase is repartitioned, either upon request
    * or by refinement/coarsening, cells will be distributed amongst all
    * subdomains to achieve an equally balanced workload. If the workload per
-   * cell varies, which is in general the case for hp::DoFHandler objects, we
-   * can take that into account by introducing individual weights for
-   * different cells.
+   * cell varies, which is in general the case for DoFHandler objects with
+   * hp-capabilities, we can take that into account by introducing individual
+   * weights for different cells.
    *
    * This class allows computing these weights for load balancing by
    * consulting the FiniteElement that is associated with each cell of
-   * a hp::DoFHandler. One can choose from predefined weighting
-   * algorithms provided by this class or provide a custom one.
+   * a DoFHandler. One can choose from predefined weighting algorithms provided
+   * by this class or provide a custom one.
+   *
+   * If the associated DoFHandler has not been initialized yet, i.e., its
+   * hp::FECollection is empty, all cell weights will be evaluated as zero.
    *
    * This class offers two different ways of connecting the chosen weighting
    * function to the corresponding signal of the linked
@@ -70,13 +73,15 @@ namespace parallel
    *         {1000, 1}));
    * @endcode
    *
+   * The use of this class is demonstrated in step-75.
+   *
    * @note See Triangulation::Signals::cell_weight for more information on
    * weighting and load balancing.
    *
    * @note Be aware that this class connects the weight function to the
    * Triangulation during this class's constructor. If the Triangulation
    * associated with the DoFHandler changes during the lifetime of the
-   * latter via hp::DoFHandler::initialize(), an assertion will be triggered in
+   * latter via DoFHandler::reinit(), an assertion will be triggered in
    * the weight_callback() function. Use CellWeights::reinit() to deregister the
    * weighting function on the old Triangulation and connect it to the new one.
    *
@@ -103,7 +108,7 @@ namespace parallel
     /**
      * Constructor.
      *
-     * @param[in] dof_handler The hp::DoFHandler which will be used to
+     * @param[in] dof_handler The DoFHandler which will be used to
      *    determine each cell's finite element.
      * @param[in] weighting_function The function that determines each
      *    cell's weight during load balancing.
@@ -189,7 +194,7 @@ namespace parallel
     /**
      * Constructor.
      *
-     * @param[in] dof_handler The hp::DoFHandler which will be used to
+     * @param[in] dof_handler The DoFHandler which will be used to
      *    determine each cell's finite element.
      */
     DEAL_II_DEPRECATED
@@ -229,7 +234,7 @@ namespace parallel
      *    the weight of each cell as an unsigned integer. It is required
      *    to have two arguments, namely the FiniteElement that will be
      *    active on the particular cell, and the cell itself of type
-     *    hp::DoFHandler::cell_iterator. We require both to make sure to
+     *    DoFHandler::cell_iterator. We require both to make sure to
      *    get the right active FiniteElement on each cell in case that we
      *    coarsen the Triangulation.
      */
@@ -282,7 +287,8 @@ namespace parallel
      * A callback function that will be connected to the cell_weight signal of
      * the @p triangulation, to which the @p dof_handler is attached. Ultimately
      * returns the weight for each cell, determined by the @p weighting_function
-     * provided as a parameter.
+     * provided as a parameter. Returns zero if @p dof_handler has not been
+     * initialized yet.
      */
     static unsigned int
     weighting_callback(

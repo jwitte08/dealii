@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2001 - 2018 by the deal.II authors
+// Copyright (C) 2001 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -139,6 +139,11 @@ public:
    */
   virtual bool
   preserves_vertex_locations() const override;
+
+  // for documentation, see the Mapping base class
+  virtual BoundingBox<spacedim>
+  get_bounding_box(const typename Triangulation<dim, spacedim>::cell_iterator
+                     &cell) const override;
 
   /**
    * Exception which is thrown when the mapping is being evaluated at

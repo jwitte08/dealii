@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2012 - 2020 by the deal.II authors
+// Copyright (C) 2012 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -121,11 +121,12 @@ namespace internal
             dealii::DoFHandler<dim, spacedim> dh(tr);
             dh.distribute_dofs(fe);
 
-            dealii::FEValues<dim, spacedim> fine(
-              StaticMappingQ1<dim, spacedim>::mapping,
-              fe,
-              *q_fine,
-              update_quadrature_points | update_JxW_values | update_values);
+            dealii::FEValues<dim, spacedim> fine(get_default_linear_mapping(tr),
+                                                 fe,
+                                                 *q_fine,
+                                                 update_quadrature_points |
+                                                   update_JxW_values |
+                                                   update_values);
 
             const unsigned int n_dofs = dh.n_dofs();
 
@@ -186,15 +187,14 @@ namespace internal
 
 template <int dim, int spacedim>
 FE_Q_Bubbles<dim, spacedim>::FE_Q_Bubbles(const unsigned int q_degree)
-  : FE_Q_Base<TensorProductPolynomialsBubbles<dim>, dim, spacedim>(
-      TensorProductPolynomialsBubbles<dim>(
-        Polynomials::generate_complete_Lagrange_basis(
-          QGaussLobatto<1>(q_degree + 1).get_points())),
-      FiniteElementData<dim>(get_dpo_vector(q_degree),
-                             1,
-                             q_degree + 1,
-                             FiniteElementData<dim>::H1),
-      get_riaf_vector(q_degree))
+  : FE_Q_Base<dim, spacedim>(TensorProductPolynomialsBubbles<dim>(
+                               Polynomials::generate_complete_Lagrange_basis(
+                                 QGaussLobatto<1>(q_degree + 1).get_points())),
+                             FiniteElementData<dim>(get_dpo_vector(q_degree),
+                                                    1,
+                                                    q_degree + 1,
+                                                    FiniteElementData<dim>::H1),
+                             get_riaf_vector(q_degree))
   , n_bubbles((q_degree <= 1) ? 1 : dim)
 {
   Assert(q_degree > 0,
@@ -226,7 +226,7 @@ FE_Q_Bubbles<dim, spacedim>::FE_Q_Bubbles(const unsigned int q_degree)
 
 template <int dim, int spacedim>
 FE_Q_Bubbles<dim, spacedim>::FE_Q_Bubbles(const Quadrature<1> &points)
-  : FE_Q_Base<TensorProductPolynomialsBubbles<dim>, dim, spacedim>(
+  : FE_Q_Base<dim, spacedim>(
       TensorProductPolynomialsBubbles<dim>(
         Polynomials::generate_complete_Lagrange_basis(points.get_points())),
       FiniteElementData<dim>(get_dpo_vector(points.size() - 1),
@@ -422,7 +422,7 @@ template <int dim, int spacedim>
 std::vector<bool>
 FE_Q_Bubbles<dim, spacedim>::get_riaf_vector(const unsigned int q_deg)
 {
-  unsigned int       n_cont_dofs = Utilities::fixed_power<dim>(q_deg + 1);
+  const unsigned int n_cont_dofs = Utilities::fixed_power<dim>(q_deg + 1);
   const unsigned int n_bubbles   = (q_deg <= 1 ? 1 : dim);
   return std::vector<bool>(n_cont_dofs + n_bubbles, true);
 }
@@ -437,8 +437,9 @@ FE_Q_Bubbles<dim, spacedim>::get_dpo_vector(const unsigned int q_deg)
   for (unsigned int i = 1; i < dpo.size(); ++i)
     dpo[i] = dpo[i - 1] * (q_deg - 1);
 
-  dpo[dim] +=
-    (q_deg <= 1 ? 1 : dim); // all the bubble functions are discontinuous
+  // Then add the bubble functions; they are all associated with the
+  // cell interior
+  dpo[dim] += (q_deg <= 1 ? 1 : dim);
   return dpo;
 }
 
@@ -454,8 +455,8 @@ FE_Q_Bubbles<dim, spacedim>::has_support_on_face(
   if (shape_index >= this->n_dofs_per_cell() - n_bubbles)
     return false;
   else
-    return FE_Q_Base<TensorProductPolynomialsBubbles<dim>, dim, spacedim>::
-      has_support_on_face(shape_index, face_index);
+    return FE_Q_Base<dim, spacedim>::has_support_on_face(shape_index,
+                                                         face_index);
 }
 
 

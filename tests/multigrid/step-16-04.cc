@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2020 by the deal.II authors
+// Copyright (C) 2003 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -390,9 +390,9 @@ LaplaceProblem<dim>::solve()
   deallog << "   Size of coarse grid matrix: " << mg_matrices[min_level].m()
           << std::endl;
 
-  typedef PreconditionChebyshev<SparseMatrix<double>,
-                                LinearAlgebra::distributed::Vector<double>>
-                                                                  Smoother;
+  using Smoother =
+    PreconditionChebyshev<SparseMatrix<double>,
+                          LinearAlgebra::distributed::Vector<double>>;
   GrowingVectorMemory<LinearAlgebra::distributed::Vector<double>> vector_memory;
   MGSmootherPrecondition<SparseMatrix<double>,
                          Smoother,

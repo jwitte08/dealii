@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2019 - 2020 by the deal.II authors
+ * Copyright (C) 2019 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -64,7 +64,7 @@ test()
   auto cell = dh.begin_active();
   auto endc = dh.end();
 
-  typedef decltype(cell) Iterator;
+  using Iterator = decltype(cell);
 
   auto measures = std::make_tuple(0.0, 0.0, 0.0);
 

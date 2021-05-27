@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -14,12 +14,11 @@
 // ---------------------------------------------------------------------
 
 
-// Test QProjection for Simplex::QGauss.
+// Test QProjection for QGaussSimplex.
 
 
 #include <deal.II/base/qprojector.h>
-
-#include <deal.II/simplex/quadrature_lib.h>
+#include <deal.II/base/quadrature_lib.h>
 
 #include "../tests.h"
 
@@ -38,10 +37,10 @@ test<2>(const unsigned int n_points)
 {
   const int dim = 2;
 
-  Simplex::QGauss<dim - 1> quad_ref(n_points);
+  QGaussSimplex<dim - 1> quad_ref(n_points);
 
   const auto quad =
-    QProjector<dim>::project_to_all_faces(ReferenceCell::Type::Tri, quad_ref);
+    QProjector<dim>::project_to_all_faces(ReferenceCells::Triangle, quad_ref);
 
   const auto print = [&](const unsigned int face_no,
                          const bool         face_orientation) {
@@ -51,7 +50,7 @@ test<2>(const unsigned int n_points)
     for (unsigned int
            q = 0,
            i =
-             QProjector<dim>::DataSetDescriptor::face(ReferenceCell::Type::Tri,
+             QProjector<dim>::DataSetDescriptor::face(ReferenceCells::Triangle,
                                                       face_no,
                                                       face_orientation,
                                                       false,
@@ -80,10 +79,11 @@ test<3>(const unsigned int n_points)
 {
   const int dim = 3;
 
-  Simplex::QGauss<dim - 1> quad_ref(n_points);
+  QGaussSimplex<dim - 1> quad_ref(n_points);
 
   const auto quad =
-    QProjector<dim>::project_to_all_faces(ReferenceCell::Type::Tet, quad_ref);
+    QProjector<dim>::project_to_all_faces(ReferenceCells::Tetrahedron,
+                                          quad_ref);
 
   const auto print = [&](const unsigned int face_no,
                          const bool         face_orientation,
@@ -94,15 +94,14 @@ test<3>(const unsigned int n_points)
             << " face_flip=" << (face_flip ? "true" : "false")
             << " face_rotation=" << (face_rotation ? "true" : "false") << ":"
             << std::endl;
-    for (unsigned int
-           q = 0,
-           i =
-             QProjector<dim>::DataSetDescriptor::face(ReferenceCell::Type::Tet,
-                                                      face_no,
-                                                      face_orientation,
-                                                      face_flip,
-                                                      face_rotation,
-                                                      quad_ref.size());
+    for (unsigned int q = 0,
+                      i = QProjector<dim>::DataSetDescriptor::face(
+                        ReferenceCells::Tetrahedron,
+                        face_no,
+                        face_orientation,
+                        face_flip,
+                        face_rotation,
+                        quad_ref.size());
          q < quad_ref.size();
          ++q, ++i)
       {

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2001 - 2020 by the deal.II authors
+ * Copyright (C) 2001 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -38,11 +38,8 @@
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/grid/grid_refinement.h>
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
@@ -916,10 +913,10 @@ namespace Step13
     // independent, we do that in parallel (if the library was configured to
     // use concurrency, at least; otherwise, the actions are performed
     // sequentially). Note that we start only one thread, and do the second
-    // action in the main thread. Since only one thread is generated, we don't
-    // use the <code>Threads::ThreadGroup</code> class here, but rather use
-    // the one created thread object directly to wait for this particular
-    // thread's exit.
+    // action in the main thread. Since only one task is generated, we don't
+    // use the <code>Threads::TaskGroup</code> class here, but rather use
+    // the one created task object directly to wait for this particular
+    // task's exit.
     //
     // Note that taking up the address of the
     // <code>DoFTools::make_hanging_node_constraints</code> function is a

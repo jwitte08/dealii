@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1998 - 2020 by the deal.II authors
+// Copyright (C) 1998 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -138,79 +138,92 @@ namespace
   Point<2>
   barycenter(const TriaAccessor<2, 2, 2> &accessor)
   {
-    // the evaluation of the formulae
-    // is a bit tricky when done dimension
-    // independently, so we write this function
-    // for 2D and 3D separately
-    /*
-      Get the computation of the barycenter by this little Maple script. We
-      use the bilinear mapping of the unit quad to the real quad. However,
-      every transformation mapping the unit faces to straight lines should
-      do.
+    if (accessor.reference_cell() == ReferenceCells::Triangle)
+      {
+        // We define the center in the same way as a simplex barycenter
+        return accessor.center();
+      }
+    else if (accessor.reference_cell() == ReferenceCells::Quadrilateral)
+      {
+        // the evaluation of the formulae
+        // is a bit tricky when done dimension
+        // independently, so we write this function
+        // for 2D and 3D separately
+        /*
+          Get the computation of the barycenter by this little Maple script. We
+          use the bilinear mapping of the unit quad to the real quad. However,
+          every transformation mapping the unit faces to straight lines should
+          do.
 
-      Remember that the area of the quad is given by
-      |K| = \int_K 1 dx dy  = \int_{\hat K} |det J| d(xi) d(eta)
-      and that the barycenter is given by
-      \vec x_s = 1/|K| \int_K \vec x dx dy
-      = 1/|K| \int_{\hat K} \vec x(xi,eta) |det J| d(xi) d(eta)
+          Remember that the area of the quad is given by
+          |K| = \int_K 1 dx dy  = \int_{\hat K} |det J| d(xi) d(eta)
+          and that the barycenter is given by
+          \vec x_s = 1/|K| \int_K \vec x dx dy
+          = 1/|K| \int_{\hat K} \vec x(xi,eta) |det J| d(xi) d(eta)
 
-      # x and y are arrays holding the x- and y-values of the four vertices
-      # of this cell in real space.
-      x := array(0..3);
-      y := array(0..3);
-      tphi[0] := (1-xi)*(1-eta):
-      tphi[1] :=     xi*(1-eta):
-      tphi[2] := (1-xi)*eta:
-      tphi[3] :=     xi*eta:
-      x_real := sum(x[s]*tphi[s], s=0..3):
-      y_real := sum(y[s]*tphi[s], s=0..3):
-      detJ := diff(x_real,xi)*diff(y_real,eta) -
-      diff(x_real,eta)*diff(y_real,xi):
+          # x and y are arrays holding the x- and y-values of the four vertices
+          # of this cell in real space.
+          x := array(0..3);
+          y := array(0..3);
+          tphi[0] := (1-xi)*(1-eta):
+          tphi[1] :=     xi*(1-eta):
+          tphi[2] := (1-xi)*eta:
+          tphi[3] :=     xi*eta:
+          x_real := sum(x[s]*tphi[s], s=0..3):
+          y_real := sum(y[s]*tphi[s], s=0..3):
+          detJ := diff(x_real,xi)*diff(y_real,eta) -
+          diff(x_real,eta)*diff(y_real,xi):
 
-      measure := simplify ( int ( int (detJ, xi=0..1), eta=0..1)):
+          measure := simplify ( int ( int (detJ, xi=0..1), eta=0..1)):
 
-      xs := simplify (1/measure * int ( int (x_real * detJ, xi=0..1),
-      eta=0..1)): ys := simplify (1/measure * int ( int (y_real * detJ,
-      xi=0..1), eta=0..1)): readlib(C):
+          xs := simplify (1/measure * int ( int (x_real * detJ, xi=0..1),
+          eta=0..1)): ys := simplify (1/measure * int ( int (y_real * detJ,
+          xi=0..1), eta=0..1)): readlib(C):
 
-      C(array(1..2, [xs, ys]), optimized);
-    */
+          C(array(1..2, [xs, ys]), optimized);
+        */
 
-    const double x[4] = {accessor.vertex(0)(0),
-                         accessor.vertex(1)(0),
-                         accessor.vertex(2)(0),
-                         accessor.vertex(3)(0)};
-    const double y[4] = {accessor.vertex(0)(1),
-                         accessor.vertex(1)(1),
-                         accessor.vertex(2)(1),
-                         accessor.vertex(3)(1)};
-    const double t1   = x[0] * x[1];
-    const double t3   = x[0] * x[0];
-    const double t5   = x[1] * x[1];
-    const double t9   = y[0] * x[0];
-    const double t11  = y[1] * x[1];
-    const double t14  = x[2] * x[2];
-    const double t16  = x[3] * x[3];
-    const double t20  = x[2] * x[3];
-    const double t27  = t1 * y[1] + t3 * y[1] - t5 * y[0] - t3 * y[2] +
-                       t5 * y[3] + t9 * x[2] - t11 * x[3] - t1 * y[0] -
-                       t14 * y[3] + t16 * y[2] - t16 * y[1] + t14 * y[0] -
-                       t20 * y[3] - x[0] * x[2] * y[2] + x[1] * x[3] * y[3] +
-                       t20 * y[2];
-    const double t37 =
-      1 / (-x[1] * y[0] + x[1] * y[3] + y[0] * x[2] + x[0] * y[1] -
-           x[0] * y[2] - y[1] * x[3] - x[2] * y[3] + x[3] * y[2]);
-    const double t39 = y[2] * y[2];
-    const double t51 = y[0] * y[0];
-    const double t53 = y[1] * y[1];
-    const double t59 = y[3] * y[3];
-    const double t63 = t39 * x[3] + y[2] * y[0] * x[2] + y[3] * x[3] * y[2] -
-                       y[2] * x[2] * y[3] - y[3] * y[1] * x[3] - t9 * y[2] +
-                       t11 * y[3] + t51 * x[2] - t53 * x[3] - x[1] * t51 +
-                       t9 * y[1] - t11 * y[0] + x[0] * t53 - t59 * x[2] +
-                       t59 * x[1] - t39 * x[0];
+        const double x[4] = {accessor.vertex(0)(0),
+                             accessor.vertex(1)(0),
+                             accessor.vertex(2)(0),
+                             accessor.vertex(3)(0)};
+        const double y[4] = {accessor.vertex(0)(1),
+                             accessor.vertex(1)(1),
+                             accessor.vertex(2)(1),
+                             accessor.vertex(3)(1)};
+        const double t1   = x[0] * x[1];
+        const double t3   = x[0] * x[0];
+        const double t5   = x[1] * x[1];
+        const double t9   = y[0] * x[0];
+        const double t11  = y[1] * x[1];
+        const double t14  = x[2] * x[2];
+        const double t16  = x[3] * x[3];
+        const double t20  = x[2] * x[3];
+        const double t27  = t1 * y[1] + t3 * y[1] - t5 * y[0] - t3 * y[2] +
+                           t5 * y[3] + t9 * x[2] - t11 * x[3] - t1 * y[0] -
+                           t14 * y[3] + t16 * y[2] - t16 * y[1] + t14 * y[0] -
+                           t20 * y[3] - x[0] * x[2] * y[2] +
+                           x[1] * x[3] * y[3] + t20 * y[2];
+        const double t37 =
+          1 / (-x[1] * y[0] + x[1] * y[3] + y[0] * x[2] + x[0] * y[1] -
+               x[0] * y[2] - y[1] * x[3] - x[2] * y[3] + x[3] * y[2]);
+        const double t39 = y[2] * y[2];
+        const double t51 = y[0] * y[0];
+        const double t53 = y[1] * y[1];
+        const double t59 = y[3] * y[3];
+        const double t63 =
+          t39 * x[3] + y[2] * y[0] * x[2] + y[3] * x[3] * y[2] -
+          y[2] * x[2] * y[3] - y[3] * y[1] * x[3] - t9 * y[2] + t11 * y[3] +
+          t51 * x[2] - t53 * x[3] - x[1] * t51 + t9 * y[1] - t11 * y[0] +
+          x[0] * t53 - t59 * x[2] + t59 * x[1] - t39 * x[0];
 
-    return {t27 * t37 / 3, t63 * t37 / 3};
+        return {t27 * t37 / 3, t63 * t37 / 3};
+      }
+    else
+      {
+        Assert(false, ExcInternalError());
+        return {};
+      }
   }
 
 
@@ -218,1022 +231,1041 @@ namespace
   Point<3>
   barycenter(const TriaAccessor<3, 3, 3> &accessor)
   {
-    /*
-      Get the computation of the barycenter by this little Maple script. We
-      use the trilinear mapping of the unit hex to the real hex.
+    if (accessor.reference_cell() == ReferenceCells::Tetrahedron)
+      {
+        // We define the center in the same way as a simplex barycenter
+        return accessor.center();
+      }
+    else if (accessor.reference_cell() == ReferenceCells::Hexahedron)
+      {
+        /*
+          Get the computation of the barycenter by this little Maple script. We
+          use the trilinear mapping of the unit hex to the real hex.
 
-      Remember that the area of the hex is given by
-      |K| = \int_K 1 dx dy dz = \int_{\hat K} |det J| d(xi) d(eta) d(zeta)
-      and that the barycenter is given by
-      \vec x_s = 1/|K| \int_K \vec x dx dy dz
-      = 1/|K| \int_{\hat K} \vec x(xi,eta,zeta) |det J| d(xi) d(eta) d(zeta)
+          Remember that the area of the hex is given by
+          |K| = \int_K 1 dx dy dz = \int_{\hat K} |det J| d(xi) d(eta) d(zeta)
+          and that the barycenter is given by
+          \vec x_s = 1/|K| \int_K \vec x dx dy dz
+          = 1/|K| \int_{\hat K} \vec x(xi,eta,zeta) |det J| d(xi) d(eta) d(zeta)
 
-      Note, that in the ordering of the shape functions tphi[0]-tphi[7]
-      below, eta and zeta have been exchanged (zeta belongs to the y, and
-      eta to the z direction). However, the resulting Jacobian determinant
-      detJ should be the same, as a matrix and the matrix created from it
-      by exchanging two consecutive lines and two neighboring columns have
-      the same determinant.
+          Note, that in the ordering of the shape functions tphi[0]-tphi[7]
+          below, eta and zeta have been exchanged (zeta belongs to the y, and
+          eta to the z direction). However, the resulting Jacobian determinant
+          detJ should be the same, as a matrix and the matrix created from it
+          by exchanging two consecutive lines and two neighboring columns have
+          the same determinant.
 
-      # x, y and z are arrays holding the x-, y- and z-values of the four
-      vertices # of this cell in real space. x := array(0..7): y := array(0..7):
-      z := array(0..7):
-      tphi[0] := (1-xi)*(1-eta)*(1-zeta):
-      tphi[1] := xi*(1-eta)*(1-zeta):
-      tphi[2] := xi*eta*(1-zeta):
-      tphi[3] := (1-xi)*eta*(1-zeta):
-      tphi[4] := (1-xi)*(1-eta)*zeta:
-      tphi[5] := xi*(1-eta)*zeta:
-      tphi[6] := xi*eta*zeta:
-      tphi[7] := (1-xi)*eta*zeta:
-      x_real := sum(x[s]*tphi[s], s=0..7):
-      y_real := sum(y[s]*tphi[s], s=0..7):
-      z_real := sum(z[s]*tphi[s], s=0..7):
-      with (linalg):
-      J := matrix(3,3, [[diff(x_real, xi), diff(x_real, eta), diff(x_real,
-      zeta)], [diff(y_real, xi), diff(y_real, eta), diff(y_real, zeta)],
-      [diff(z_real, xi), diff(z_real, eta), diff(z_real, zeta)]]):
-      detJ := det (J):
+          # x, y and z are arrays holding the x-, y- and z-values of the four
+          vertices # of this cell in real space. x := array(0..7): y :=
+          array(0..7): z := array(0..7): tphi[0] := (1-xi)*(1-eta)*(1-zeta):
+          tphi[1] := xi*(1-eta)*(1-zeta):
+          tphi[2] := xi*eta*(1-zeta):
+          tphi[3] := (1-xi)*eta*(1-zeta):
+          tphi[4] := (1-xi)*(1-eta)*zeta:
+          tphi[5] := xi*(1-eta)*zeta:
+          tphi[6] := xi*eta*zeta:
+          tphi[7] := (1-xi)*eta*zeta:
+          x_real := sum(x[s]*tphi[s], s=0..7):
+          y_real := sum(y[s]*tphi[s], s=0..7):
+          z_real := sum(z[s]*tphi[s], s=0..7):
+          with (linalg):
+          J := matrix(3,3, [[diff(x_real, xi), diff(x_real, eta), diff(x_real,
+          zeta)], [diff(y_real, xi), diff(y_real, eta), diff(y_real, zeta)],
+          [diff(z_real, xi), diff(z_real, eta), diff(z_real, zeta)]]):
+          detJ := det (J):
 
-      measure := simplify ( int ( int ( int (detJ, xi=0..1), eta=0..1),
-      zeta=0..1)):
+          measure := simplify ( int ( int ( int (detJ, xi=0..1), eta=0..1),
+          zeta=0..1)):
 
-      xs := simplify (1/measure * int ( int ( int (x_real * detJ, xi=0..1),
-      eta=0..1), zeta=0..1)): ys := simplify (1/measure * int ( int ( int
-      (y_real * detJ, xi=0..1), eta=0..1), zeta=0..1)): zs := simplify
-      (1/measure * int ( int ( int (z_real * detJ, xi=0..1), eta=0..1),
-      zeta=0..1)):
+          xs := simplify (1/measure * int ( int ( int (x_real * detJ, xi=0..1),
+          eta=0..1), zeta=0..1)): ys := simplify (1/measure * int ( int ( int
+          (y_real * detJ, xi=0..1), eta=0..1), zeta=0..1)): zs := simplify
+          (1/measure * int ( int ( int (z_real * detJ, xi=0..1), eta=0..1),
+          zeta=0..1)):
 
-      readlib(C):
+          readlib(C):
 
-      C(array(1..3, [xs, ys, zs]));
+          C(array(1..3, [xs, ys, zs]));
 
 
-      This script takes more than several hours when using an old version
-      of maple on an old and slow computer. Therefore, when changing to
-      the new deal.II numbering scheme (lexicographic numbering) the code
-      lines below have not been reproduced with maple but only the
-      ordering of points in the definitions of x[], y[] and z[] have been
-      changed.
+          This script takes more than several hours when using an old version
+          of maple on an old and slow computer. Therefore, when changing to
+          the new deal.II numbering scheme (lexicographic numbering) the code
+          lines below have not been reproduced with maple but only the
+          ordering of points in the definitions of x[], y[] and z[] have been
+          changed.
 
-      For the case, someone is willing to rerun the maple script, he/she
-      should use following ordering of shape functions:
+          For the case, someone is willing to rerun the maple script, he/she
+          should use following ordering of shape functions:
 
-      tphi[0] := (1-xi)*(1-eta)*(1-zeta):
-      tphi[1] :=     xi*(1-eta)*(1-zeta):
-      tphi[2] := (1-xi)*    eta*(1-zeta):
-      tphi[3] :=     xi*    eta*(1-zeta):
-      tphi[4] := (1-xi)*(1-eta)*zeta:
-      tphi[5] :=     xi*(1-eta)*zeta:
-      tphi[6] := (1-xi)*    eta*zeta:
-      tphi[7] :=     xi*    eta*zeta:
+          tphi[0] := (1-xi)*(1-eta)*(1-zeta):
+          tphi[1] :=     xi*(1-eta)*(1-zeta):
+          tphi[2] := (1-xi)*    eta*(1-zeta):
+          tphi[3] :=     xi*    eta*(1-zeta):
+          tphi[4] := (1-xi)*(1-eta)*zeta:
+          tphi[5] :=     xi*(1-eta)*zeta:
+          tphi[6] := (1-xi)*    eta*zeta:
+          tphi[7] :=     xi*    eta*zeta:
 
-      and change the ordering of points in the definitions of x[], y[] and
-      z[] back to the standard ordering.
-    */
+          and change the ordering of points in the definitions of x[], y[] and
+          z[] back to the standard ordering.
+        */
 
-    const double x[8] = {accessor.vertex(0)(0),
-                         accessor.vertex(1)(0),
-                         accessor.vertex(5)(0),
-                         accessor.vertex(4)(0),
-                         accessor.vertex(2)(0),
-                         accessor.vertex(3)(0),
-                         accessor.vertex(7)(0),
-                         accessor.vertex(6)(0)};
-    const double y[8] = {accessor.vertex(0)(1),
-                         accessor.vertex(1)(1),
-                         accessor.vertex(5)(1),
-                         accessor.vertex(4)(1),
-                         accessor.vertex(2)(1),
-                         accessor.vertex(3)(1),
-                         accessor.vertex(7)(1),
-                         accessor.vertex(6)(1)};
-    const double z[8] = {accessor.vertex(0)(2),
-                         accessor.vertex(1)(2),
-                         accessor.vertex(5)(2),
-                         accessor.vertex(4)(2),
-                         accessor.vertex(2)(2),
-                         accessor.vertex(3)(2),
-                         accessor.vertex(7)(2),
-                         accessor.vertex(6)(2)};
+        const double x[8] = {accessor.vertex(0)(0),
+                             accessor.vertex(1)(0),
+                             accessor.vertex(5)(0),
+                             accessor.vertex(4)(0),
+                             accessor.vertex(2)(0),
+                             accessor.vertex(3)(0),
+                             accessor.vertex(7)(0),
+                             accessor.vertex(6)(0)};
+        const double y[8] = {accessor.vertex(0)(1),
+                             accessor.vertex(1)(1),
+                             accessor.vertex(5)(1),
+                             accessor.vertex(4)(1),
+                             accessor.vertex(2)(1),
+                             accessor.vertex(3)(1),
+                             accessor.vertex(7)(1),
+                             accessor.vertex(6)(1)};
+        const double z[8] = {accessor.vertex(0)(2),
+                             accessor.vertex(1)(2),
+                             accessor.vertex(5)(2),
+                             accessor.vertex(4)(2),
+                             accessor.vertex(2)(2),
+                             accessor.vertex(3)(2),
+                             accessor.vertex(7)(2),
+                             accessor.vertex(6)(2)};
 
-    double s1, s2, s3, s4, s5, s6, s7, s8;
+        double s1, s2, s3, s4, s5, s6, s7, s8;
 
-    s1 = 1.0 / 6.0;
-    s8 = -x[2] * x[2] * y[0] * z[3] - 2.0 * z[6] * x[7] * x[7] * y[4] -
-         z[5] * x[7] * x[7] * y[4] - z[6] * x[7] * x[7] * y[5] +
-         2.0 * y[6] * x[7] * x[7] * z[4] - z[5] * x[6] * x[6] * y[4] +
-         x[6] * x[6] * y[4] * z[7] - z[1] * x[0] * x[0] * y[2] -
-         x[6] * x[6] * y[7] * z[4] + 2.0 * x[6] * x[6] * y[5] * z[7] -
-         2.0 * x[6] * x[6] * y[7] * z[5] + y[5] * x[6] * x[6] * z[4] +
-         2.0 * x[5] * x[5] * y[4] * z[6] + x[0] * x[0] * y[7] * z[4] -
-         2.0 * x[5] * x[5] * y[6] * z[4];
-    s7 = s8 - y[6] * x[5] * x[5] * z[7] + z[6] * x[5] * x[5] * y[7] -
-         y[1] * x[0] * x[0] * z[5] + x[7] * z[5] * x[4] * y[7] -
-         x[7] * y[6] * x[5] * z[7] - 2.0 * x[7] * x[6] * y[7] * z[4] +
-         2.0 * x[7] * x[6] * y[4] * z[7] - x[7] * x[5] * y[7] * z[4] -
-         2.0 * x[7] * y[6] * x[4] * z[7] - x[7] * y[5] * x[4] * z[7] +
-         x[2] * x[2] * y[3] * z[0] - x[7] * x[6] * y[7] * z[5] +
-         x[7] * x[6] * y[5] * z[7] + 2.0 * x[1] * x[1] * y[0] * z[5] +
-         x[7] * z[6] * x[5] * y[7];
-    s8 = -2.0 * x[1] * x[1] * y[5] * z[0] + z[1] * x[0] * x[0] * y[5] +
-         2.0 * x[2] * x[2] * y[3] * z[1] - z[5] * x[4] * x[4] * y[1] +
-         y[5] * x[4] * x[4] * z[1] - 2.0 * x[5] * x[5] * y[4] * z[1] +
-         2.0 * x[5] * x[5] * y[1] * z[4] - 2.0 * x[2] * x[2] * y[1] * z[3] -
-         y[1] * x[2] * x[2] * z[0] + x[7] * y[2] * x[3] * z[7] +
-         x[7] * z[2] * x[6] * y[3] + 2.0 * x[7] * z[6] * x[4] * y[7] +
-         z[5] * x[1] * x[1] * y[4] + z[1] * x[2] * x[2] * y[0] -
-         2.0 * y[0] * x[3] * x[3] * z[7];
-    s6 = s8 + 2.0 * z[0] * x[3] * x[3] * y[7] - x[7] * x[2] * y[3] * z[7] -
-         x[7] * z[2] * x[3] * y[7] + x[7] * x[2] * y[7] * z[3] -
-         x[7] * y[2] * x[6] * z[3] + x[4] * x[5] * y[1] * z[4] -
-         x[4] * x[5] * y[4] * z[1] + x[4] * z[5] * x[1] * y[4] -
-         x[4] * y[5] * x[1] * z[4] - 2.0 * x[5] * z[5] * x[4] * y[1] -
-         2.0 * x[5] * y[5] * x[1] * z[4] + 2.0 * x[5] * z[5] * x[1] * y[4] +
-         2.0 * x[5] * y[5] * x[4] * z[1] - x[6] * z[5] * x[7] * y[4] -
-         z[2] * x[3] * x[3] * y[6] + s7;
-    s8 = -2.0 * x[6] * z[6] * x[7] * y[5] - x[6] * y[6] * x[4] * z[7] +
-         y[2] * x[3] * x[3] * z[6] + x[6] * y[6] * x[7] * z[4] +
-         2.0 * y[2] * x[3] * x[3] * z[7] + x[0] * x[1] * y[0] * z[5] +
-         x[0] * y[1] * x[5] * z[0] - x[0] * z[1] * x[5] * y[0] -
-         2.0 * z[2] * x[3] * x[3] * y[7] + 2.0 * x[6] * z[6] * x[5] * y[7] -
-         x[0] * x[1] * y[5] * z[0] - x[6] * y[5] * x[4] * z[6] -
-         2.0 * x[3] * z[0] * x[7] * y[3] - x[6] * z[6] * x[7] * y[4] -
-         2.0 * x[1] * z[1] * x[5] * y[0];
-    s7 = s8 + 2.0 * x[1] * y[1] * x[5] * z[0] +
-         2.0 * x[1] * z[1] * x[0] * y[5] + 2.0 * x[3] * y[0] * x[7] * z[3] +
-         2.0 * x[3] * x[0] * y[3] * z[7] - 2.0 * x[3] * x[0] * y[7] * z[3] -
-         2.0 * x[1] * y[1] * x[0] * z[5] - 2.0 * x[6] * y[6] * x[5] * z[7] +
-         s6 - y[5] * x[1] * x[1] * z[4] + x[6] * z[6] * x[4] * y[7] -
-         2.0 * x[2] * y[2] * x[3] * z[1] + x[6] * z[5] * x[4] * y[6] +
-         x[6] * x[5] * y[4] * z[6] - y[6] * x[7] * x[7] * z[2] -
-         x[6] * x[5] * y[6] * z[4];
-    s8 = x[3] * x[3] * y[7] * z[4] - 2.0 * y[6] * x[7] * x[7] * z[3] +
-         z[6] * x[7] * x[7] * y[2] + 2.0 * z[6] * x[7] * x[7] * y[3] +
-         2.0 * y[1] * x[0] * x[0] * z[3] + 2.0 * x[0] * x[1] * y[3] * z[0] -
-         2.0 * x[0] * y[0] * x[3] * z[4] - 2.0 * x[0] * z[1] * x[4] * y[0] -
-         2.0 * x[0] * y[1] * x[3] * z[0] + 2.0 * x[0] * y[0] * x[4] * z[3] -
-         2.0 * x[0] * z[0] * x[4] * y[3] + 2.0 * x[0] * x[1] * y[0] * z[4] +
-         2.0 * x[0] * z[1] * x[3] * y[0] - 2.0 * x[0] * x[1] * y[0] * z[3] -
-         2.0 * x[0] * x[1] * y[4] * z[0] + 2.0 * x[0] * y[1] * x[4] * z[0];
-    s5 = s8 + 2.0 * x[0] * z[0] * x[3] * y[4] + x[1] * y[1] * x[0] * z[3] -
-         x[1] * z[1] * x[4] * y[0] - x[1] * y[1] * x[0] * z[4] +
-         x[1] * z[1] * x[0] * y[4] - x[1] * y[1] * x[3] * z[0] -
-         x[1] * z[1] * x[0] * y[3] - x[0] * z[5] * x[4] * y[1] +
-         x[0] * y[5] * x[4] * z[1] - 2.0 * x[4] * x[0] * y[4] * z[7] -
-         2.0 * x[4] * y[5] * x[0] * z[4] + 2.0 * x[4] * z[5] * x[0] * y[4] -
-         2.0 * x[4] * x[5] * y[4] * z[0] - 2.0 * x[4] * y[0] * x[7] * z[4] -
-         x[5] * y[5] * x[0] * z[4] + s7;
-    s8 = x[5] * z[5] * x[0] * y[4] - x[5] * z[5] * x[4] * y[0] +
-         x[1] * z[5] * x[0] * y[4] + x[5] * y[5] * x[4] * z[0] -
-         x[0] * y[0] * x[7] * z[4] - x[0] * z[5] * x[4] * y[0] -
-         x[1] * y[5] * x[0] * z[4] + x[0] * z[0] * x[7] * y[4] +
-         x[0] * y[5] * x[4] * z[0] - x[0] * z[0] * x[4] * y[7] +
-         x[0] * x[5] * y[0] * z[4] + x[0] * y[0] * x[4] * z[7] -
-         x[0] * x[5] * y[4] * z[0] - x[3] * x[3] * y[4] * z[7] +
-         2.0 * x[2] * z[2] * x[3] * y[1];
-    s7 = s8 - x[5] * x[5] * y[4] * z[0] + 2.0 * y[5] * x[4] * x[4] * z[0] -
-         2.0 * z[0] * x[4] * x[4] * y[7] + 2.0 * y[0] * x[4] * x[4] * z[7] -
-         2.0 * z[5] * x[4] * x[4] * y[0] + x[5] * x[5] * y[4] * z[7] -
-         x[5] * x[5] * y[7] * z[4] - 2.0 * y[5] * x[4] * x[4] * z[7] +
-         2.0 * z[5] * x[4] * x[4] * y[7] - x[0] * x[0] * y[7] * z[3] +
-         y[2] * x[0] * x[0] * z[3] + x[0] * x[0] * y[3] * z[7] -
-         x[5] * x[1] * y[4] * z[0] + x[5] * y[1] * x[4] * z[0] -
-         x[4] * y[0] * x[3] * z[4];
-    s8 = -x[4] * y[1] * x[0] * z[4] + x[4] * z[1] * x[0] * y[4] +
-         x[4] * x[0] * y[3] * z[4] - x[4] * x[0] * y[4] * z[3] +
-         x[4] * x[1] * y[0] * z[4] - x[4] * x[1] * y[4] * z[0] +
-         x[4] * z[0] * x[3] * y[4] + x[5] * x[1] * y[0] * z[4] +
-         x[1] * z[1] * x[3] * y[0] + x[1] * y[1] * x[4] * z[0] -
-         x[5] * z[1] * x[4] * y[0] - 2.0 * y[1] * x[0] * x[0] * z[4] +
-         2.0 * z[1] * x[0] * x[0] * y[4] + 2.0 * x[0] * x[0] * y[3] * z[4] -
-         2.0 * z[1] * x[0] * x[0] * y[3];
-    s6 = s8 - 2.0 * x[0] * x[0] * y[4] * z[3] + x[1] * x[1] * y[3] * z[0] +
-         x[1] * x[1] * y[0] * z[4] - x[1] * x[1] * y[0] * z[3] -
-         x[1] * x[1] * y[4] * z[0] - z[1] * x[4] * x[4] * y[0] +
-         y[0] * x[4] * x[4] * z[3] - z[0] * x[4] * x[4] * y[3] +
-         y[1] * x[4] * x[4] * z[0] - x[0] * x[0] * y[4] * z[7] -
-         y[5] * x[0] * x[0] * z[4] + z[5] * x[0] * x[0] * y[4] +
-         x[5] * x[5] * y[0] * z[4] - x[0] * y[0] * x[3] * z[7] +
-         x[0] * z[0] * x[3] * y[7] + s7;
-    s8 = s6 + x[0] * x[2] * y[3] * z[0] - x[0] * x[2] * y[0] * z[3] +
-         x[0] * y[0] * x[7] * z[3] - x[0] * y[2] * x[3] * z[0] +
-         x[0] * z[2] * x[3] * y[0] - x[0] * z[0] * x[7] * y[3] +
-         x[1] * x[2] * y[3] * z[0] - z[2] * x[0] * x[0] * y[3] +
-         x[3] * z[2] * x[6] * y[3] - x[3] * x[2] * y[3] * z[6] +
-         x[3] * x[2] * y[6] * z[3] - x[3] * y[2] * x[6] * z[3] -
-         2.0 * x[3] * y[2] * x[7] * z[3] + 2.0 * x[3] * z[2] * x[7] * y[3];
-    s7 = s8 + 2.0 * x[4] * y[5] * x[7] * z[4] +
-         2.0 * x[4] * x[5] * y[4] * z[7] - 2.0 * x[4] * z[5] * x[7] * y[4] -
-         2.0 * x[4] * x[5] * y[7] * z[4] + x[5] * y[5] * x[7] * z[4] -
-         x[5] * z[5] * x[7] * y[4] - x[5] * y[5] * x[4] * z[7] +
-         x[5] * z[5] * x[4] * y[7] + 2.0 * x[3] * x[2] * y[7] * z[3] -
-         2.0 * x[2] * z[2] * x[1] * y[3] + 2.0 * x[4] * z[0] * x[7] * y[4] +
-         2.0 * x[4] * x[0] * y[7] * z[4] + 2.0 * x[4] * x[5] * y[0] * z[4] -
-         x[7] * x[6] * y[2] * z[7] - 2.0 * x[3] * x[2] * y[3] * z[7] -
-         x[0] * x[4] * y[7] * z[3];
-    s8 = x[0] * x[3] * y[7] * z[4] - x[0] * x[3] * y[4] * z[7] +
-         x[0] * x[4] * y[3] * z[7] - 2.0 * x[7] * z[6] * x[3] * y[7] +
-         x[3] * x[7] * y[4] * z[3] - x[3] * x[4] * y[7] * z[3] -
-         x[3] * x[7] * y[3] * z[4] + x[3] * x[4] * y[3] * z[7] +
-         2.0 * x[2] * y[2] * x[1] * z[3] + y[6] * x[3] * x[3] * z[7] -
-         z[6] * x[3] * x[3] * y[7] - x[1] * z[5] * x[4] * y[1] -
-         x[1] * x[5] * y[4] * z[1] - x[1] * z[2] * x[0] * y[3] -
-         x[1] * x[2] * y[0] * z[3] + x[1] * y[2] * x[0] * z[3];
-    s4 = s8 + x[1] * x[5] * y[1] * z[4] + x[1] * y[5] * x[4] * z[1] +
-         x[4] * y[0] * x[7] * z[3] - x[4] * z[0] * x[7] * y[3] -
-         x[4] * x[4] * y[7] * z[3] + x[4] * x[4] * y[3] * z[7] +
-         x[3] * z[6] * x[7] * y[3] - x[3] * x[6] * y[3] * z[7] +
-         x[3] * x[6] * y[7] * z[3] - x[3] * z[6] * x[2] * y[7] -
-         x[3] * y[6] * x[7] * z[3] + x[3] * z[6] * x[7] * y[2] +
-         x[3] * y[6] * x[2] * z[7] + 2.0 * x[5] * z[5] * x[4] * y[6] + s5 + s7;
-    s8 = s4 - 2.0 * x[5] * z[5] * x[6] * y[4] - x[5] * z[6] * x[7] * y[5] +
-         x[5] * x[6] * y[5] * z[7] - x[5] * x[6] * y[7] * z[5] -
-         2.0 * x[5] * y[5] * x[4] * z[6] + 2.0 * x[5] * y[5] * x[6] * z[4] -
-         x[3] * y[6] * x[7] * z[2] + x[4] * x[7] * y[4] * z[3] +
-         x[4] * x[3] * y[7] * z[4] - x[4] * x[7] * y[3] * z[4] -
-         x[4] * x[3] * y[4] * z[7] - z[1] * x[5] * x[5] * y[0] +
-         y[1] * x[5] * x[5] * z[0] + x[4] * y[6] * x[7] * z[4];
-    s7 = s8 - x[4] * x[6] * y[7] * z[4] + x[4] * x[6] * y[4] * z[7] -
-         x[4] * z[6] * x[7] * y[4] - x[5] * y[6] * x[4] * z[7] -
-         x[5] * x[6] * y[7] * z[4] + x[5] * x[6] * y[4] * z[7] +
-         x[5] * z[6] * x[4] * y[7] - y[6] * x[4] * x[4] * z[7] +
-         z[6] * x[4] * x[4] * y[7] + x[7] * x[5] * y[4] * z[7] -
-         y[2] * x[7] * x[7] * z[3] + z[2] * x[7] * x[7] * y[3] -
-         y[0] * x[3] * x[3] * z[4] - y[1] * x[3] * x[3] * z[0] +
-         z[1] * x[3] * x[3] * y[0];
-    s8 = z[0] * x[3] * x[3] * y[4] - x[2] * y[1] * x[3] * z[0] +
-         x[2] * z[1] * x[3] * y[0] + x[3] * y[1] * x[0] * z[3] +
-         x[3] * x[1] * y[3] * z[0] + x[3] * x[0] * y[3] * z[4] -
-         x[3] * z[1] * x[0] * y[3] - x[3] * x[0] * y[4] * z[3] +
-         x[3] * y[0] * x[4] * z[3] - x[3] * z[0] * x[4] * y[3] -
-         x[3] * x[1] * y[0] * z[3] + x[3] * z[0] * x[7] * y[4] -
-         x[3] * y[0] * x[7] * z[4] + z[0] * x[7] * x[7] * y[4] -
-         y[0] * x[7] * x[7] * z[4];
-    s6 = s8 + y[1] * x[0] * x[0] * z[2] - 2.0 * y[2] * x[3] * x[3] * z[0] +
-         2.0 * z[2] * x[3] * x[3] * y[0] - 2.0 * x[1] * x[1] * y[0] * z[2] +
-         2.0 * x[1] * x[1] * y[2] * z[0] - y[2] * x[3] * x[3] * z[1] +
-         z[2] * x[3] * x[3] * y[1] - y[5] * x[4] * x[4] * z[6] +
-         z[5] * x[4] * x[4] * y[6] + x[7] * x[0] * y[7] * z[4] -
-         x[7] * z[0] * x[4] * y[7] - x[7] * x[0] * y[4] * z[7] +
-         x[7] * y[0] * x[4] * z[7] - x[0] * x[1] * y[0] * z[2] +
-         x[0] * z[1] * x[2] * y[0] + s7;
-    s8 = s6 + x[0] * x[1] * y[2] * z[0] - x[0] * y[1] * x[2] * z[0] -
-         x[3] * z[1] * x[0] * y[2] + 2.0 * x[3] * x[2] * y[3] * z[0] +
-         y[0] * x[7] * x[7] * z[3] - z[0] * x[7] * x[7] * y[3] -
-         2.0 * x[3] * z[2] * x[0] * y[3] - 2.0 * x[3] * x[2] * y[0] * z[3] +
-         2.0 * x[3] * y[2] * x[0] * z[3] + x[3] * x[2] * y[3] * z[1] -
-         x[3] * x[2] * y[1] * z[3] - x[5] * y[1] * x[0] * z[5] +
-         x[3] * y[1] * x[0] * z[2] + x[4] * y[6] * x[7] * z[5];
-    s7 = s8 - x[5] * x[1] * y[5] * z[0] + 2.0 * x[1] * z[1] * x[2] * y[0] -
-         2.0 * x[1] * z[1] * x[0] * y[2] + x[1] * x[2] * y[3] * z[1] -
-         x[1] * x[2] * y[1] * z[3] + 2.0 * x[1] * y[1] * x[0] * z[2] -
-         2.0 * x[1] * y[1] * x[2] * z[0] - z[2] * x[1] * x[1] * y[3] +
-         y[2] * x[1] * x[1] * z[3] + y[5] * x[7] * x[7] * z[4] +
-         y[6] * x[7] * x[7] * z[5] + x[7] * x[6] * y[7] * z[2] +
-         x[7] * y[6] * x[2] * z[7] - x[7] * z[6] * x[2] * y[7] -
-         2.0 * x[7] * x[6] * y[3] * z[7];
-    s8 = s7 + 2.0 * x[7] * x[6] * y[7] * z[3] +
-         2.0 * x[7] * y[6] * x[3] * z[7] - x[3] * z[2] * x[1] * y[3] +
-         x[3] * y[2] * x[1] * z[3] + x[5] * x[1] * y[0] * z[5] +
-         x[4] * y[5] * x[6] * z[4] + x[5] * z[1] * x[0] * y[5] -
-         x[4] * z[6] * x[7] * y[5] - x[4] * x[5] * y[6] * z[4] +
-         x[4] * x[5] * y[4] * z[6] - x[4] * z[5] * x[6] * y[4] -
-         x[1] * y[2] * x[3] * z[1] + x[1] * z[2] * x[3] * y[1] -
-         x[2] * x[1] * y[0] * z[2] - x[2] * z[1] * x[0] * y[2];
-    s5 = s8 + x[2] * x[1] * y[2] * z[0] - x[2] * z[2] * x[0] * y[3] +
-         x[2] * y[2] * x[0] * z[3] - x[2] * y[2] * x[3] * z[0] +
-         x[2] * z[2] * x[3] * y[0] + x[2] * y[1] * x[0] * z[2] +
-         x[5] * y[6] * x[7] * z[5] + x[6] * y[5] * x[7] * z[4] +
-         2.0 * x[6] * y[6] * x[7] * z[5] - x[7] * y[0] * x[3] * z[7] +
-         x[7] * z[0] * x[3] * y[7] - x[7] * x[0] * y[7] * z[3] +
-         x[7] * x[0] * y[3] * z[7] + 2.0 * x[7] * x[7] * y[4] * z[3] -
-         2.0 * x[7] * x[7] * y[3] * z[4] - 2.0 * x[1] * x[1] * y[2] * z[5];
-    s8 = s5 - 2.0 * x[7] * x[4] * y[7] * z[3] +
-         2.0 * x[7] * x[3] * y[7] * z[4] - 2.0 * x[7] * x[3] * y[4] * z[7] +
-         2.0 * x[7] * x[4] * y[3] * z[7] + 2.0 * x[1] * x[1] * y[5] * z[2] -
-         x[1] * x[1] * y[2] * z[6] + x[1] * x[1] * y[6] * z[2] +
-         z[1] * x[5] * x[5] * y[2] - y[1] * x[5] * x[5] * z[2] -
-         x[1] * x[1] * y[6] * z[5] + x[1] * x[1] * y[5] * z[6] +
-         x[5] * x[5] * y[6] * z[2] - x[5] * x[5] * y[2] * z[6] -
-         2.0 * y[1] * x[5] * x[5] * z[6];
-    s7 = s8 + 2.0 * z[1] * x[5] * x[5] * y[6] +
-         2.0 * x[1] * z[1] * x[5] * y[2] + 2.0 * x[1] * y[1] * x[2] * z[5] -
-         2.0 * x[1] * z[1] * x[2] * y[5] - 2.0 * x[1] * y[1] * x[5] * z[2] -
-         x[1] * y[1] * x[6] * z[2] - x[1] * z[1] * x[2] * y[6] +
-         x[1] * z[1] * x[6] * y[2] + x[1] * y[1] * x[2] * z[6] -
-         x[5] * x[1] * y[2] * z[5] + x[5] * y[1] * x[2] * z[5] -
-         x[5] * z[1] * x[2] * y[5] + x[5] * x[1] * y[5] * z[2] -
-         x[5] * y[1] * x[6] * z[2] - x[5] * x[1] * y[2] * z[6];
-    s8 = s7 + x[5] * x[1] * y[6] * z[2] + x[5] * z[1] * x[6] * y[2] +
-         x[1] * x[2] * y[5] * z[6] - x[1] * x[2] * y[6] * z[5] -
-         x[1] * z[1] * x[6] * y[5] - x[1] * y[1] * x[5] * z[6] +
-         x[1] * z[1] * x[5] * y[6] + x[1] * y[1] * x[6] * z[5] -
-         x[5] * x[6] * y[5] * z[2] + x[5] * x[2] * y[5] * z[6] -
-         x[5] * x[2] * y[6] * z[5] + x[5] * x[6] * y[2] * z[5] -
-         2.0 * x[5] * z[1] * x[6] * y[5] - 2.0 * x[5] * x[1] * y[6] * z[5] +
-         2.0 * x[5] * x[1] * y[5] * z[6];
-    s6 = s8 + 2.0 * x[5] * y[1] * x[6] * z[5] +
-         2.0 * x[2] * x[1] * y[6] * z[2] + 2.0 * x[2] * z[1] * x[6] * y[2] -
-         2.0 * x[2] * x[1] * y[2] * z[6] + x[2] * x[5] * y[6] * z[2] +
-         x[2] * x[6] * y[2] * z[5] - x[2] * x[5] * y[2] * z[6] +
-         y[1] * x[2] * x[2] * z[5] - z[1] * x[2] * x[2] * y[5] -
-         2.0 * x[2] * y[1] * x[6] * z[2] - x[2] * x[6] * y[5] * z[2] -
-         2.0 * z[1] * x[2] * x[2] * y[6] + x[2] * x[2] * y[5] * z[6] -
-         x[2] * x[2] * y[6] * z[5] + 2.0 * y[1] * x[2] * x[2] * z[6] +
-         x[2] * z[1] * x[5] * y[2];
-    s8 = s6 - x[2] * x[1] * y[2] * z[5] + x[2] * x[1] * y[5] * z[2] -
-         x[2] * y[1] * x[5] * z[2] + x[6] * y[1] * x[2] * z[5] -
-         x[6] * z[1] * x[2] * y[5] - z[1] * x[6] * x[6] * y[5] +
-         y[1] * x[6] * x[6] * z[5] - y[1] * x[6] * x[6] * z[2] -
-         2.0 * x[6] * x[6] * y[5] * z[2] + 2.0 * x[6] * x[6] * y[2] * z[5] +
-         z[1] * x[6] * x[6] * y[2] - x[6] * x[1] * y[6] * z[5] -
-         x[6] * y[1] * x[5] * z[6] + x[6] * x[1] * y[5] * z[6];
-    s7 = s8 + x[6] * z[1] * x[5] * y[6] - x[6] * z[1] * x[2] * y[6] -
-         x[6] * x[1] * y[2] * z[6] + 2.0 * x[6] * x[5] * y[6] * z[2] +
-         2.0 * x[6] * x[2] * y[5] * z[6] - 2.0 * x[6] * x[2] * y[6] * z[5] -
-         2.0 * x[6] * x[5] * y[2] * z[6] + x[6] * x[1] * y[6] * z[2] +
-         x[6] * y[1] * x[2] * z[6] - x[2] * x[2] * y[3] * z[7] +
-         x[2] * x[2] * y[7] * z[3] - x[2] * z[2] * x[3] * y[7] -
-         x[2] * y[2] * x[7] * z[3] + x[2] * z[2] * x[7] * y[3] +
-         x[2] * y[2] * x[3] * z[7] - x[6] * x[6] * y[3] * z[7];
-    s8 = s7 + x[6] * x[6] * y[7] * z[3] - x[6] * x[2] * y[3] * z[7] +
-         x[6] * x[2] * y[7] * z[3] - x[6] * y[6] * x[7] * z[3] +
-         x[6] * y[6] * x[3] * z[7] - x[6] * z[6] * x[3] * y[7] +
-         x[6] * z[6] * x[7] * y[3] + y[6] * x[2] * x[2] * z[7] -
-         z[6] * x[2] * x[2] * y[7] + 2.0 * x[2] * x[2] * y[6] * z[3] -
-         x[2] * y[6] * x[7] * z[2] - 2.0 * x[2] * y[2] * x[6] * z[3] -
-         2.0 * x[2] * x[2] * y[3] * z[6] + 2.0 * x[2] * y[2] * x[3] * z[6] -
-         x[2] * x[6] * y[2] * z[7];
-    s3 = s8 + x[2] * x[6] * y[7] * z[2] + x[2] * z[6] * x[7] * y[2] +
-         2.0 * x[2] * z[2] * x[6] * y[3] - 2.0 * x[2] * z[2] * x[3] * y[6] -
-         y[2] * x[6] * x[6] * z[3] - 2.0 * x[6] * x[6] * y[2] * z[7] +
-         2.0 * x[6] * x[6] * y[7] * z[2] + z[2] * x[6] * x[6] * y[3] -
-         2.0 * x[6] * y[6] * x[7] * z[2] + x[6] * y[2] * x[3] * z[6] -
-         x[6] * x[2] * y[3] * z[6] + 2.0 * x[6] * z[6] * x[7] * y[2] +
-         2.0 * x[6] * y[6] * x[2] * z[7] - 2.0 * x[6] * z[6] * x[2] * y[7] +
-         x[6] * x[2] * y[6] * z[3] - x[6] * z[2] * x[3] * y[6];
-    s8 = y[1] * x[0] * z[3] + x[1] * y[3] * z[0] - y[0] * x[3] * z[7] -
-         x[1] * y[5] * z[0] - y[0] * x[3] * z[4] - x[1] * y[0] * z[2] +
-         z[1] * x[2] * y[0] - y[1] * x[0] * z[5] - z[1] * x[0] * y[2] -
-         y[1] * x[0] * z[4] + z[1] * x[5] * y[2] + z[0] * x[7] * y[4] +
-         z[0] * x[3] * y[7] + z[1] * x[0] * y[4] - x[1] * y[2] * z[5] +
-         x[2] * y[3] * z[0] + y[1] * x[2] * z[5] - x[2] * y[3] * z[7];
-    s7 = s8 - z[1] * x[2] * y[5] - y[1] * x[3] * z[0] - x[0] * y[7] * z[3] -
-         z[1] * x[0] * y[3] + y[5] * x[4] * z[0] - x[0] * y[4] * z[3] +
-         y[5] * x[7] * z[4] - z[0] * x[4] * y[3] + x[1] * y[0] * z[4] -
-         z[2] * x[3] * y[7] - y[6] * x[7] * z[2] + x[1] * y[5] * z[2] +
-         y[6] * x[7] * z[5] + x[0] * y[7] * z[4] + x[1] * y[2] * z[0] -
-         z[1] * x[4] * y[0] - z[0] * x[4] * y[7] - z[2] * x[0] * y[3];
-    s8 = x[5] * y[0] * z[4] + z[1] * x[0] * y[5] - x[2] * y[0] * z[3] -
-         z[1] * x[5] * y[0] + y[1] * x[5] * z[0] - x[1] * y[0] * z[3] -
-         x[1] * y[4] * z[0] - y[1] * x[5] * z[2] + x[2] * y[7] * z[3] +
-         y[0] * x[4] * z[3] - x[0] * y[4] * z[7] + x[1] * y[0] * z[5] -
-         y[1] * x[6] * z[2] - y[2] * x[6] * z[3] + y[0] * x[7] * z[3] -
-         y[2] * x[7] * z[3] + z[2] * x[7] * y[3] + y[2] * x[0] * z[3];
-    s6 = s8 + y[2] * x[3] * z[7] - y[2] * x[3] * z[0] - x[6] * y[5] * z[2] -
-         y[5] * x[0] * z[4] + z[2] * x[3] * y[0] + x[2] * y[3] * z[1] +
-         x[0] * y[3] * z[7] - x[2] * y[1] * z[3] + y[1] * x[4] * z[0] +
-         y[1] * x[0] * z[2] - z[1] * x[2] * y[6] + y[2] * x[3] * z[6] -
-         y[1] * x[2] * z[0] + z[1] * x[3] * y[0] - x[1] * y[2] * z[6] -
-         x[2] * y[3] * z[6] + x[0] * y[3] * z[4] + z[0] * x[3] * y[4] + s7;
-    s8 = x[5] * y[4] * z[7] + s6 + y[5] * x[6] * z[4] - y[5] * x[4] * z[6] +
-         z[6] * x[5] * y[7] - x[6] * y[2] * z[7] - x[6] * y[7] * z[5] +
-         x[5] * y[6] * z[2] + x[6] * y[5] * z[7] + x[6] * y[7] * z[2] +
-         y[6] * x[7] * z[4] - y[6] * x[4] * z[7] - y[6] * x[7] * z[3] +
-         z[6] * x[7] * y[2] + x[2] * y[5] * z[6] - x[2] * y[6] * z[5] +
-         y[6] * x[2] * z[7] + x[6] * y[2] * z[5];
-    s7 = s8 - x[5] * y[2] * z[6] - z[6] * x[7] * y[5] - z[5] * x[7] * y[4] +
-         z[5] * x[0] * y[4] - y[5] * x[4] * z[7] + y[0] * x[4] * z[7] -
-         z[6] * x[2] * y[7] - x[5] * y[4] * z[0] - x[5] * y[7] * z[4] -
-         y[0] * x[7] * z[4] + y[5] * x[4] * z[1] - x[6] * y[7] * z[4] +
-         x[7] * y[4] * z[3] - x[4] * y[7] * z[3] + x[3] * y[7] * z[4] -
-         x[7] * y[3] * z[4] - x[6] * y[3] * z[7] + x[6] * y[4] * z[7];
-    s8 = -x[3] * y[4] * z[7] + x[4] * y[3] * z[7] - z[6] * x[7] * y[4] -
-         z[1] * x[6] * y[5] + x[6] * y[7] * z[3] - x[1] * y[6] * z[5] -
-         y[1] * x[5] * z[6] + z[5] * x[4] * y[7] - z[5] * x[4] * y[0] +
-         x[1] * y[5] * z[6] - y[6] * x[5] * z[7] - y[2] * x[3] * z[1] +
-         z[1] * x[5] * y[6] - y[5] * x[1] * z[4] + z[6] * x[4] * y[7] +
-         x[5] * y[1] * z[4] - x[5] * y[6] * z[4] + y[6] * x[3] * z[7] -
-         x[5] * y[4] * z[1];
-    s5 = s8 + x[5] * y[4] * z[6] + z[5] * x[1] * y[4] + y[1] * x[6] * z[5] -
-         z[6] * x[3] * y[7] + z[6] * x[7] * y[3] - z[5] * x[6] * y[4] -
-         z[5] * x[4] * y[1] + z[5] * x[4] * y[6] + x[1] * y[6] * z[2] +
-         x[2] * y[6] * z[3] + z[2] * x[6] * y[3] + z[1] * x[6] * y[2] +
-         z[2] * x[3] * y[1] - z[2] * x[1] * y[3] - z[2] * x[3] * y[6] +
-         y[2] * x[1] * z[3] + y[1] * x[2] * z[6] - z[0] * x[7] * y[3] + s7;
-    s4                    = 1 / s5;
-    s2                    = s3 * s4;
-    const double unknown0 = s1 * s2;
-    s1                    = 1.0 / 6.0;
-    s8 = 2.0 * x[1] * y[0] * y[0] * z[4] + x[5] * y[0] * y[0] * z[4] -
-         x[1] * y[4] * y[4] * z[0] + z[1] * x[0] * y[4] * y[4] +
-         x[1] * y[0] * y[0] * z[5] - z[1] * x[5] * y[0] * y[0] -
-         2.0 * z[1] * x[4] * y[0] * y[0] + 2.0 * z[1] * x[3] * y[0] * y[0] +
-         z[2] * x[3] * y[0] * y[0] + y[0] * y[0] * x[7] * z[3] +
-         2.0 * y[0] * y[0] * x[4] * z[3] - 2.0 * x[1] * y[0] * y[0] * z[3] -
-         2.0 * x[5] * y[4] * y[4] * z[0] + 2.0 * z[5] * x[0] * y[4] * y[4] +
-         2.0 * y[4] * y[5] * x[7] * z[4];
-    s7 = s8 - x[3] * y[4] * y[4] * z[7] + x[7] * y[4] * y[4] * z[3] +
-         z[0] * x[3] * y[4] * y[4] - 2.0 * x[0] * y[4] * y[4] * z[7] -
-         y[1] * x[1] * y[4] * z[0] - x[0] * y[4] * y[4] * z[3] +
-         2.0 * z[0] * x[7] * y[4] * y[4] + y[4] * z[6] * x[4] * y[7] -
-         y[0] * y[0] * x[7] * z[4] + y[0] * y[0] * x[4] * z[7] +
-         2.0 * y[4] * z[5] * x[4] * y[7] - 2.0 * y[4] * x[5] * y[7] * z[4] -
-         y[4] * x[6] * y[7] * z[4] - y[4] * y[6] * x[4] * z[7] -
-         2.0 * y[4] * y[5] * x[4] * z[7];
-    s8 = y[4] * y[6] * x[7] * z[4] - y[7] * y[2] * x[7] * z[3] +
-         y[7] * z[2] * x[7] * y[3] + y[7] * y[2] * x[3] * z[7] +
-         2.0 * x[5] * y[4] * y[4] * z[7] - y[7] * x[2] * y[3] * z[7] -
-         y[0] * z[0] * x[4] * y[7] + z[6] * x[7] * y[3] * y[3] -
-         y[0] * x[0] * y[4] * z[7] + y[0] * x[0] * y[7] * z[4] -
-         2.0 * x[2] * y[3] * y[3] * z[7] - z[5] * x[4] * y[0] * y[0] +
-         y[0] * z[0] * x[7] * y[4] - 2.0 * z[6] * x[3] * y[7] * y[7] +
-         z[1] * x[2] * y[0] * y[0];
-    s6 = s8 + y[4] * y[0] * x[4] * z[3] - 2.0 * y[4] * z[0] * x[4] * y[7] +
-         2.0 * y[4] * x[0] * y[7] * z[4] - y[4] * z[0] * x[4] * y[3] -
-         y[4] * x[0] * y[7] * z[3] + y[4] * z[0] * x[3] * y[7] -
-         y[4] * y[0] * x[3] * z[4] + y[0] * x[4] * y[3] * z[7] -
-         y[0] * x[7] * y[3] * z[4] - y[0] * x[3] * y[4] * z[7] +
-         y[0] * x[7] * y[4] * z[3] + x[2] * y[7] * y[7] * z[3] -
-         z[2] * x[3] * y[7] * y[7] - 2.0 * z[2] * x[0] * y[3] * y[3] +
-         2.0 * y[0] * z[1] * x[0] * y[4] + s7;
-    s8 = -2.0 * y[0] * y[1] * x[0] * z[4] - y[0] * y[1] * x[0] * z[5] -
-         y[0] * y[0] * x[3] * z[7] - z[1] * x[0] * y[3] * y[3] -
-         y[0] * x[1] * y[5] * z[0] - 2.0 * z[0] * x[7] * y[3] * y[3] +
-         x[0] * y[3] * y[3] * z[4] + 2.0 * x[0] * y[3] * y[3] * z[7] -
-         z[0] * x[4] * y[3] * y[3] + 2.0 * x[2] * y[3] * y[3] * z[0] +
-         x[1] * y[3] * y[3] * z[0] + 2.0 * y[7] * z[6] * x[7] * y[3] +
-         2.0 * y[7] * y[6] * x[3] * z[7] - 2.0 * y[7] * y[6] * x[7] * z[3] -
-         2.0 * y[7] * x[6] * y[3] * z[7];
-    s7 = s8 + y[4] * x[4] * y[3] * z[7] - y[4] * x[4] * y[7] * z[3] +
-         y[4] * x[3] * y[7] * z[4] - y[4] * x[7] * y[3] * z[4] +
-         2.0 * y[4] * y[0] * x[4] * z[7] - 2.0 * y[4] * y[0] * x[7] * z[4] +
-         2.0 * x[6] * y[7] * y[7] * z[3] + y[4] * x[0] * y[3] * z[4] +
-         y[0] * y[1] * x[5] * z[0] + y[0] * z[1] * x[0] * y[5] -
-         x[2] * y[0] * y[0] * z[3] + x[4] * y[3] * y[3] * z[7] -
-         x[7] * y[3] * y[3] * z[4] - x[5] * y[4] * y[4] * z[1] +
-         y[3] * z[0] * x[3] * y[4];
-    s8 = y[3] * y[0] * x[4] * z[3] + 2.0 * y[3] * y[0] * x[7] * z[3] +
-         2.0 * y[3] * y[2] * x[0] * z[3] - 2.0 * y[3] * y[2] * x[3] * z[0] +
-         2.0 * y[3] * z[2] * x[3] * y[0] + y[3] * z[1] * x[3] * y[0] -
-         2.0 * y[3] * x[2] * y[0] * z[3] - y[3] * x[1] * y[0] * z[3] -
-         y[3] * y[1] * x[3] * z[0] - 2.0 * y[3] * x[0] * y[7] * z[3] -
-         y[3] * x[0] * y[4] * z[3] - 2.0 * y[3] * y[0] * x[3] * z[7] -
-         y[3] * y[0] * x[3] * z[4] + 2.0 * y[3] * z[0] * x[3] * y[7] +
-         y[3] * y[1] * x[0] * z[3] + z[5] * x[1] * y[4] * y[4];
-    s5 = s8 - 2.0 * y[0] * y[0] * x[3] * z[4] -
-         2.0 * y[0] * x[1] * y[4] * z[0] + y[3] * x[7] * y[4] * z[3] -
-         y[3] * x[4] * y[7] * z[3] + y[3] * x[3] * y[7] * z[4] -
-         y[3] * x[3] * y[4] * z[7] + y[3] * x[0] * y[7] * z[4] -
-         y[3] * z[0] * x[4] * y[7] - 2.0 * y[4] * y[5] * x[0] * z[4] + s6 +
-         y[7] * x[0] * y[3] * z[7] - y[7] * z[0] * x[7] * y[3] +
-         y[7] * y[0] * x[7] * z[3] - y[7] * y[0] * x[3] * z[7] +
-         2.0 * y[0] * y[1] * x[4] * z[0] + s7;
-    s8 = -2.0 * y[7] * x[7] * y[3] * z[4] - 2.0 * y[7] * x[3] * y[4] * z[7] +
-         2.0 * y[7] * x[4] * y[3] * z[7] + y[7] * y[0] * x[4] * z[7] -
-         y[7] * y[0] * x[7] * z[4] + 2.0 * y[7] * x[7] * y[4] * z[3] -
-         y[7] * x[0] * y[4] * z[7] + y[7] * z[0] * x[7] * y[4] +
-         z[5] * x[4] * y[7] * y[7] + 2.0 * z[6] * x[4] * y[7] * y[7] -
-         x[5] * y[7] * y[7] * z[4] - 2.0 * x[6] * y[7] * y[7] * z[4] +
-         2.0 * y[7] * x[6] * y[4] * z[7] - 2.0 * y[7] * z[6] * x[7] * y[4] +
-         2.0 * y[7] * y[6] * x[7] * z[4];
-    s7 = s8 - 2.0 * y[7] * y[6] * x[4] * z[7] - y[7] * z[5] * x[7] * y[4] -
-         y[7] * y[5] * x[4] * z[7] - x[0] * y[7] * y[7] * z[3] +
-         z[0] * x[3] * y[7] * y[7] + y[7] * x[5] * y[4] * z[7] +
-         y[7] * y[5] * x[7] * z[4] - y[4] * x[1] * y[5] * z[0] -
-         x[1] * y[0] * y[0] * z[2] - y[4] * y[5] * x[1] * z[4] -
-         2.0 * y[4] * z[5] * x[4] * y[0] - y[4] * y[1] * x[0] * z[4] +
-         y[4] * y[5] * x[4] * z[1] + y[0] * z[0] * x[3] * y[7] -
-         y[0] * z[1] * x[0] * y[2];
-    s8 = 2.0 * y[0] * x[1] * y[3] * z[0] + y[4] * y[1] * x[4] * z[0] +
-         2.0 * y[0] * y[1] * x[0] * z[3] + y[4] * x[1] * y[0] * z[5] -
-         y[4] * z[1] * x[5] * y[0] + y[4] * z[1] * x[0] * y[5] -
-         y[4] * z[1] * x[4] * y[0] + y[4] * x[1] * y[0] * z[4] -
-         y[4] * z[5] * x[4] * y[1] + x[5] * y[4] * y[4] * z[6] -
-         z[5] * x[6] * y[4] * y[4] + y[4] * x[5] * y[1] * z[4] -
-         y[0] * z[2] * x[0] * y[3] + y[0] * y[5] * x[4] * z[0] +
-         y[0] * x[1] * y[2] * z[0];
-    s6 = s8 - 2.0 * y[0] * z[0] * x[4] * y[3] -
-         2.0 * y[0] * x[0] * y[4] * z[3] - 2.0 * y[0] * z[1] * x[0] * y[3] -
-         y[0] * x[0] * y[7] * z[3] - 2.0 * y[0] * y[1] * x[3] * z[0] +
-         y[0] * x[2] * y[3] * z[0] - y[0] * y[1] * x[2] * z[0] +
-         y[0] * y[1] * x[0] * z[2] - y[0] * x[2] * y[1] * z[3] +
-         y[0] * x[0] * y[3] * z[7] + y[0] * x[2] * y[3] * z[1] -
-         y[0] * y[2] * x[3] * z[0] + y[0] * y[2] * x[0] * z[3] -
-         y[0] * y[5] * x[0] * z[4] - y[4] * y[5] * x[4] * z[6] + s7;
-    s8 = s6 + y[4] * z[6] * x[5] * y[7] - y[4] * x[6] * y[7] * z[5] +
-         y[4] * x[6] * y[5] * z[7] - y[4] * z[6] * x[7] * y[5] -
-         y[4] * x[5] * y[6] * z[4] + y[4] * z[5] * x[4] * y[6] +
-         y[4] * y[5] * x[6] * z[4] - 2.0 * y[1] * y[1] * x[0] * z[5] +
-         2.0 * y[1] * y[1] * x[5] * z[0] - 2.0 * y[2] * y[2] * x[6] * z[3] +
-         x[5] * y[1] * y[1] * z[4] - z[5] * x[4] * y[1] * y[1] -
-         x[6] * y[2] * y[2] * z[7] + z[6] * x[7] * y[2] * y[2];
-    s7 = s8 - x[1] * y[5] * y[5] * z[0] + z[1] * x[0] * y[5] * y[5] +
-         y[1] * y[5] * x[4] * z[1] - y[1] * y[5] * x[1] * z[4] -
-         2.0 * y[2] * z[2] * x[3] * y[6] + 2.0 * y[1] * z[1] * x[0] * y[5] -
-         2.0 * y[1] * z[1] * x[5] * y[0] + 2.0 * y[1] * x[1] * y[0] * z[5] -
-         y[2] * x[2] * y[3] * z[7] - y[2] * z[2] * x[3] * y[7] +
-         y[2] * x[2] * y[7] * z[3] + y[2] * z[2] * x[7] * y[3] -
-         2.0 * y[2] * x[2] * y[3] * z[6] + 2.0 * y[2] * x[2] * y[6] * z[3] +
-         2.0 * y[2] * z[2] * x[6] * y[3] - y[3] * y[2] * x[6] * z[3];
-    s8 = y[3] * y[2] * x[3] * z[6] + y[3] * x[2] * y[6] * z[3] -
-         y[3] * z[2] * x[3] * y[6] - y[2] * y[2] * x[7] * z[3] +
-         2.0 * y[2] * y[2] * x[3] * z[6] + y[2] * y[2] * x[3] * z[7] -
-         2.0 * y[1] * x[1] * y[5] * z[0] - x[2] * y[3] * y[3] * z[6] +
-         z[2] * x[6] * y[3] * y[3] + 2.0 * y[6] * x[2] * y[5] * z[6] +
-         2.0 * y[6] * x[6] * y[2] * z[5] - 2.0 * y[6] * x[5] * y[2] * z[6] +
-         2.0 * y[3] * x[2] * y[7] * z[3] - 2.0 * y[3] * z[2] * x[3] * y[7] -
-         y[0] * z[0] * x[7] * y[3] - y[0] * z[2] * x[1] * y[3];
-    s4 = s8 - y[2] * y[6] * x[7] * z[2] + y[0] * z[2] * x[3] * y[1] +
-         y[1] * z[5] * x[1] * y[4] - y[1] * x[5] * y[4] * z[1] +
-         2.0 * y[0] * z[0] * x[3] * y[4] + 2.0 * y[0] * x[0] * y[3] * z[4] +
-         2.0 * z[2] * x[7] * y[3] * y[3] - 2.0 * z[5] * x[7] * y[4] * y[4] +
-         x[6] * y[4] * y[4] * z[7] - z[6] * x[7] * y[4] * y[4] +
-         y[1] * y[1] * x[0] * z[3] + y[3] * x[6] * y[7] * z[2] -
-         y[3] * z[6] * x[2] * y[7] + 2.0 * y[3] * y[2] * x[3] * z[7] + s5 + s7;
-    s8 = s4 + y[2] * x[6] * y[7] * z[2] - y[2] * y[6] * x[7] * z[3] +
-         y[2] * y[6] * x[2] * z[7] - y[2] * z[6] * x[2] * y[7] -
-         y[2] * x[6] * y[3] * z[7] + y[2] * y[6] * x[3] * z[7] +
-         y[2] * z[6] * x[7] * y[3] - 2.0 * y[3] * y[2] * x[7] * z[3] -
-         x[6] * y[3] * y[3] * z[7] + y[1] * y[1] * x[4] * z[0] -
-         y[1] * y[1] * x[3] * z[0] + x[2] * y[6] * y[6] * z[3] -
-         z[2] * x[3] * y[6] * y[6] - y[1] * y[1] * x[0] * z[4];
-    s7 = s8 + y[5] * x[1] * y[0] * z[5] + y[6] * x[2] * y[7] * z[3] -
-         y[6] * y[2] * x[6] * z[3] + y[6] * y[2] * x[3] * z[6] -
-         y[6] * x[2] * y[3] * z[6] + y[6] * z[2] * x[6] * y[3] -
-         y[5] * y[1] * x[0] * z[5] - y[5] * z[1] * x[5] * y[0] +
-         y[5] * y[1] * x[5] * z[0] - y[6] * z[2] * x[3] * y[7] -
-         y[7] * y[6] * x[7] * z[2] + 2.0 * y[6] * y[6] * x[2] * z[7] +
-         y[6] * y[6] * x[3] * z[7] + x[6] * y[7] * y[7] * z[2] -
-         z[6] * x[2] * y[7] * y[7];
-    s8 = -x[2] * y[1] * y[1] * z[3] + 2.0 * y[1] * y[1] * x[0] * z[2] -
-         2.0 * y[1] * y[1] * x[2] * z[0] + z[2] * x[3] * y[1] * y[1] -
-         z[1] * x[0] * y[2] * y[2] + x[1] * y[2] * y[2] * z[0] +
-         y[2] * y[2] * x[0] * z[3] - y[2] * y[2] * x[3] * z[0] -
-         2.0 * y[2] * y[2] * x[3] * z[1] + y[1] * x[1] * y[3] * z[0] -
-         2.0 * y[6] * y[6] * x[7] * z[2] + 2.0 * y[5] * y[5] * x[4] * z[1] -
-         2.0 * y[5] * y[5] * x[1] * z[4] - y[6] * y[6] * x[7] * z[3] -
-         2.0 * y[1] * x[1] * y[0] * z[2];
-    s6 = s8 + 2.0 * y[1] * z[1] * x[2] * y[0] -
-         2.0 * y[1] * z[1] * x[0] * y[2] + 2.0 * y[1] * x[1] * y[2] * z[0] +
-         y[1] * x[2] * y[3] * z[1] - y[1] * y[2] * x[3] * z[1] -
-         y[1] * z[2] * x[1] * y[3] + y[1] * y[2] * x[1] * z[3] -
-         y[2] * x[1] * y[0] * z[2] + y[2] * z[1] * x[2] * y[0] +
-         y[2] * x[2] * y[3] * z[0] - y[7] * x[6] * y[2] * z[7] +
-         y[7] * z[6] * x[7] * y[2] + y[7] * y[6] * x[2] * z[7] -
-         y[6] * x[6] * y[3] * z[7] + y[6] * x[6] * y[7] * z[3] + s7;
-    s8 = s6 - y[6] * z[6] * x[3] * y[7] + y[6] * z[6] * x[7] * y[3] +
-         2.0 * y[2] * y[2] * x[1] * z[3] + x[2] * y[3] * y[3] * z[1] -
-         z[2] * x[1] * y[3] * y[3] + y[1] * x[1] * y[0] * z[4] +
-         y[1] * z[1] * x[3] * y[0] - y[1] * x[1] * y[0] * z[3] +
-         2.0 * y[5] * x[5] * y[1] * z[4] - 2.0 * y[5] * x[5] * y[4] * z[1] +
-         2.0 * y[5] * z[5] * x[1] * y[4] - 2.0 * y[5] * z[5] * x[4] * y[1] -
-         2.0 * y[6] * x[6] * y[2] * z[7] + 2.0 * y[6] * x[6] * y[7] * z[2];
-    s7 = s8 + 2.0 * y[6] * z[6] * x[7] * y[2] -
-         2.0 * y[6] * z[6] * x[2] * y[7] - y[1] * z[1] * x[4] * y[0] +
-         y[1] * z[1] * x[0] * y[4] - y[1] * z[1] * x[0] * y[3] +
-         2.0 * y[6] * y[6] * x[7] * z[5] + 2.0 * y[5] * y[5] * x[6] * z[4] -
-         2.0 * y[5] * y[5] * x[4] * z[6] + x[6] * y[5] * y[5] * z[7] -
-         y[3] * x[2] * y[1] * z[3] - y[3] * y[2] * x[3] * z[1] +
-         y[3] * z[2] * x[3] * y[1] + y[3] * y[2] * x[1] * z[3] -
-         y[2] * x[2] * y[0] * z[3] + y[2] * z[2] * x[3] * y[0];
-    s8 = s7 + 2.0 * y[2] * x[2] * y[3] * z[1] -
-         2.0 * y[2] * x[2] * y[1] * z[3] + y[2] * y[1] * x[0] * z[2] -
-         y[2] * y[1] * x[2] * z[0] + 2.0 * y[2] * z[2] * x[3] * y[1] -
-         2.0 * y[2] * z[2] * x[1] * y[3] - y[2] * z[2] * x[0] * y[3] +
-         y[5] * z[6] * x[5] * y[7] - y[5] * x[6] * y[7] * z[5] -
-         y[5] * y[6] * x[4] * z[7] - y[5] * y[6] * x[5] * z[7] -
-         2.0 * y[5] * x[5] * y[6] * z[4] + 2.0 * y[5] * x[5] * y[4] * z[6] -
-         2.0 * y[5] * z[5] * x[6] * y[4] + 2.0 * y[5] * z[5] * x[4] * y[6];
-    s5 = s8 - y[1] * y[5] * x[0] * z[4] - z[6] * x[7] * y[5] * y[5] +
-         y[6] * y[6] * x[7] * z[4] - y[6] * y[6] * x[4] * z[7] -
-         2.0 * y[6] * y[6] * x[5] * z[7] - x[5] * y[6] * y[6] * z[4] +
-         z[5] * x[4] * y[6] * y[6] + z[6] * x[5] * y[7] * y[7] -
-         x[6] * y[7] * y[7] * z[5] + y[1] * y[5] * x[4] * z[0] +
-         y[7] * y[6] * x[7] * z[5] + y[6] * y[5] * x[7] * z[4] +
-         y[5] * y[6] * x[7] * z[5] + y[6] * y[5] * x[6] * z[4] -
-         y[6] * y[5] * x[4] * z[6] + 2.0 * y[6] * z[6] * x[5] * y[7];
-    s8 = s5 - 2.0 * y[6] * x[6] * y[7] * z[5] +
-         2.0 * y[6] * x[6] * y[5] * z[7] - 2.0 * y[6] * z[6] * x[7] * y[5] -
-         y[6] * x[5] * y[7] * z[4] - y[6] * x[6] * y[7] * z[4] +
-         y[6] * x[6] * y[4] * z[7] - y[6] * z[6] * x[7] * y[4] +
-         y[6] * z[5] * x[4] * y[7] + y[6] * z[6] * x[4] * y[7] +
-         y[6] * x[5] * y[4] * z[6] - y[6] * z[5] * x[6] * y[4] +
-         y[7] * x[6] * y[5] * z[7] - y[7] * z[6] * x[7] * y[5] -
-         2.0 * y[6] * x[6] * y[5] * z[2];
-    s7 = s8 - y[7] * y[6] * x[5] * z[7] + 2.0 * y[4] * y[5] * x[4] * z[0] +
-         2.0 * x[3] * y[7] * y[7] * z[4] - 2.0 * x[4] * y[7] * y[7] * z[3] -
-         z[0] * x[4] * y[7] * y[7] + x[0] * y[7] * y[7] * z[4] -
-         y[0] * z[5] * x[4] * y[1] + y[0] * x[5] * y[1] * z[4] -
-         y[0] * x[5] * y[4] * z[0] + y[0] * z[5] * x[0] * y[4] -
-         y[5] * y[5] * x[0] * z[4] + y[5] * y[5] * x[4] * z[0] +
-         2.0 * y[1] * y[1] * x[2] * z[5] - 2.0 * y[1] * y[1] * x[5] * z[2] +
-         z[1] * x[5] * y[2] * y[2];
-    s8 = s7 - x[1] * y[2] * y[2] * z[5] - y[5] * z[5] * x[4] * y[0] +
-         y[5] * z[5] * x[0] * y[4] - y[5] * x[5] * y[4] * z[0] -
-         y[2] * x[1] * y[6] * z[5] - y[2] * y[1] * x[5] * z[6] +
-         y[2] * z[1] * x[5] * y[6] + y[2] * y[1] * x[6] * z[5] -
-         y[1] * z[1] * x[6] * y[5] - y[1] * x[1] * y[6] * z[5] +
-         y[1] * x[1] * y[5] * z[6] + y[1] * z[1] * x[5] * y[6] +
-         y[5] * x[5] * y[0] * z[4] + y[2] * y[1] * x[2] * z[5] -
-         y[2] * z[1] * x[2] * y[5];
-    s6 = s8 + y[2] * x[1] * y[5] * z[2] - y[2] * y[1] * x[5] * z[2] -
-         y[1] * y[1] * x[5] * z[6] + y[1] * y[1] * x[6] * z[5] -
-         z[1] * x[2] * y[5] * y[5] + x[1] * y[5] * y[5] * z[2] +
-         2.0 * y[1] * z[1] * x[5] * y[2] - 2.0 * y[1] * x[1] * y[2] * z[5] -
-         2.0 * y[1] * z[1] * x[2] * y[5] + 2.0 * y[1] * x[1] * y[5] * z[2] -
-         y[1] * y[1] * x[6] * z[2] + y[1] * y[1] * x[2] * z[6] -
-         2.0 * y[5] * x[1] * y[6] * z[5] - 2.0 * y[5] * y[1] * x[5] * z[6] +
-         2.0 * y[5] * z[1] * x[5] * y[6] + 2.0 * y[5] * y[1] * x[6] * z[5];
-    s8 = s6 - y[6] * z[1] * x[6] * y[5] - y[6] * y[1] * x[5] * z[6] +
-         y[6] * x[1] * y[5] * z[6] + y[6] * y[1] * x[6] * z[5] -
-         2.0 * z[1] * x[6] * y[5] * y[5] + 2.0 * x[1] * y[5] * y[5] * z[6] -
-         x[1] * y[6] * y[6] * z[5] + z[1] * x[5] * y[6] * y[6] +
-         y[5] * z[1] * x[5] * y[2] - y[5] * x[1] * y[2] * z[5] +
-         y[5] * y[1] * x[2] * z[5] - y[5] * y[1] * x[5] * z[2] -
-         y[6] * z[1] * x[2] * y[5] + y[6] * x[1] * y[5] * z[2];
-    s7 = s8 - y[1] * z[1] * x[2] * y[6] - y[1] * x[1] * y[2] * z[6] +
-         y[1] * x[1] * y[6] * z[2] + y[1] * z[1] * x[6] * y[2] +
-         y[5] * x[5] * y[6] * z[2] - y[5] * x[2] * y[6] * z[5] +
-         y[5] * x[6] * y[2] * z[5] - y[5] * x[5] * y[2] * z[6] -
-         x[6] * y[5] * y[5] * z[2] + x[2] * y[5] * y[5] * z[6] -
-         y[5] * y[5] * x[4] * z[7] + y[5] * y[5] * x[7] * z[4] -
-         y[1] * x[6] * y[5] * z[2] + y[1] * x[2] * y[5] * z[6] -
-         y[2] * x[6] * y[5] * z[2] - 2.0 * y[2] * y[1] * x[6] * z[2];
-    s8 = s7 - 2.0 * y[2] * z[1] * x[2] * y[6] +
-         2.0 * y[2] * x[1] * y[6] * z[2] + 2.0 * y[2] * y[1] * x[2] * z[6] -
-         2.0 * x[1] * y[2] * y[2] * z[6] + 2.0 * z[1] * x[6] * y[2] * y[2] +
-         x[6] * y[2] * y[2] * z[5] - x[5] * y[2] * y[2] * z[6] +
-         2.0 * x[5] * y[6] * y[6] * z[2] - 2.0 * x[2] * y[6] * y[6] * z[5] -
-         z[1] * x[2] * y[6] * y[6] - y[6] * y[1] * x[6] * z[2] -
-         y[6] * x[1] * y[2] * z[6] + y[6] * z[1] * x[6] * y[2] +
-         y[6] * y[1] * x[2] * z[6] + x[1] * y[6] * y[6] * z[2];
-    s3 = s8 + y[2] * x[5] * y[6] * z[2] + y[2] * x[2] * y[5] * z[6] -
-         y[2] * x[2] * y[6] * z[5] + y[5] * z[5] * x[4] * y[7] +
-         y[5] * x[5] * y[4] * z[7] - y[5] * z[5] * x[7] * y[4] -
-         y[5] * x[5] * y[7] * z[4] + 2.0 * y[4] * x[5] * y[0] * z[4] -
-         y[3] * z[6] * x[3] * y[7] + y[3] * y[6] * x[3] * z[7] +
-         y[3] * x[6] * y[7] * z[3] - y[3] * y[6] * x[7] * z[3] -
-         y[2] * y[1] * x[3] * z[0] - y[2] * z[1] * x[0] * y[3] +
-         y[2] * y[1] * x[0] * z[3] + y[2] * x[1] * y[3] * z[0];
-    s8 = y[1] * x[0] * z[3] + x[1] * y[3] * z[0] - y[0] * x[3] * z[7] -
-         x[1] * y[5] * z[0] - y[0] * x[3] * z[4] - x[1] * y[0] * z[2] +
-         z[1] * x[2] * y[0] - y[1] * x[0] * z[5] - z[1] * x[0] * y[2] -
-         y[1] * x[0] * z[4] + z[1] * x[5] * y[2] + z[0] * x[7] * y[4] +
-         z[0] * x[3] * y[7] + z[1] * x[0] * y[4] - x[1] * y[2] * z[5] +
-         x[2] * y[3] * z[0] + y[1] * x[2] * z[5] - x[2] * y[3] * z[7];
-    s7 = s8 - z[1] * x[2] * y[5] - y[1] * x[3] * z[0] - x[0] * y[7] * z[3] -
-         z[1] * x[0] * y[3] + y[5] * x[4] * z[0] - x[0] * y[4] * z[3] +
-         y[5] * x[7] * z[4] - z[0] * x[4] * y[3] + x[1] * y[0] * z[4] -
-         z[2] * x[3] * y[7] - y[6] * x[7] * z[2] + x[1] * y[5] * z[2] +
-         y[6] * x[7] * z[5] + x[0] * y[7] * z[4] + x[1] * y[2] * z[0] -
-         z[1] * x[4] * y[0] - z[0] * x[4] * y[7] - z[2] * x[0] * y[3];
-    s8 = x[5] * y[0] * z[4] + z[1] * x[0] * y[5] - x[2] * y[0] * z[3] -
-         z[1] * x[5] * y[0] + y[1] * x[5] * z[0] - x[1] * y[0] * z[3] -
-         x[1] * y[4] * z[0] - y[1] * x[5] * z[2] + x[2] * y[7] * z[3] +
-         y[0] * x[4] * z[3] - x[0] * y[4] * z[7] + x[1] * y[0] * z[5] -
-         y[1] * x[6] * z[2] - y[2] * x[6] * z[3] + y[0] * x[7] * z[3] -
-         y[2] * x[7] * z[3] + z[2] * x[7] * y[3] + y[2] * x[0] * z[3];
-    s6 = s8 + y[2] * x[3] * z[7] - y[2] * x[3] * z[0] - x[6] * y[5] * z[2] -
-         y[5] * x[0] * z[4] + z[2] * x[3] * y[0] + x[2] * y[3] * z[1] +
-         x[0] * y[3] * z[7] - x[2] * y[1] * z[3] + y[1] * x[4] * z[0] +
-         y[1] * x[0] * z[2] - z[1] * x[2] * y[6] + y[2] * x[3] * z[6] -
-         y[1] * x[2] * z[0] + z[1] * x[3] * y[0] - x[1] * y[2] * z[6] -
-         x[2] * y[3] * z[6] + x[0] * y[3] * z[4] + z[0] * x[3] * y[4] + s7;
-    s8 = x[5] * y[4] * z[7] + s6 + y[5] * x[6] * z[4] - y[5] * x[4] * z[6] +
-         z[6] * x[5] * y[7] - x[6] * y[2] * z[7] - x[6] * y[7] * z[5] +
-         x[5] * y[6] * z[2] + x[6] * y[5] * z[7] + x[6] * y[7] * z[2] +
-         y[6] * x[7] * z[4] - y[6] * x[4] * z[7] - y[6] * x[7] * z[3] +
-         z[6] * x[7] * y[2] + x[2] * y[5] * z[6] - x[2] * y[6] * z[5] +
-         y[6] * x[2] * z[7] + x[6] * y[2] * z[5];
-    s7 = s8 - x[5] * y[2] * z[6] - z[6] * x[7] * y[5] - z[5] * x[7] * y[4] +
-         z[5] * x[0] * y[4] - y[5] * x[4] * z[7] + y[0] * x[4] * z[7] -
-         z[6] * x[2] * y[7] - x[5] * y[4] * z[0] - x[5] * y[7] * z[4] -
-         y[0] * x[7] * z[4] + y[5] * x[4] * z[1] - x[6] * y[7] * z[4] +
-         x[7] * y[4] * z[3] - x[4] * y[7] * z[3] + x[3] * y[7] * z[4] -
-         x[7] * y[3] * z[4] - x[6] * y[3] * z[7] + x[6] * y[4] * z[7];
-    s8 = -x[3] * y[4] * z[7] + x[4] * y[3] * z[7] - z[6] * x[7] * y[4] -
-         z[1] * x[6] * y[5] + x[6] * y[7] * z[3] - x[1] * y[6] * z[5] -
-         y[1] * x[5] * z[6] + z[5] * x[4] * y[7] - z[5] * x[4] * y[0] +
-         x[1] * y[5] * z[6] - y[6] * x[5] * z[7] - y[2] * x[3] * z[1] +
-         z[1] * x[5] * y[6] - y[5] * x[1] * z[4] + z[6] * x[4] * y[7] +
-         x[5] * y[1] * z[4] - x[5] * y[6] * z[4] + y[6] * x[3] * z[7] -
-         x[5] * y[4] * z[1];
-    s5 = s8 + x[5] * y[4] * z[6] + z[5] * x[1] * y[4] + y[1] * x[6] * z[5] -
-         z[6] * x[3] * y[7] + z[6] * x[7] * y[3] - z[5] * x[6] * y[4] -
-         z[5] * x[4] * y[1] + z[5] * x[4] * y[6] + x[1] * y[6] * z[2] +
-         x[2] * y[6] * z[3] + z[2] * x[6] * y[3] + z[1] * x[6] * y[2] +
-         z[2] * x[3] * y[1] - z[2] * x[1] * y[3] - z[2] * x[3] * y[6] +
-         y[2] * x[1] * z[3] + y[1] * x[2] * z[6] - z[0] * x[7] * y[3] + s7;
-    s4                    = 1 / s5;
-    s2                    = s3 * s4;
-    const double unknown1 = s1 * s2;
-    s1                    = 1.0 / 6.0;
-    s8 = -z[2] * x[1] * y[2] * z[5] + z[2] * y[1] * x[2] * z[5] -
-         z[2] * z[1] * x[2] * y[5] + z[2] * z[1] * x[5] * y[2] +
-         2.0 * y[5] * x[7] * z[4] * z[4] - y[1] * x[2] * z[0] * z[0] +
-         x[0] * y[3] * z[7] * z[7] - 2.0 * z[5] * z[5] * x[4] * y[1] +
-         2.0 * z[5] * z[5] * x[1] * y[4] + z[5] * z[5] * x[0] * y[4] -
-         2.0 * z[2] * z[2] * x[1] * y[3] + 2.0 * z[2] * z[2] * x[3] * y[1] -
-         x[0] * y[4] * z[7] * z[7] - y[0] * x[3] * z[7] * z[7] +
-         x[1] * y[0] * z[5] * z[5];
-    s7 = s8 - y[1] * x[0] * z[5] * z[5] + z[1] * y[1] * x[2] * z[6] +
-         y[1] * x[0] * z[2] * z[2] + z[2] * z[2] * x[3] * y[0] -
-         z[2] * z[2] * x[0] * y[3] - x[1] * y[0] * z[2] * z[2] +
-         2.0 * z[5] * z[5] * x[4] * y[6] - 2.0 * z[5] * z[5] * x[6] * y[4] -
-         z[5] * z[5] * x[7] * y[4] - x[6] * y[7] * z[5] * z[5] +
-         2.0 * z[2] * y[1] * x[2] * z[6] - 2.0 * z[2] * x[1] * y[2] * z[6] +
-         2.0 * z[2] * z[1] * x[6] * y[2] - y[6] * x[5] * z[7] * z[7] +
-         2.0 * x[6] * y[4] * z[7] * z[7];
-    s8 = -2.0 * y[6] * x[4] * z[7] * z[7] + x[6] * y[5] * z[7] * z[7] -
-         2.0 * z[2] * z[1] * x[2] * y[6] + z[4] * y[6] * x[7] * z[5] +
-         x[5] * y[4] * z[6] * z[6] + z[6] * z[6] * x[4] * y[7] -
-         z[6] * z[6] * x[7] * y[4] - 2.0 * z[6] * z[6] * x[7] * y[5] +
-         2.0 * z[6] * z[6] * x[5] * y[7] - y[5] * x[4] * z[6] * z[6] +
-         2.0 * z[0] * z[0] * x[3] * y[4] - x[6] * y[5] * z[2] * z[2] +
-         z[1] * z[1] * x[5] * y[6] - z[1] * z[1] * x[6] * y[5] -
-         z[5] * z[5] * x[4] * y[0];
-    s6 = s8 + 2.0 * x[1] * y[3] * z[0] * z[0] +
-         2.0 * x[1] * y[6] * z[2] * z[2] - 2.0 * y[1] * x[6] * z[2] * z[2] -
-         y[1] * x[5] * z[2] * z[2] - z[1] * z[1] * x[2] * y[6] -
-         2.0 * z[1] * z[1] * x[2] * y[5] + 2.0 * z[1] * z[1] * x[5] * y[2] +
-         z[1] * y[1] * x[6] * z[5] + y[1] * x[2] * z[5] * z[5] +
-         z[2] * z[1] * x[2] * y[0] + z[1] * x[1] * y[5] * z[6] -
-         z[1] * x[1] * y[6] * z[5] - z[1] * y[1] * x[5] * z[6] -
-         z[1] * x[2] * y[6] * z[5] + z[1] * x[6] * y[2] * z[5] + s7;
-    s8 = -x[1] * y[2] * z[5] * z[5] + z[1] * x[5] * y[6] * z[2] -
-         2.0 * z[2] * z[2] * x[3] * y[6] + 2.0 * z[2] * z[2] * x[6] * y[3] +
-         z[2] * z[2] * x[7] * y[3] - z[2] * z[2] * x[3] * y[7] -
-         z[1] * x[6] * y[5] * z[2] + 2.0 * z[1] * x[1] * y[5] * z[2] -
-         2.0 * x[3] * y[4] * z[7] * z[7] + 2.0 * x[4] * y[3] * z[7] * z[7] +
-         x[5] * y[6] * z[2] * z[2] + y[1] * x[2] * z[6] * z[6] +
-         y[0] * x[4] * z[7] * z[7] + z[2] * x[2] * y[3] * z[0] -
-         x[1] * y[2] * z[6] * z[6];
-    s7 = s8 - z[7] * z[2] * x[3] * y[7] + x[2] * y[6] * z[3] * z[3] -
-         y[2] * x[6] * z[3] * z[3] - z[6] * x[2] * y[3] * z[7] -
-         z[2] * z[1] * x[0] * y[2] + z[6] * z[2] * x[6] * y[3] -
-         z[6] * z[2] * x[3] * y[6] + z[6] * x[2] * y[6] * z[3] +
-         z[2] * x[1] * y[2] * z[0] + z[6] * y[2] * x[3] * z[7] -
-         z[4] * z[5] * x[6] * y[4] + z[4] * z[5] * x[4] * y[6] -
-         z[4] * y[6] * x[5] * z[7] + z[4] * z[6] * x[4] * y[7] +
-         z[4] * x[5] * y[4] * z[6];
-    s8 = -z[6] * y[2] * x[6] * z[3] - z[4] * y[5] * x[4] * z[6] -
-         z[2] * y[1] * x[5] * z[6] + z[2] * x[1] * y[5] * z[6] +
-         z[4] * x[6] * y[4] * z[7] + 2.0 * z[4] * z[5] * x[4] * y[7] -
-         z[4] * z[6] * x[7] * y[4] + x[6] * y[7] * z[3] * z[3] -
-         2.0 * z[4] * z[5] * x[7] * y[4] - 2.0 * z[4] * y[5] * x[4] * z[7] -
-         z[4] * y[6] * x[4] * z[7] + z[4] * x[6] * y[5] * z[7] -
-         z[4] * x[6] * y[7] * z[5] + 2.0 * z[4] * x[5] * y[4] * z[7] +
-         z[2] * x[2] * y[5] * z[6] - z[2] * x[2] * y[6] * z[5];
-    s5 = s8 + z[2] * x[6] * y[2] * z[5] - z[2] * x[5] * y[2] * z[6] -
-         z[2] * x[2] * y[3] * z[7] - x[2] * y[3] * z[7] * z[7] +
-         2.0 * z[2] * x[2] * y[3] * z[1] - z[2] * y[2] * x[3] * z[0] +
-         z[2] * y[2] * x[0] * z[3] - z[2] * x[2] * y[0] * z[3] -
-         z[7] * y[2] * x[7] * z[3] + z[7] * z[2] * x[7] * y[3] +
-         z[7] * x[2] * y[7] * z[3] + z[6] * y[1] * x[2] * z[5] -
-         z[6] * x[1] * y[2] * z[5] + z[5] * x[1] * y[5] * z[2] + s6 + s7;
-    s8 = z[5] * z[1] * x[5] * y[2] - z[5] * z[1] * x[2] * y[5] -
-         y[6] * x[7] * z[2] * z[2] + 2.0 * z[2] * x[2] * y[6] * z[3] -
-         2.0 * z[2] * x[2] * y[3] * z[6] + 2.0 * z[2] * y[2] * x[3] * z[6] +
-         y[2] * x[3] * z[6] * z[6] + y[6] * x[7] * z[5] * z[5] +
-         z[2] * y[2] * x[3] * z[7] - z[2] * y[2] * x[7] * z[3] -
-         2.0 * z[2] * y[2] * x[6] * z[3] + z[2] * x[2] * y[7] * z[3] +
-         x[6] * y[2] * z[5] * z[5] - 2.0 * z[2] * x[2] * y[1] * z[3] -
-         x[2] * y[6] * z[5] * z[5];
-    s7 = s8 - y[1] * x[5] * z[6] * z[6] + z[6] * x[1] * y[6] * z[2] -
-         z[3] * z[2] * x[3] * y[6] + z[6] * z[1] * x[6] * y[2] -
-         z[6] * z[1] * x[2] * y[6] - z[6] * y[1] * x[6] * z[2] -
-         2.0 * x[5] * y[2] * z[6] * z[6] + z[4] * z[1] * x[0] * y[4] -
-         z[3] * x[2] * y[3] * z[6] - z[5] * y[1] * x[5] * z[2] +
-         z[3] * y[2] * x[3] * z[6] + 2.0 * x[2] * y[5] * z[6] * z[6] -
-         z[5] * x[1] * y[5] * z[0] + y[2] * x[3] * z[7] * z[7] -
-         x[2] * y[3] * z[6] * z[6];
-    s8 = z[5] * y[5] * x[4] * z[0] + z[3] * z[2] * x[6] * y[3] +
-         x[1] * y[5] * z[6] * z[6] + z[5] * y[5] * x[7] * z[4] -
-         z[1] * x[1] * y[2] * z[6] + z[1] * x[1] * y[6] * z[2] +
-         2.0 * z[6] * y[6] * x[7] * z[5] - z[7] * y[6] * x[7] * z[2] -
-         z[3] * y[6] * x[7] * z[2] + x[6] * y[7] * z[2] * z[2] -
-         2.0 * z[6] * y[6] * x[7] * z[2] - 2.0 * x[6] * y[3] * z[7] * z[7] -
-         x[6] * y[2] * z[7] * z[7] - z[5] * x[6] * y[5] * z[2] +
-         y[6] * x[2] * z[7] * z[7];
-    s6 = s8 + 2.0 * y[6] * x[3] * z[7] * z[7] + z[6] * z[6] * x[7] * y[3] -
-         y[6] * x[7] * z[3] * z[3] + z[5] * x[5] * y[0] * z[4] +
-         2.0 * z[6] * z[6] * x[7] * y[2] - 2.0 * z[6] * z[6] * x[2] * y[7] -
-         z[6] * z[6] * x[3] * y[7] + z[7] * y[6] * x[7] * z[5] +
-         z[7] * y[5] * x[7] * z[4] - 2.0 * z[7] * x[7] * y[3] * z[4] +
-         2.0 * z[7] * x[3] * y[7] * z[4] - 2.0 * z[7] * x[4] * y[7] * z[3] +
-         2.0 * z[7] * x[7] * y[4] * z[3] - z[7] * y[0] * x[7] * z[4] -
-         2.0 * z[7] * z[6] * x[3] * y[7] + s7;
-    s8 = s6 + 2.0 * z[7] * z[6] * x[7] * y[3] +
-         2.0 * z[7] * x[6] * y[7] * z[3] + z[7] * x[6] * y[7] * z[2] -
-         2.0 * z[7] * y[6] * x[7] * z[3] + z[7] * z[6] * x[7] * y[2] -
-         z[7] * z[6] * x[2] * y[7] + z[5] * y[1] * x[5] * z[0] -
-         z[5] * z[1] * x[5] * y[0] + 2.0 * y[1] * x[6] * z[5] * z[5] -
-         2.0 * x[1] * y[6] * z[5] * z[5] + z[5] * z[1] * x[0] * y[5] +
-         z[6] * y[6] * x[3] * z[7] + 2.0 * z[6] * x[6] * y[7] * z[2] -
-         z[6] * y[6] * x[7] * z[3];
-    s7 = s8 + 2.0 * z[6] * y[6] * x[2] * z[7] - z[6] * x[6] * y[3] * z[7] +
-         z[6] * x[6] * y[7] * z[3] - 2.0 * z[6] * x[6] * y[2] * z[7] -
-         2.0 * z[1] * y[1] * x[5] * z[2] - z[1] * y[1] * x[6] * z[2] -
-         z[7] * z[0] * x[7] * y[3] - 2.0 * z[6] * x[6] * y[5] * z[2] -
-         z[2] * z[6] * x[3] * y[7] + z[2] * x[6] * y[7] * z[3] -
-         z[2] * z[6] * x[2] * y[7] + y[5] * x[6] * z[4] * z[4] +
-         z[2] * y[6] * x[2] * z[7] + y[6] * x[7] * z[4] * z[4] +
-         z[2] * z[6] * x[7] * y[2] - 2.0 * x[5] * y[7] * z[4] * z[4];
-    s8 = -x[6] * y[7] * z[4] * z[4] - z[5] * y[5] * x[0] * z[4] -
-         z[2] * x[6] * y[2] * z[7] - x[5] * y[6] * z[4] * z[4] -
-         2.0 * z[5] * y[1] * x[5] * z[6] + 2.0 * z[5] * z[1] * x[5] * y[6] +
-         2.0 * z[5] * x[1] * y[5] * z[6] - 2.0 * z[5] * z[1] * x[6] * y[5] -
-         z[5] * x[5] * y[2] * z[6] + z[5] * x[5] * y[6] * z[2] +
-         z[5] * x[2] * y[5] * z[6] + z[5] * z[5] * x[4] * y[7] -
-         y[5] * x[4] * z[7] * z[7] + x[5] * y[4] * z[7] * z[7] +
-         z[6] * z[1] * x[5] * y[6] + z[6] * y[1] * x[6] * z[5];
-    s4 = s8 - z[6] * z[1] * x[6] * y[5] - z[6] * x[1] * y[6] * z[5] +
-         z[2] * z[6] * x[7] * y[3] + 2.0 * z[6] * x[6] * y[2] * z[5] +
-         2.0 * z[6] * x[5] * y[6] * z[2] - 2.0 * z[6] * x[2] * y[6] * z[5] +
-         z[7] * z[0] * x[3] * y[7] + z[7] * z[0] * x[7] * y[4] +
-         z[3] * z[6] * x[7] * y[3] - z[3] * z[6] * x[3] * y[7] -
-         z[3] * x[6] * y[3] * z[7] + z[3] * y[6] * x[2] * z[7] -
-         z[3] * x[6] * y[2] * z[7] + z[5] * x[5] * y[4] * z[7] + s5 + s7;
-    s8 = s4 + z[3] * y[6] * x[3] * z[7] - z[7] * x[0] * y[7] * z[3] +
-         z[6] * x[5] * y[4] * z[7] + z[7] * y[0] * x[7] * z[3] +
-         z[5] * z[6] * x[4] * y[7] - 2.0 * z[5] * x[5] * y[6] * z[4] +
-         2.0 * z[5] * x[5] * y[4] * z[6] - z[5] * x[5] * y[7] * z[4] -
-         z[5] * y[6] * x[5] * z[7] - z[5] * z[6] * x[7] * y[4] -
-         z[7] * z[0] * x[4] * y[7] - z[5] * z[6] * x[7] * y[5] -
-         z[5] * y[5] * x[4] * z[7] + z[7] * x[0] * y[7] * z[4];
-    s7 = s8 - 2.0 * z[5] * y[5] * x[4] * z[6] + z[5] * z[6] * x[5] * y[7] +
-         z[5] * x[6] * y[5] * z[7] + 2.0 * z[5] * y[5] * x[6] * z[4] +
-         z[6] * z[5] * x[4] * y[6] - z[6] * x[5] * y[6] * z[4] -
-         z[6] * z[5] * x[6] * y[4] - z[6] * x[6] * y[7] * z[4] -
-         2.0 * z[6] * y[6] * x[5] * z[7] + z[6] * x[6] * y[4] * z[7] -
-         z[6] * y[5] * x[4] * z[7] - z[6] * y[6] * x[4] * z[7] +
-         z[6] * y[6] * x[7] * z[4] + z[6] * y[5] * x[6] * z[4] +
-         2.0 * z[6] * x[6] * y[5] * z[7];
-    s8 = -2.0 * z[6] * x[6] * y[7] * z[5] - z[2] * y[1] * x[2] * z[0] +
-         2.0 * z[7] * z[6] * x[4] * y[7] - 2.0 * z[7] * x[6] * y[7] * z[4] -
-         2.0 * z[7] * z[6] * x[7] * y[4] + z[7] * z[5] * x[4] * y[7] -
-         z[7] * z[5] * x[7] * y[4] - z[7] * x[5] * y[7] * z[4] +
-         2.0 * z[7] * y[6] * x[7] * z[4] - z[7] * z[6] * x[7] * y[5] +
-         z[7] * z[6] * x[5] * y[7] - z[7] * x[6] * y[7] * z[5] +
-         z[1] * z[1] * x[6] * y[2] + s7 + x[1] * y[5] * z[2] * z[2];
-    s6 = s8 + 2.0 * z[2] * y[2] * x[1] * z[3] -
-         2.0 * z[2] * y[2] * x[3] * z[1] - 2.0 * x[1] * y[4] * z[0] * z[0] +
-         2.0 * y[1] * x[4] * z[0] * z[0] + 2.0 * x[2] * y[7] * z[3] * z[3] -
-         2.0 * y[2] * x[7] * z[3] * z[3] - x[1] * y[5] * z[0] * z[0] +
-         z[0] * z[0] * x[7] * y[4] + z[0] * z[0] * x[3] * y[7] +
-         x[2] * y[3] * z[0] * z[0] - 2.0 * y[1] * x[3] * z[0] * z[0] +
-         y[5] * x[4] * z[0] * z[0] - 2.0 * z[0] * z[0] * x[4] * y[3] +
-         x[1] * y[2] * z[0] * z[0] - z[0] * z[0] * x[4] * y[7] +
-         y[1] * x[5] * z[0] * z[0];
-    s8 = s6 - y[2] * x[3] * z[0] * z[0] + y[1] * x[0] * z[3] * z[3] -
-         2.0 * x[0] * y[7] * z[3] * z[3] - x[0] * y[4] * z[3] * z[3] -
-         2.0 * x[2] * y[0] * z[3] * z[3] - x[1] * y[0] * z[3] * z[3] +
-         y[0] * x[4] * z[3] * z[3] - 2.0 * z[0] * y[1] * x[0] * z[4] +
-         2.0 * z[0] * z[1] * x[0] * y[4] + 2.0 * z[0] * x[1] * y[0] * z[4] -
-         2.0 * z[0] * z[1] * x[4] * y[0] - 2.0 * z[3] * x[2] * y[3] * z[7] -
-         2.0 * z[3] * z[2] * x[3] * y[7] + 2.0 * z[3] * z[2] * x[7] * y[3];
-    s7 = s8 + 2.0 * z[3] * y[2] * x[3] * z[7] +
-         2.0 * z[5] * y[5] * x[4] * z[1] + 2.0 * z[0] * y[1] * x[0] * z[3] -
-         z[0] * y[0] * x[3] * z[7] - 2.0 * z[0] * y[0] * x[3] * z[4] -
-         z[0] * x[1] * y[0] * z[2] + z[0] * z[1] * x[2] * y[0] -
-         z[0] * y[1] * x[0] * z[5] - z[0] * z[1] * x[0] * y[2] -
-         z[0] * x[0] * y[7] * z[3] - 2.0 * z[0] * z[1] * x[0] * y[3] -
-         z[5] * x[5] * y[4] * z[0] - 2.0 * z[0] * x[0] * y[4] * z[3] +
-         z[0] * x[0] * y[7] * z[4] - z[0] * z[2] * x[0] * y[3];
-    s8 = s7 + z[0] * x[5] * y[0] * z[4] + z[0] * z[1] * x[0] * y[5] -
-         z[0] * x[2] * y[0] * z[3] - z[0] * z[1] * x[5] * y[0] -
-         2.0 * z[0] * x[1] * y[0] * z[3] + 2.0 * z[0] * y[0] * x[4] * z[3] -
-         z[0] * x[0] * y[4] * z[7] + z[0] * x[1] * y[0] * z[5] +
-         z[0] * y[0] * x[7] * z[3] + z[0] * y[2] * x[0] * z[3] -
-         z[0] * y[5] * x[0] * z[4] + z[0] * z[2] * x[3] * y[0] +
-         z[0] * x[2] * y[3] * z[1] + z[0] * x[0] * y[3] * z[7] -
-         z[0] * x[2] * y[1] * z[3];
-    s5 = s8 + z[0] * y[1] * x[0] * z[2] + z[3] * x[1] * y[3] * z[0] -
-         2.0 * z[3] * y[0] * x[3] * z[7] - z[3] * y[0] * x[3] * z[4] -
-         z[3] * x[1] * y[0] * z[2] + z[3] * z[0] * x[7] * y[4] +
-         2.0 * z[3] * z[0] * x[3] * y[7] + 2.0 * z[3] * x[2] * y[3] * z[0] -
-         z[3] * y[1] * x[3] * z[0] - z[3] * z[1] * x[0] * y[3] -
-         z[3] * z[0] * x[4] * y[3] + z[3] * x[1] * y[2] * z[0] -
-         z[3] * z[0] * x[4] * y[7] - 2.0 * z[3] * z[2] * x[0] * y[3] -
-         z[3] * x[0] * y[4] * z[7] - 2.0 * z[3] * y[2] * x[3] * z[0];
-    s8 = s5 + 2.0 * z[3] * z[2] * x[3] * y[0] + z[3] * x[2] * y[3] * z[1] +
-         2.0 * z[3] * x[0] * y[3] * z[7] + z[3] * y[1] * x[0] * z[2] -
-         z[4] * y[0] * x[3] * z[7] - z[4] * x[1] * y[5] * z[0] -
-         z[4] * y[1] * x[0] * z[5] + 2.0 * z[4] * z[0] * x[7] * y[4] +
-         z[4] * z[0] * x[3] * y[7] + 2.0 * z[4] * y[5] * x[4] * z[0] +
-         2.0 * y[0] * x[7] * z[3] * z[3] + 2.0 * y[2] * x[0] * z[3] * z[3] -
-         x[2] * y[1] * z[3] * z[3] - y[0] * x[3] * z[4] * z[4];
-    s7 = s8 - y[1] * x[0] * z[4] * z[4] + x[1] * y[0] * z[4] * z[4] +
-         2.0 * x[0] * y[7] * z[4] * z[4] + 2.0 * x[5] * y[0] * z[4] * z[4] -
-         2.0 * y[5] * x[0] * z[4] * z[4] + 2.0 * z[1] * z[1] * x[2] * y[0] -
-         2.0 * z[1] * z[1] * x[0] * y[2] + z[1] * z[1] * x[0] * y[4] -
-         z[1] * z[1] * x[0] * y[3] - z[1] * z[1] * x[4] * y[0] +
-         2.0 * z[1] * z[1] * x[0] * y[5] - 2.0 * z[1] * z[1] * x[5] * y[0] +
-         x[2] * y[3] * z[1] * z[1] - x[5] * y[4] * z[0] * z[0] -
-         z[0] * z[0] * x[7] * y[3];
-    s8 = s7 + x[7] * y[4] * z[3] * z[3] - x[4] * y[7] * z[3] * z[3] +
-         y[2] * x[1] * z[3] * z[3] + x[0] * y[3] * z[4] * z[4] -
-         2.0 * y[0] * x[7] * z[4] * z[4] + x[3] * y[7] * z[4] * z[4] -
-         x[7] * y[3] * z[4] * z[4] - y[5] * x[1] * z[4] * z[4] +
-         x[5] * y[1] * z[4] * z[4] + z[1] * z[1] * x[3] * y[0] +
-         y[5] * x[4] * z[1] * z[1] - y[2] * x[3] * z[1] * z[1] -
-         x[5] * y[4] * z[1] * z[1] - z[4] * x[0] * y[4] * z[3] -
-         z[4] * z[0] * x[4] * y[3];
-    s6 = s8 - z[4] * z[1] * x[4] * y[0] - 2.0 * z[4] * z[0] * x[4] * y[7] +
-         z[4] * y[1] * x[5] * z[0] - 2.0 * z[5] * x[5] * y[4] * z[1] -
-         z[4] * x[1] * y[4] * z[0] + z[4] * y[0] * x[4] * z[3] -
-         2.0 * z[4] * x[0] * y[4] * z[7] + z[4] * x[1] * y[0] * z[5] -
-         2.0 * z[1] * x[1] * y[2] * z[5] + z[4] * x[0] * y[3] * z[7] +
-         2.0 * z[5] * x[5] * y[1] * z[4] + z[4] * y[1] * x[4] * z[0] +
-         z[1] * y[1] * x[0] * z[3] + z[1] * x[1] * y[3] * z[0] -
-         2.0 * z[1] * x[1] * y[5] * z[0] - 2.0 * z[1] * x[1] * y[0] * z[2];
-    s8 = s6 - 2.0 * z[1] * y[1] * x[0] * z[5] - z[1] * y[1] * x[0] * z[4] +
-         2.0 * z[1] * y[1] * x[2] * z[5] - z[1] * y[1] * x[3] * z[0] -
-         2.0 * z[5] * y[5] * x[1] * z[4] + z[1] * y[5] * x[4] * z[0] +
-         z[1] * x[1] * y[0] * z[4] + 2.0 * z[1] * x[1] * y[2] * z[0] -
-         z[1] * z[2] * x[0] * y[3] + 2.0 * z[1] * y[1] * x[5] * z[0] -
-         z[1] * x[1] * y[0] * z[3] - z[1] * x[1] * y[4] * z[0] +
-         2.0 * z[1] * x[1] * y[0] * z[5] - z[1] * y[2] * x[3] * z[0];
-    s7 = s8 + z[1] * z[2] * x[3] * y[0] - z[1] * x[2] * y[1] * z[3] +
-         z[1] * y[1] * x[4] * z[0] + 2.0 * z[1] * y[1] * x[0] * z[2] +
-         2.0 * z[0] * z[1] * x[3] * y[0] + 2.0 * z[0] * x[0] * y[3] * z[4] +
-         z[0] * z[5] * x[0] * y[4] + z[0] * y[0] * x[4] * z[7] -
-         z[0] * y[0] * x[7] * z[4] - z[0] * x[7] * y[3] * z[4] -
-         z[0] * z[5] * x[4] * y[0] - z[0] * x[5] * y[4] * z[1] +
-         z[3] * z[1] * x[3] * y[0] + z[3] * x[0] * y[3] * z[4] +
-         z[3] * z[0] * x[3] * y[4] + z[3] * y[0] * x[4] * z[7];
-    s8 = s7 + z[3] * x[3] * y[7] * z[4] - z[3] * x[7] * y[3] * z[4] -
-         z[3] * x[3] * y[4] * z[7] + z[3] * x[4] * y[3] * z[7] -
-         z[3] * y[2] * x[3] * z[1] + z[3] * z[2] * x[3] * y[1] -
-         z[3] * z[2] * x[1] * y[3] - 2.0 * z[3] * z[0] * x[7] * y[3] +
-         z[4] * z[0] * x[3] * y[4] + 2.0 * z[4] * z[5] * x[0] * y[4] +
-         2.0 * z[4] * y[0] * x[4] * z[7] - 2.0 * z[4] * x[5] * y[4] * z[0] +
-         z[4] * y[5] * x[4] * z[1] + z[4] * x[7] * y[4] * z[3] -
-         z[4] * x[4] * y[7] * z[3];
-    s3 = s8 - z[4] * x[3] * y[4] * z[7] + z[4] * x[4] * y[3] * z[7] -
-         2.0 * z[4] * z[5] * x[4] * y[0] - z[4] * x[5] * y[4] * z[1] +
-         z[4] * z[5] * x[1] * y[4] - z[4] * z[5] * x[4] * y[1] -
-         2.0 * z[1] * y[1] * x[2] * z[0] + z[1] * z[5] * x[0] * y[4] -
-         z[1] * z[5] * x[4] * y[0] - z[1] * y[5] * x[1] * z[4] +
-         z[1] * x[5] * y[1] * z[4] + z[1] * z[5] * x[1] * y[4] -
-         z[1] * z[5] * x[4] * y[1] + z[1] * z[2] * x[3] * y[1] -
-         z[1] * z[2] * x[1] * y[3] + z[1] * y[2] * x[1] * z[3];
-    s8 = y[1] * x[0] * z[3] + x[1] * y[3] * z[0] - y[0] * x[3] * z[7] -
-         x[1] * y[5] * z[0] - y[0] * x[3] * z[4] - x[1] * y[0] * z[2] +
-         z[1] * x[2] * y[0] - y[1] * x[0] * z[5] - z[1] * x[0] * y[2] -
-         y[1] * x[0] * z[4] + z[1] * x[5] * y[2] + z[0] * x[7] * y[4] +
-         z[0] * x[3] * y[7] + z[1] * x[0] * y[4] - x[1] * y[2] * z[5] +
-         x[2] * y[3] * z[0] + y[1] * x[2] * z[5] - x[2] * y[3] * z[7];
-    s7 = s8 - z[1] * x[2] * y[5] - y[1] * x[3] * z[0] - x[0] * y[7] * z[3] -
-         z[1] * x[0] * y[3] + y[5] * x[4] * z[0] - x[0] * y[4] * z[3] +
-         y[5] * x[7] * z[4] - z[0] * x[4] * y[3] + x[1] * y[0] * z[4] -
-         z[2] * x[3] * y[7] - y[6] * x[7] * z[2] + x[1] * y[5] * z[2] +
-         y[6] * x[7] * z[5] + x[0] * y[7] * z[4] + x[1] * y[2] * z[0] -
-         z[1] * x[4] * y[0] - z[0] * x[4] * y[7] - z[2] * x[0] * y[3];
-    s8 = x[5] * y[0] * z[4] + z[1] * x[0] * y[5] - x[2] * y[0] * z[3] -
-         z[1] * x[5] * y[0] + y[1] * x[5] * z[0] - x[1] * y[0] * z[3] -
-         x[1] * y[4] * z[0] - y[1] * x[5] * z[2] + x[2] * y[7] * z[3] +
-         y[0] * x[4] * z[3] - x[0] * y[4] * z[7] + x[1] * y[0] * z[5] -
-         y[1] * x[6] * z[2] - y[2] * x[6] * z[3] + y[0] * x[7] * z[3] -
-         y[2] * x[7] * z[3] + z[2] * x[7] * y[3] + y[2] * x[0] * z[3];
-    s6 = s8 + y[2] * x[3] * z[7] - y[2] * x[3] * z[0] - x[6] * y[5] * z[2] -
-         y[5] * x[0] * z[4] + z[2] * x[3] * y[0] + x[2] * y[3] * z[1] +
-         x[0] * y[3] * z[7] - x[2] * y[1] * z[3] + y[1] * x[4] * z[0] +
-         y[1] * x[0] * z[2] - z[1] * x[2] * y[6] + y[2] * x[3] * z[6] -
-         y[1] * x[2] * z[0] + z[1] * x[3] * y[0] - x[1] * y[2] * z[6] -
-         x[2] * y[3] * z[6] + x[0] * y[3] * z[4] + z[0] * x[3] * y[4] + s7;
-    s8 = x[5] * y[4] * z[7] + s6 + y[5] * x[6] * z[4] - y[5] * x[4] * z[6] +
-         z[6] * x[5] * y[7] - x[6] * y[2] * z[7] - x[6] * y[7] * z[5] +
-         x[5] * y[6] * z[2] + x[6] * y[5] * z[7] + x[6] * y[7] * z[2] +
-         y[6] * x[7] * z[4] - y[6] * x[4] * z[7] - y[6] * x[7] * z[3] +
-         z[6] * x[7] * y[2] + x[2] * y[5] * z[6] - x[2] * y[6] * z[5] +
-         y[6] * x[2] * z[7] + x[6] * y[2] * z[5];
-    s7 = s8 - x[5] * y[2] * z[6] - z[6] * x[7] * y[5] - z[5] * x[7] * y[4] +
-         z[5] * x[0] * y[4] - y[5] * x[4] * z[7] + y[0] * x[4] * z[7] -
-         z[6] * x[2] * y[7] - x[5] * y[4] * z[0] - x[5] * y[7] * z[4] -
-         y[0] * x[7] * z[4] + y[5] * x[4] * z[1] - x[6] * y[7] * z[4] +
-         x[7] * y[4] * z[3] - x[4] * y[7] * z[3] + x[3] * y[7] * z[4] -
-         x[7] * y[3] * z[4] - x[6] * y[3] * z[7] + x[6] * y[4] * z[7];
-    s8 = -x[3] * y[4] * z[7] + x[4] * y[3] * z[7] - z[6] * x[7] * y[4] -
-         z[1] * x[6] * y[5] + x[6] * y[7] * z[3] - x[1] * y[6] * z[5] -
-         y[1] * x[5] * z[6] + z[5] * x[4] * y[7] - z[5] * x[4] * y[0] +
-         x[1] * y[5] * z[6] - y[6] * x[5] * z[7] - y[2] * x[3] * z[1] +
-         z[1] * x[5] * y[6] - y[5] * x[1] * z[4] + z[6] * x[4] * y[7] +
-         x[5] * y[1] * z[4] - x[5] * y[6] * z[4] + y[6] * x[3] * z[7] -
-         x[5] * y[4] * z[1];
-    s5 = s8 + x[5] * y[4] * z[6] + z[5] * x[1] * y[4] + y[1] * x[6] * z[5] -
-         z[6] * x[3] * y[7] + z[6] * x[7] * y[3] - z[5] * x[6] * y[4] -
-         z[5] * x[4] * y[1] + z[5] * x[4] * y[6] + x[1] * y[6] * z[2] +
-         x[2] * y[6] * z[3] + z[2] * x[6] * y[3] + z[1] * x[6] * y[2] +
-         z[2] * x[3] * y[1] - z[2] * x[1] * y[3] - z[2] * x[3] * y[6] +
-         y[2] * x[1] * z[3] + y[1] * x[2] * z[6] - z[0] * x[7] * y[3] + s7;
-    s4                    = 1 / s5;
-    s2                    = s3 * s4;
-    const double unknown2 = s1 * s2;
+        s1 = 1.0 / 6.0;
+        s8 = -x[2] * x[2] * y[0] * z[3] - 2.0 * z[6] * x[7] * x[7] * y[4] -
+             z[5] * x[7] * x[7] * y[4] - z[6] * x[7] * x[7] * y[5] +
+             2.0 * y[6] * x[7] * x[7] * z[4] - z[5] * x[6] * x[6] * y[4] +
+             x[6] * x[6] * y[4] * z[7] - z[1] * x[0] * x[0] * y[2] -
+             x[6] * x[6] * y[7] * z[4] + 2.0 * x[6] * x[6] * y[5] * z[7] -
+             2.0 * x[6] * x[6] * y[7] * z[5] + y[5] * x[6] * x[6] * z[4] +
+             2.0 * x[5] * x[5] * y[4] * z[6] + x[0] * x[0] * y[7] * z[4] -
+             2.0 * x[5] * x[5] * y[6] * z[4];
+        s7 = s8 - y[6] * x[5] * x[5] * z[7] + z[6] * x[5] * x[5] * y[7] -
+             y[1] * x[0] * x[0] * z[5] + x[7] * z[5] * x[4] * y[7] -
+             x[7] * y[6] * x[5] * z[7] - 2.0 * x[7] * x[6] * y[7] * z[4] +
+             2.0 * x[7] * x[6] * y[4] * z[7] - x[7] * x[5] * y[7] * z[4] -
+             2.0 * x[7] * y[6] * x[4] * z[7] - x[7] * y[5] * x[4] * z[7] +
+             x[2] * x[2] * y[3] * z[0] - x[7] * x[6] * y[7] * z[5] +
+             x[7] * x[6] * y[5] * z[7] + 2.0 * x[1] * x[1] * y[0] * z[5] +
+             x[7] * z[6] * x[5] * y[7];
+        s8 = -2.0 * x[1] * x[1] * y[5] * z[0] + z[1] * x[0] * x[0] * y[5] +
+             2.0 * x[2] * x[2] * y[3] * z[1] - z[5] * x[4] * x[4] * y[1] +
+             y[5] * x[4] * x[4] * z[1] - 2.0 * x[5] * x[5] * y[4] * z[1] +
+             2.0 * x[5] * x[5] * y[1] * z[4] - 2.0 * x[2] * x[2] * y[1] * z[3] -
+             y[1] * x[2] * x[2] * z[0] + x[7] * y[2] * x[3] * z[7] +
+             x[7] * z[2] * x[6] * y[3] + 2.0 * x[7] * z[6] * x[4] * y[7] +
+             z[5] * x[1] * x[1] * y[4] + z[1] * x[2] * x[2] * y[0] -
+             2.0 * y[0] * x[3] * x[3] * z[7];
+        s6 = s8 + 2.0 * z[0] * x[3] * x[3] * y[7] - x[7] * x[2] * y[3] * z[7] -
+             x[7] * z[2] * x[3] * y[7] + x[7] * x[2] * y[7] * z[3] -
+             x[7] * y[2] * x[6] * z[3] + x[4] * x[5] * y[1] * z[4] -
+             x[4] * x[5] * y[4] * z[1] + x[4] * z[5] * x[1] * y[4] -
+             x[4] * y[5] * x[1] * z[4] - 2.0 * x[5] * z[5] * x[4] * y[1] -
+             2.0 * x[5] * y[5] * x[1] * z[4] + 2.0 * x[5] * z[5] * x[1] * y[4] +
+             2.0 * x[5] * y[5] * x[4] * z[1] - x[6] * z[5] * x[7] * y[4] -
+             z[2] * x[3] * x[3] * y[6] + s7;
+        s8 = -2.0 * x[6] * z[6] * x[7] * y[5] - x[6] * y[6] * x[4] * z[7] +
+             y[2] * x[3] * x[3] * z[6] + x[6] * y[6] * x[7] * z[4] +
+             2.0 * y[2] * x[3] * x[3] * z[7] + x[0] * x[1] * y[0] * z[5] +
+             x[0] * y[1] * x[5] * z[0] - x[0] * z[1] * x[5] * y[0] -
+             2.0 * z[2] * x[3] * x[3] * y[7] + 2.0 * x[6] * z[6] * x[5] * y[7] -
+             x[0] * x[1] * y[5] * z[0] - x[6] * y[5] * x[4] * z[6] -
+             2.0 * x[3] * z[0] * x[7] * y[3] - x[6] * z[6] * x[7] * y[4] -
+             2.0 * x[1] * z[1] * x[5] * y[0];
+        s7 = s8 + 2.0 * x[1] * y[1] * x[5] * z[0] +
+             2.0 * x[1] * z[1] * x[0] * y[5] + 2.0 * x[3] * y[0] * x[7] * z[3] +
+             2.0 * x[3] * x[0] * y[3] * z[7] - 2.0 * x[3] * x[0] * y[7] * z[3] -
+             2.0 * x[1] * y[1] * x[0] * z[5] - 2.0 * x[6] * y[6] * x[5] * z[7] +
+             s6 - y[5] * x[1] * x[1] * z[4] + x[6] * z[6] * x[4] * y[7] -
+             2.0 * x[2] * y[2] * x[3] * z[1] + x[6] * z[5] * x[4] * y[6] +
+             x[6] * x[5] * y[4] * z[6] - y[6] * x[7] * x[7] * z[2] -
+             x[6] * x[5] * y[6] * z[4];
+        s8 = x[3] * x[3] * y[7] * z[4] - 2.0 * y[6] * x[7] * x[7] * z[3] +
+             z[6] * x[7] * x[7] * y[2] + 2.0 * z[6] * x[7] * x[7] * y[3] +
+             2.0 * y[1] * x[0] * x[0] * z[3] + 2.0 * x[0] * x[1] * y[3] * z[0] -
+             2.0 * x[0] * y[0] * x[3] * z[4] - 2.0 * x[0] * z[1] * x[4] * y[0] -
+             2.0 * x[0] * y[1] * x[3] * z[0] + 2.0 * x[0] * y[0] * x[4] * z[3] -
+             2.0 * x[0] * z[0] * x[4] * y[3] + 2.0 * x[0] * x[1] * y[0] * z[4] +
+             2.0 * x[0] * z[1] * x[3] * y[0] - 2.0 * x[0] * x[1] * y[0] * z[3] -
+             2.0 * x[0] * x[1] * y[4] * z[0] + 2.0 * x[0] * y[1] * x[4] * z[0];
+        s5 = s8 + 2.0 * x[0] * z[0] * x[3] * y[4] + x[1] * y[1] * x[0] * z[3] -
+             x[1] * z[1] * x[4] * y[0] - x[1] * y[1] * x[0] * z[4] +
+             x[1] * z[1] * x[0] * y[4] - x[1] * y[1] * x[3] * z[0] -
+             x[1] * z[1] * x[0] * y[3] - x[0] * z[5] * x[4] * y[1] +
+             x[0] * y[5] * x[4] * z[1] - 2.0 * x[4] * x[0] * y[4] * z[7] -
+             2.0 * x[4] * y[5] * x[0] * z[4] + 2.0 * x[4] * z[5] * x[0] * y[4] -
+             2.0 * x[4] * x[5] * y[4] * z[0] - 2.0 * x[4] * y[0] * x[7] * z[4] -
+             x[5] * y[5] * x[0] * z[4] + s7;
+        s8 = x[5] * z[5] * x[0] * y[4] - x[5] * z[5] * x[4] * y[0] +
+             x[1] * z[5] * x[0] * y[4] + x[5] * y[5] * x[4] * z[0] -
+             x[0] * y[0] * x[7] * z[4] - x[0] * z[5] * x[4] * y[0] -
+             x[1] * y[5] * x[0] * z[4] + x[0] * z[0] * x[7] * y[4] +
+             x[0] * y[5] * x[4] * z[0] - x[0] * z[0] * x[4] * y[7] +
+             x[0] * x[5] * y[0] * z[4] + x[0] * y[0] * x[4] * z[7] -
+             x[0] * x[5] * y[4] * z[0] - x[3] * x[3] * y[4] * z[7] +
+             2.0 * x[2] * z[2] * x[3] * y[1];
+        s7 = s8 - x[5] * x[5] * y[4] * z[0] + 2.0 * y[5] * x[4] * x[4] * z[0] -
+             2.0 * z[0] * x[4] * x[4] * y[7] + 2.0 * y[0] * x[4] * x[4] * z[7] -
+             2.0 * z[5] * x[4] * x[4] * y[0] + x[5] * x[5] * y[4] * z[7] -
+             x[5] * x[5] * y[7] * z[4] - 2.0 * y[5] * x[4] * x[4] * z[7] +
+             2.0 * z[5] * x[4] * x[4] * y[7] - x[0] * x[0] * y[7] * z[3] +
+             y[2] * x[0] * x[0] * z[3] + x[0] * x[0] * y[3] * z[7] -
+             x[5] * x[1] * y[4] * z[0] + x[5] * y[1] * x[4] * z[0] -
+             x[4] * y[0] * x[3] * z[4];
+        s8 = -x[4] * y[1] * x[0] * z[4] + x[4] * z[1] * x[0] * y[4] +
+             x[4] * x[0] * y[3] * z[4] - x[4] * x[0] * y[4] * z[3] +
+             x[4] * x[1] * y[0] * z[4] - x[4] * x[1] * y[4] * z[0] +
+             x[4] * z[0] * x[3] * y[4] + x[5] * x[1] * y[0] * z[4] +
+             x[1] * z[1] * x[3] * y[0] + x[1] * y[1] * x[4] * z[0] -
+             x[5] * z[1] * x[4] * y[0] - 2.0 * y[1] * x[0] * x[0] * z[4] +
+             2.0 * z[1] * x[0] * x[0] * y[4] + 2.0 * x[0] * x[0] * y[3] * z[4] -
+             2.0 * z[1] * x[0] * x[0] * y[3];
+        s6 = s8 - 2.0 * x[0] * x[0] * y[4] * z[3] + x[1] * x[1] * y[3] * z[0] +
+             x[1] * x[1] * y[0] * z[4] - x[1] * x[1] * y[0] * z[3] -
+             x[1] * x[1] * y[4] * z[0] - z[1] * x[4] * x[4] * y[0] +
+             y[0] * x[4] * x[4] * z[3] - z[0] * x[4] * x[4] * y[3] +
+             y[1] * x[4] * x[4] * z[0] - x[0] * x[0] * y[4] * z[7] -
+             y[5] * x[0] * x[0] * z[4] + z[5] * x[0] * x[0] * y[4] +
+             x[5] * x[5] * y[0] * z[4] - x[0] * y[0] * x[3] * z[7] +
+             x[0] * z[0] * x[3] * y[7] + s7;
+        s8 = s6 + x[0] * x[2] * y[3] * z[0] - x[0] * x[2] * y[0] * z[3] +
+             x[0] * y[0] * x[7] * z[3] - x[0] * y[2] * x[3] * z[0] +
+             x[0] * z[2] * x[3] * y[0] - x[0] * z[0] * x[7] * y[3] +
+             x[1] * x[2] * y[3] * z[0] - z[2] * x[0] * x[0] * y[3] +
+             x[3] * z[2] * x[6] * y[3] - x[3] * x[2] * y[3] * z[6] +
+             x[3] * x[2] * y[6] * z[3] - x[3] * y[2] * x[6] * z[3] -
+             2.0 * x[3] * y[2] * x[7] * z[3] + 2.0 * x[3] * z[2] * x[7] * y[3];
+        s7 = s8 + 2.0 * x[4] * y[5] * x[7] * z[4] +
+             2.0 * x[4] * x[5] * y[4] * z[7] - 2.0 * x[4] * z[5] * x[7] * y[4] -
+             2.0 * x[4] * x[5] * y[7] * z[4] + x[5] * y[5] * x[7] * z[4] -
+             x[5] * z[5] * x[7] * y[4] - x[5] * y[5] * x[4] * z[7] +
+             x[5] * z[5] * x[4] * y[7] + 2.0 * x[3] * x[2] * y[7] * z[3] -
+             2.0 * x[2] * z[2] * x[1] * y[3] + 2.0 * x[4] * z[0] * x[7] * y[4] +
+             2.0 * x[4] * x[0] * y[7] * z[4] + 2.0 * x[4] * x[5] * y[0] * z[4] -
+             x[7] * x[6] * y[2] * z[7] - 2.0 * x[3] * x[2] * y[3] * z[7] -
+             x[0] * x[4] * y[7] * z[3];
+        s8 = x[0] * x[3] * y[7] * z[4] - x[0] * x[3] * y[4] * z[7] +
+             x[0] * x[4] * y[3] * z[7] - 2.0 * x[7] * z[6] * x[3] * y[7] +
+             x[3] * x[7] * y[4] * z[3] - x[3] * x[4] * y[7] * z[3] -
+             x[3] * x[7] * y[3] * z[4] + x[3] * x[4] * y[3] * z[7] +
+             2.0 * x[2] * y[2] * x[1] * z[3] + y[6] * x[3] * x[3] * z[7] -
+             z[6] * x[3] * x[3] * y[7] - x[1] * z[5] * x[4] * y[1] -
+             x[1] * x[5] * y[4] * z[1] - x[1] * z[2] * x[0] * y[3] -
+             x[1] * x[2] * y[0] * z[3] + x[1] * y[2] * x[0] * z[3];
+        s4 = s8 + x[1] * x[5] * y[1] * z[4] + x[1] * y[5] * x[4] * z[1] +
+             x[4] * y[0] * x[7] * z[3] - x[4] * z[0] * x[7] * y[3] -
+             x[4] * x[4] * y[7] * z[3] + x[4] * x[4] * y[3] * z[7] +
+             x[3] * z[6] * x[7] * y[3] - x[3] * x[6] * y[3] * z[7] +
+             x[3] * x[6] * y[7] * z[3] - x[3] * z[6] * x[2] * y[7] -
+             x[3] * y[6] * x[7] * z[3] + x[3] * z[6] * x[7] * y[2] +
+             x[3] * y[6] * x[2] * z[7] + 2.0 * x[5] * z[5] * x[4] * y[6] + s5 +
+             s7;
+        s8 = s4 - 2.0 * x[5] * z[5] * x[6] * y[4] - x[5] * z[6] * x[7] * y[5] +
+             x[5] * x[6] * y[5] * z[7] - x[5] * x[6] * y[7] * z[5] -
+             2.0 * x[5] * y[5] * x[4] * z[6] + 2.0 * x[5] * y[5] * x[6] * z[4] -
+             x[3] * y[6] * x[7] * z[2] + x[4] * x[7] * y[4] * z[3] +
+             x[4] * x[3] * y[7] * z[4] - x[4] * x[7] * y[3] * z[4] -
+             x[4] * x[3] * y[4] * z[7] - z[1] * x[5] * x[5] * y[0] +
+             y[1] * x[5] * x[5] * z[0] + x[4] * y[6] * x[7] * z[4];
+        s7 = s8 - x[4] * x[6] * y[7] * z[4] + x[4] * x[6] * y[4] * z[7] -
+             x[4] * z[6] * x[7] * y[4] - x[5] * y[6] * x[4] * z[7] -
+             x[5] * x[6] * y[7] * z[4] + x[5] * x[6] * y[4] * z[7] +
+             x[5] * z[6] * x[4] * y[7] - y[6] * x[4] * x[4] * z[7] +
+             z[6] * x[4] * x[4] * y[7] + x[7] * x[5] * y[4] * z[7] -
+             y[2] * x[7] * x[7] * z[3] + z[2] * x[7] * x[7] * y[3] -
+             y[0] * x[3] * x[3] * z[4] - y[1] * x[3] * x[3] * z[0] +
+             z[1] * x[3] * x[3] * y[0];
+        s8 = z[0] * x[3] * x[3] * y[4] - x[2] * y[1] * x[3] * z[0] +
+             x[2] * z[1] * x[3] * y[0] + x[3] * y[1] * x[0] * z[3] +
+             x[3] * x[1] * y[3] * z[0] + x[3] * x[0] * y[3] * z[4] -
+             x[3] * z[1] * x[0] * y[3] - x[3] * x[0] * y[4] * z[3] +
+             x[3] * y[0] * x[4] * z[3] - x[3] * z[0] * x[4] * y[3] -
+             x[3] * x[1] * y[0] * z[3] + x[3] * z[0] * x[7] * y[4] -
+             x[3] * y[0] * x[7] * z[4] + z[0] * x[7] * x[7] * y[4] -
+             y[0] * x[7] * x[7] * z[4];
+        s6 = s8 + y[1] * x[0] * x[0] * z[2] - 2.0 * y[2] * x[3] * x[3] * z[0] +
+             2.0 * z[2] * x[3] * x[3] * y[0] - 2.0 * x[1] * x[1] * y[0] * z[2] +
+             2.0 * x[1] * x[1] * y[2] * z[0] - y[2] * x[3] * x[3] * z[1] +
+             z[2] * x[3] * x[3] * y[1] - y[5] * x[4] * x[4] * z[6] +
+             z[5] * x[4] * x[4] * y[6] + x[7] * x[0] * y[7] * z[4] -
+             x[7] * z[0] * x[4] * y[7] - x[7] * x[0] * y[4] * z[7] +
+             x[7] * y[0] * x[4] * z[7] - x[0] * x[1] * y[0] * z[2] +
+             x[0] * z[1] * x[2] * y[0] + s7;
+        s8 = s6 + x[0] * x[1] * y[2] * z[0] - x[0] * y[1] * x[2] * z[0] -
+             x[3] * z[1] * x[0] * y[2] + 2.0 * x[3] * x[2] * y[3] * z[0] +
+             y[0] * x[7] * x[7] * z[3] - z[0] * x[7] * x[7] * y[3] -
+             2.0 * x[3] * z[2] * x[0] * y[3] - 2.0 * x[3] * x[2] * y[0] * z[3] +
+             2.0 * x[3] * y[2] * x[0] * z[3] + x[3] * x[2] * y[3] * z[1] -
+             x[3] * x[2] * y[1] * z[3] - x[5] * y[1] * x[0] * z[5] +
+             x[3] * y[1] * x[0] * z[2] + x[4] * y[6] * x[7] * z[5];
+        s7 = s8 - x[5] * x[1] * y[5] * z[0] + 2.0 * x[1] * z[1] * x[2] * y[0] -
+             2.0 * x[1] * z[1] * x[0] * y[2] + x[1] * x[2] * y[3] * z[1] -
+             x[1] * x[2] * y[1] * z[3] + 2.0 * x[1] * y[1] * x[0] * z[2] -
+             2.0 * x[1] * y[1] * x[2] * z[0] - z[2] * x[1] * x[1] * y[3] +
+             y[2] * x[1] * x[1] * z[3] + y[5] * x[7] * x[7] * z[4] +
+             y[6] * x[7] * x[7] * z[5] + x[7] * x[6] * y[7] * z[2] +
+             x[7] * y[6] * x[2] * z[7] - x[7] * z[6] * x[2] * y[7] -
+             2.0 * x[7] * x[6] * y[3] * z[7];
+        s8 = s7 + 2.0 * x[7] * x[6] * y[7] * z[3] +
+             2.0 * x[7] * y[6] * x[3] * z[7] - x[3] * z[2] * x[1] * y[3] +
+             x[3] * y[2] * x[1] * z[3] + x[5] * x[1] * y[0] * z[5] +
+             x[4] * y[5] * x[6] * z[4] + x[5] * z[1] * x[0] * y[5] -
+             x[4] * z[6] * x[7] * y[5] - x[4] * x[5] * y[6] * z[4] +
+             x[4] * x[5] * y[4] * z[6] - x[4] * z[5] * x[6] * y[4] -
+             x[1] * y[2] * x[3] * z[1] + x[1] * z[2] * x[3] * y[1] -
+             x[2] * x[1] * y[0] * z[2] - x[2] * z[1] * x[0] * y[2];
+        s5 = s8 + x[2] * x[1] * y[2] * z[0] - x[2] * z[2] * x[0] * y[3] +
+             x[2] * y[2] * x[0] * z[3] - x[2] * y[2] * x[3] * z[0] +
+             x[2] * z[2] * x[3] * y[0] + x[2] * y[1] * x[0] * z[2] +
+             x[5] * y[6] * x[7] * z[5] + x[6] * y[5] * x[7] * z[4] +
+             2.0 * x[6] * y[6] * x[7] * z[5] - x[7] * y[0] * x[3] * z[7] +
+             x[7] * z[0] * x[3] * y[7] - x[7] * x[0] * y[7] * z[3] +
+             x[7] * x[0] * y[3] * z[7] + 2.0 * x[7] * x[7] * y[4] * z[3] -
+             2.0 * x[7] * x[7] * y[3] * z[4] - 2.0 * x[1] * x[1] * y[2] * z[5];
+        s8 = s5 - 2.0 * x[7] * x[4] * y[7] * z[3] +
+             2.0 * x[7] * x[3] * y[7] * z[4] - 2.0 * x[7] * x[3] * y[4] * z[7] +
+             2.0 * x[7] * x[4] * y[3] * z[7] + 2.0 * x[1] * x[1] * y[5] * z[2] -
+             x[1] * x[1] * y[2] * z[6] + x[1] * x[1] * y[6] * z[2] +
+             z[1] * x[5] * x[5] * y[2] - y[1] * x[5] * x[5] * z[2] -
+             x[1] * x[1] * y[6] * z[5] + x[1] * x[1] * y[5] * z[6] +
+             x[5] * x[5] * y[6] * z[2] - x[5] * x[5] * y[2] * z[6] -
+             2.0 * y[1] * x[5] * x[5] * z[6];
+        s7 = s8 + 2.0 * z[1] * x[5] * x[5] * y[6] +
+             2.0 * x[1] * z[1] * x[5] * y[2] + 2.0 * x[1] * y[1] * x[2] * z[5] -
+             2.0 * x[1] * z[1] * x[2] * y[5] - 2.0 * x[1] * y[1] * x[5] * z[2] -
+             x[1] * y[1] * x[6] * z[2] - x[1] * z[1] * x[2] * y[6] +
+             x[1] * z[1] * x[6] * y[2] + x[1] * y[1] * x[2] * z[6] -
+             x[5] * x[1] * y[2] * z[5] + x[5] * y[1] * x[2] * z[5] -
+             x[5] * z[1] * x[2] * y[5] + x[5] * x[1] * y[5] * z[2] -
+             x[5] * y[1] * x[6] * z[2] - x[5] * x[1] * y[2] * z[6];
+        s8 = s7 + x[5] * x[1] * y[6] * z[2] + x[5] * z[1] * x[6] * y[2] +
+             x[1] * x[2] * y[5] * z[6] - x[1] * x[2] * y[6] * z[5] -
+             x[1] * z[1] * x[6] * y[5] - x[1] * y[1] * x[5] * z[6] +
+             x[1] * z[1] * x[5] * y[6] + x[1] * y[1] * x[6] * z[5] -
+             x[5] * x[6] * y[5] * z[2] + x[5] * x[2] * y[5] * z[6] -
+             x[5] * x[2] * y[6] * z[5] + x[5] * x[6] * y[2] * z[5] -
+             2.0 * x[5] * z[1] * x[6] * y[5] - 2.0 * x[5] * x[1] * y[6] * z[5] +
+             2.0 * x[5] * x[1] * y[5] * z[6];
+        s6 = s8 + 2.0 * x[5] * y[1] * x[6] * z[5] +
+             2.0 * x[2] * x[1] * y[6] * z[2] + 2.0 * x[2] * z[1] * x[6] * y[2] -
+             2.0 * x[2] * x[1] * y[2] * z[6] + x[2] * x[5] * y[6] * z[2] +
+             x[2] * x[6] * y[2] * z[5] - x[2] * x[5] * y[2] * z[6] +
+             y[1] * x[2] * x[2] * z[5] - z[1] * x[2] * x[2] * y[5] -
+             2.0 * x[2] * y[1] * x[6] * z[2] - x[2] * x[6] * y[5] * z[2] -
+             2.0 * z[1] * x[2] * x[2] * y[6] + x[2] * x[2] * y[5] * z[6] -
+             x[2] * x[2] * y[6] * z[5] + 2.0 * y[1] * x[2] * x[2] * z[6] +
+             x[2] * z[1] * x[5] * y[2];
+        s8 = s6 - x[2] * x[1] * y[2] * z[5] + x[2] * x[1] * y[5] * z[2] -
+             x[2] * y[1] * x[5] * z[2] + x[6] * y[1] * x[2] * z[5] -
+             x[6] * z[1] * x[2] * y[5] - z[1] * x[6] * x[6] * y[5] +
+             y[1] * x[6] * x[6] * z[5] - y[1] * x[6] * x[6] * z[2] -
+             2.0 * x[6] * x[6] * y[5] * z[2] + 2.0 * x[6] * x[6] * y[2] * z[5] +
+             z[1] * x[6] * x[6] * y[2] - x[6] * x[1] * y[6] * z[5] -
+             x[6] * y[1] * x[5] * z[6] + x[6] * x[1] * y[5] * z[6];
+        s7 = s8 + x[6] * z[1] * x[5] * y[6] - x[6] * z[1] * x[2] * y[6] -
+             x[6] * x[1] * y[2] * z[6] + 2.0 * x[6] * x[5] * y[6] * z[2] +
+             2.0 * x[6] * x[2] * y[5] * z[6] - 2.0 * x[6] * x[2] * y[6] * z[5] -
+             2.0 * x[6] * x[5] * y[2] * z[6] + x[6] * x[1] * y[6] * z[2] +
+             x[6] * y[1] * x[2] * z[6] - x[2] * x[2] * y[3] * z[7] +
+             x[2] * x[2] * y[7] * z[3] - x[2] * z[2] * x[3] * y[7] -
+             x[2] * y[2] * x[7] * z[3] + x[2] * z[2] * x[7] * y[3] +
+             x[2] * y[2] * x[3] * z[7] - x[6] * x[6] * y[3] * z[7];
+        s8 = s7 + x[6] * x[6] * y[7] * z[3] - x[6] * x[2] * y[3] * z[7] +
+             x[6] * x[2] * y[7] * z[3] - x[6] * y[6] * x[7] * z[3] +
+             x[6] * y[6] * x[3] * z[7] - x[6] * z[6] * x[3] * y[7] +
+             x[6] * z[6] * x[7] * y[3] + y[6] * x[2] * x[2] * z[7] -
+             z[6] * x[2] * x[2] * y[7] + 2.0 * x[2] * x[2] * y[6] * z[3] -
+             x[2] * y[6] * x[7] * z[2] - 2.0 * x[2] * y[2] * x[6] * z[3] -
+             2.0 * x[2] * x[2] * y[3] * z[6] + 2.0 * x[2] * y[2] * x[3] * z[6] -
+             x[2] * x[6] * y[2] * z[7];
+        s3 = s8 + x[2] * x[6] * y[7] * z[2] + x[2] * z[6] * x[7] * y[2] +
+             2.0 * x[2] * z[2] * x[6] * y[3] - 2.0 * x[2] * z[2] * x[3] * y[6] -
+             y[2] * x[6] * x[6] * z[3] - 2.0 * x[6] * x[6] * y[2] * z[7] +
+             2.0 * x[6] * x[6] * y[7] * z[2] + z[2] * x[6] * x[6] * y[3] -
+             2.0 * x[6] * y[6] * x[7] * z[2] + x[6] * y[2] * x[3] * z[6] -
+             x[6] * x[2] * y[3] * z[6] + 2.0 * x[6] * z[6] * x[7] * y[2] +
+             2.0 * x[6] * y[6] * x[2] * z[7] - 2.0 * x[6] * z[6] * x[2] * y[7] +
+             x[6] * x[2] * y[6] * z[3] - x[6] * z[2] * x[3] * y[6];
+        s8 = y[1] * x[0] * z[3] + x[1] * y[3] * z[0] - y[0] * x[3] * z[7] -
+             x[1] * y[5] * z[0] - y[0] * x[3] * z[4] - x[1] * y[0] * z[2] +
+             z[1] * x[2] * y[0] - y[1] * x[0] * z[5] - z[1] * x[0] * y[2] -
+             y[1] * x[0] * z[4] + z[1] * x[5] * y[2] + z[0] * x[7] * y[4] +
+             z[0] * x[3] * y[7] + z[1] * x[0] * y[4] - x[1] * y[2] * z[5] +
+             x[2] * y[3] * z[0] + y[1] * x[2] * z[5] - x[2] * y[3] * z[7];
+        s7 = s8 - z[1] * x[2] * y[5] - y[1] * x[3] * z[0] - x[0] * y[7] * z[3] -
+             z[1] * x[0] * y[3] + y[5] * x[4] * z[0] - x[0] * y[4] * z[3] +
+             y[5] * x[7] * z[4] - z[0] * x[4] * y[3] + x[1] * y[0] * z[4] -
+             z[2] * x[3] * y[7] - y[6] * x[7] * z[2] + x[1] * y[5] * z[2] +
+             y[6] * x[7] * z[5] + x[0] * y[7] * z[4] + x[1] * y[2] * z[0] -
+             z[1] * x[4] * y[0] - z[0] * x[4] * y[7] - z[2] * x[0] * y[3];
+        s8 = x[5] * y[0] * z[4] + z[1] * x[0] * y[5] - x[2] * y[0] * z[3] -
+             z[1] * x[5] * y[0] + y[1] * x[5] * z[0] - x[1] * y[0] * z[3] -
+             x[1] * y[4] * z[0] - y[1] * x[5] * z[2] + x[2] * y[7] * z[3] +
+             y[0] * x[4] * z[3] - x[0] * y[4] * z[7] + x[1] * y[0] * z[5] -
+             y[1] * x[6] * z[2] - y[2] * x[6] * z[3] + y[0] * x[7] * z[3] -
+             y[2] * x[7] * z[3] + z[2] * x[7] * y[3] + y[2] * x[0] * z[3];
+        s6 = s8 + y[2] * x[3] * z[7] - y[2] * x[3] * z[0] - x[6] * y[5] * z[2] -
+             y[5] * x[0] * z[4] + z[2] * x[3] * y[0] + x[2] * y[3] * z[1] +
+             x[0] * y[3] * z[7] - x[2] * y[1] * z[3] + y[1] * x[4] * z[0] +
+             y[1] * x[0] * z[2] - z[1] * x[2] * y[6] + y[2] * x[3] * z[6] -
+             y[1] * x[2] * z[0] + z[1] * x[3] * y[0] - x[1] * y[2] * z[6] -
+             x[2] * y[3] * z[6] + x[0] * y[3] * z[4] + z[0] * x[3] * y[4] + s7;
+        s8 = x[5] * y[4] * z[7] + s6 + y[5] * x[6] * z[4] - y[5] * x[4] * z[6] +
+             z[6] * x[5] * y[7] - x[6] * y[2] * z[7] - x[6] * y[7] * z[5] +
+             x[5] * y[6] * z[2] + x[6] * y[5] * z[7] + x[6] * y[7] * z[2] +
+             y[6] * x[7] * z[4] - y[6] * x[4] * z[7] - y[6] * x[7] * z[3] +
+             z[6] * x[7] * y[2] + x[2] * y[5] * z[6] - x[2] * y[6] * z[5] +
+             y[6] * x[2] * z[7] + x[6] * y[2] * z[5];
+        s7 = s8 - x[5] * y[2] * z[6] - z[6] * x[7] * y[5] - z[5] * x[7] * y[4] +
+             z[5] * x[0] * y[4] - y[5] * x[4] * z[7] + y[0] * x[4] * z[7] -
+             z[6] * x[2] * y[7] - x[5] * y[4] * z[0] - x[5] * y[7] * z[4] -
+             y[0] * x[7] * z[4] + y[5] * x[4] * z[1] - x[6] * y[7] * z[4] +
+             x[7] * y[4] * z[3] - x[4] * y[7] * z[3] + x[3] * y[7] * z[4] -
+             x[7] * y[3] * z[4] - x[6] * y[3] * z[7] + x[6] * y[4] * z[7];
+        s8 = -x[3] * y[4] * z[7] + x[4] * y[3] * z[7] - z[6] * x[7] * y[4] -
+             z[1] * x[6] * y[5] + x[6] * y[7] * z[3] - x[1] * y[6] * z[5] -
+             y[1] * x[5] * z[6] + z[5] * x[4] * y[7] - z[5] * x[4] * y[0] +
+             x[1] * y[5] * z[6] - y[6] * x[5] * z[7] - y[2] * x[3] * z[1] +
+             z[1] * x[5] * y[6] - y[5] * x[1] * z[4] + z[6] * x[4] * y[7] +
+             x[5] * y[1] * z[4] - x[5] * y[6] * z[4] + y[6] * x[3] * z[7] -
+             x[5] * y[4] * z[1];
+        s5 = s8 + x[5] * y[4] * z[6] + z[5] * x[1] * y[4] + y[1] * x[6] * z[5] -
+             z[6] * x[3] * y[7] + z[6] * x[7] * y[3] - z[5] * x[6] * y[4] -
+             z[5] * x[4] * y[1] + z[5] * x[4] * y[6] + x[1] * y[6] * z[2] +
+             x[2] * y[6] * z[3] + z[2] * x[6] * y[3] + z[1] * x[6] * y[2] +
+             z[2] * x[3] * y[1] - z[2] * x[1] * y[3] - z[2] * x[3] * y[6] +
+             y[2] * x[1] * z[3] + y[1] * x[2] * z[6] - z[0] * x[7] * y[3] + s7;
+        s4                    = 1 / s5;
+        s2                    = s3 * s4;
+        const double unknown0 = s1 * s2;
+        s1                    = 1.0 / 6.0;
+        s8 = 2.0 * x[1] * y[0] * y[0] * z[4] + x[5] * y[0] * y[0] * z[4] -
+             x[1] * y[4] * y[4] * z[0] + z[1] * x[0] * y[4] * y[4] +
+             x[1] * y[0] * y[0] * z[5] - z[1] * x[5] * y[0] * y[0] -
+             2.0 * z[1] * x[4] * y[0] * y[0] + 2.0 * z[1] * x[3] * y[0] * y[0] +
+             z[2] * x[3] * y[0] * y[0] + y[0] * y[0] * x[7] * z[3] +
+             2.0 * y[0] * y[0] * x[4] * z[3] - 2.0 * x[1] * y[0] * y[0] * z[3] -
+             2.0 * x[5] * y[4] * y[4] * z[0] + 2.0 * z[5] * x[0] * y[4] * y[4] +
+             2.0 * y[4] * y[5] * x[7] * z[4];
+        s7 = s8 - x[3] * y[4] * y[4] * z[7] + x[7] * y[4] * y[4] * z[3] +
+             z[0] * x[3] * y[4] * y[4] - 2.0 * x[0] * y[4] * y[4] * z[7] -
+             y[1] * x[1] * y[4] * z[0] - x[0] * y[4] * y[4] * z[3] +
+             2.0 * z[0] * x[7] * y[4] * y[4] + y[4] * z[6] * x[4] * y[7] -
+             y[0] * y[0] * x[7] * z[4] + y[0] * y[0] * x[4] * z[7] +
+             2.0 * y[4] * z[5] * x[4] * y[7] - 2.0 * y[4] * x[5] * y[7] * z[4] -
+             y[4] * x[6] * y[7] * z[4] - y[4] * y[6] * x[4] * z[7] -
+             2.0 * y[4] * y[5] * x[4] * z[7];
+        s8 = y[4] * y[6] * x[7] * z[4] - y[7] * y[2] * x[7] * z[3] +
+             y[7] * z[2] * x[7] * y[3] + y[7] * y[2] * x[3] * z[7] +
+             2.0 * x[5] * y[4] * y[4] * z[7] - y[7] * x[2] * y[3] * z[7] -
+             y[0] * z[0] * x[4] * y[7] + z[6] * x[7] * y[3] * y[3] -
+             y[0] * x[0] * y[4] * z[7] + y[0] * x[0] * y[7] * z[4] -
+             2.0 * x[2] * y[3] * y[3] * z[7] - z[5] * x[4] * y[0] * y[0] +
+             y[0] * z[0] * x[7] * y[4] - 2.0 * z[6] * x[3] * y[7] * y[7] +
+             z[1] * x[2] * y[0] * y[0];
+        s6 = s8 + y[4] * y[0] * x[4] * z[3] - 2.0 * y[4] * z[0] * x[4] * y[7] +
+             2.0 * y[4] * x[0] * y[7] * z[4] - y[4] * z[0] * x[4] * y[3] -
+             y[4] * x[0] * y[7] * z[3] + y[4] * z[0] * x[3] * y[7] -
+             y[4] * y[0] * x[3] * z[4] + y[0] * x[4] * y[3] * z[7] -
+             y[0] * x[7] * y[3] * z[4] - y[0] * x[3] * y[4] * z[7] +
+             y[0] * x[7] * y[4] * z[3] + x[2] * y[7] * y[7] * z[3] -
+             z[2] * x[3] * y[7] * y[7] - 2.0 * z[2] * x[0] * y[3] * y[3] +
+             2.0 * y[0] * z[1] * x[0] * y[4] + s7;
+        s8 = -2.0 * y[0] * y[1] * x[0] * z[4] - y[0] * y[1] * x[0] * z[5] -
+             y[0] * y[0] * x[3] * z[7] - z[1] * x[0] * y[3] * y[3] -
+             y[0] * x[1] * y[5] * z[0] - 2.0 * z[0] * x[7] * y[3] * y[3] +
+             x[0] * y[3] * y[3] * z[4] + 2.0 * x[0] * y[3] * y[3] * z[7] -
+             z[0] * x[4] * y[3] * y[3] + 2.0 * x[2] * y[3] * y[3] * z[0] +
+             x[1] * y[3] * y[3] * z[0] + 2.0 * y[7] * z[6] * x[7] * y[3] +
+             2.0 * y[7] * y[6] * x[3] * z[7] - 2.0 * y[7] * y[6] * x[7] * z[3] -
+             2.0 * y[7] * x[6] * y[3] * z[7];
+        s7 = s8 + y[4] * x[4] * y[3] * z[7] - y[4] * x[4] * y[7] * z[3] +
+             y[4] * x[3] * y[7] * z[4] - y[4] * x[7] * y[3] * z[4] +
+             2.0 * y[4] * y[0] * x[4] * z[7] - 2.0 * y[4] * y[0] * x[7] * z[4] +
+             2.0 * x[6] * y[7] * y[7] * z[3] + y[4] * x[0] * y[3] * z[4] +
+             y[0] * y[1] * x[5] * z[0] + y[0] * z[1] * x[0] * y[5] -
+             x[2] * y[0] * y[0] * z[3] + x[4] * y[3] * y[3] * z[7] -
+             x[7] * y[3] * y[3] * z[4] - x[5] * y[4] * y[4] * z[1] +
+             y[3] * z[0] * x[3] * y[4];
+        s8 = y[3] * y[0] * x[4] * z[3] + 2.0 * y[3] * y[0] * x[7] * z[3] +
+             2.0 * y[3] * y[2] * x[0] * z[3] - 2.0 * y[3] * y[2] * x[3] * z[0] +
+             2.0 * y[3] * z[2] * x[3] * y[0] + y[3] * z[1] * x[3] * y[0] -
+             2.0 * y[3] * x[2] * y[0] * z[3] - y[3] * x[1] * y[0] * z[3] -
+             y[3] * y[1] * x[3] * z[0] - 2.0 * y[3] * x[0] * y[7] * z[3] -
+             y[3] * x[0] * y[4] * z[3] - 2.0 * y[3] * y[0] * x[3] * z[7] -
+             y[3] * y[0] * x[3] * z[4] + 2.0 * y[3] * z[0] * x[3] * y[7] +
+             y[3] * y[1] * x[0] * z[3] + z[5] * x[1] * y[4] * y[4];
+        s5 = s8 - 2.0 * y[0] * y[0] * x[3] * z[4] -
+             2.0 * y[0] * x[1] * y[4] * z[0] + y[3] * x[7] * y[4] * z[3] -
+             y[3] * x[4] * y[7] * z[3] + y[3] * x[3] * y[7] * z[4] -
+             y[3] * x[3] * y[4] * z[7] + y[3] * x[0] * y[7] * z[4] -
+             y[3] * z[0] * x[4] * y[7] - 2.0 * y[4] * y[5] * x[0] * z[4] + s6 +
+             y[7] * x[0] * y[3] * z[7] - y[7] * z[0] * x[7] * y[3] +
+             y[7] * y[0] * x[7] * z[3] - y[7] * y[0] * x[3] * z[7] +
+             2.0 * y[0] * y[1] * x[4] * z[0] + s7;
+        s8 = -2.0 * y[7] * x[7] * y[3] * z[4] -
+             2.0 * y[7] * x[3] * y[4] * z[7] + 2.0 * y[7] * x[4] * y[3] * z[7] +
+             y[7] * y[0] * x[4] * z[7] - y[7] * y[0] * x[7] * z[4] +
+             2.0 * y[7] * x[7] * y[4] * z[3] - y[7] * x[0] * y[4] * z[7] +
+             y[7] * z[0] * x[7] * y[4] + z[5] * x[4] * y[7] * y[7] +
+             2.0 * z[6] * x[4] * y[7] * y[7] - x[5] * y[7] * y[7] * z[4] -
+             2.0 * x[6] * y[7] * y[7] * z[4] + 2.0 * y[7] * x[6] * y[4] * z[7] -
+             2.0 * y[7] * z[6] * x[7] * y[4] + 2.0 * y[7] * y[6] * x[7] * z[4];
+        s7 = s8 - 2.0 * y[7] * y[6] * x[4] * z[7] - y[7] * z[5] * x[7] * y[4] -
+             y[7] * y[5] * x[4] * z[7] - x[0] * y[7] * y[7] * z[3] +
+             z[0] * x[3] * y[7] * y[7] + y[7] * x[5] * y[4] * z[7] +
+             y[7] * y[5] * x[7] * z[4] - y[4] * x[1] * y[5] * z[0] -
+             x[1] * y[0] * y[0] * z[2] - y[4] * y[5] * x[1] * z[4] -
+             2.0 * y[4] * z[5] * x[4] * y[0] - y[4] * y[1] * x[0] * z[4] +
+             y[4] * y[5] * x[4] * z[1] + y[0] * z[0] * x[3] * y[7] -
+             y[0] * z[1] * x[0] * y[2];
+        s8 = 2.0 * y[0] * x[1] * y[3] * z[0] + y[4] * y[1] * x[4] * z[0] +
+             2.0 * y[0] * y[1] * x[0] * z[3] + y[4] * x[1] * y[0] * z[5] -
+             y[4] * z[1] * x[5] * y[0] + y[4] * z[1] * x[0] * y[5] -
+             y[4] * z[1] * x[4] * y[0] + y[4] * x[1] * y[0] * z[4] -
+             y[4] * z[5] * x[4] * y[1] + x[5] * y[4] * y[4] * z[6] -
+             z[5] * x[6] * y[4] * y[4] + y[4] * x[5] * y[1] * z[4] -
+             y[0] * z[2] * x[0] * y[3] + y[0] * y[5] * x[4] * z[0] +
+             y[0] * x[1] * y[2] * z[0];
+        s6 = s8 - 2.0 * y[0] * z[0] * x[4] * y[3] -
+             2.0 * y[0] * x[0] * y[4] * z[3] - 2.0 * y[0] * z[1] * x[0] * y[3] -
+             y[0] * x[0] * y[7] * z[3] - 2.0 * y[0] * y[1] * x[3] * z[0] +
+             y[0] * x[2] * y[3] * z[0] - y[0] * y[1] * x[2] * z[0] +
+             y[0] * y[1] * x[0] * z[2] - y[0] * x[2] * y[1] * z[3] +
+             y[0] * x[0] * y[3] * z[7] + y[0] * x[2] * y[3] * z[1] -
+             y[0] * y[2] * x[3] * z[0] + y[0] * y[2] * x[0] * z[3] -
+             y[0] * y[5] * x[0] * z[4] - y[4] * y[5] * x[4] * z[6] + s7;
+        s8 = s6 + y[4] * z[6] * x[5] * y[7] - y[4] * x[6] * y[7] * z[5] +
+             y[4] * x[6] * y[5] * z[7] - y[4] * z[6] * x[7] * y[5] -
+             y[4] * x[5] * y[6] * z[4] + y[4] * z[5] * x[4] * y[6] +
+             y[4] * y[5] * x[6] * z[4] - 2.0 * y[1] * y[1] * x[0] * z[5] +
+             2.0 * y[1] * y[1] * x[5] * z[0] - 2.0 * y[2] * y[2] * x[6] * z[3] +
+             x[5] * y[1] * y[1] * z[4] - z[5] * x[4] * y[1] * y[1] -
+             x[6] * y[2] * y[2] * z[7] + z[6] * x[7] * y[2] * y[2];
+        s7 = s8 - x[1] * y[5] * y[5] * z[0] + z[1] * x[0] * y[5] * y[5] +
+             y[1] * y[5] * x[4] * z[1] - y[1] * y[5] * x[1] * z[4] -
+             2.0 * y[2] * z[2] * x[3] * y[6] + 2.0 * y[1] * z[1] * x[0] * y[5] -
+             2.0 * y[1] * z[1] * x[5] * y[0] + 2.0 * y[1] * x[1] * y[0] * z[5] -
+             y[2] * x[2] * y[3] * z[7] - y[2] * z[2] * x[3] * y[7] +
+             y[2] * x[2] * y[7] * z[3] + y[2] * z[2] * x[7] * y[3] -
+             2.0 * y[2] * x[2] * y[3] * z[6] + 2.0 * y[2] * x[2] * y[6] * z[3] +
+             2.0 * y[2] * z[2] * x[6] * y[3] - y[3] * y[2] * x[6] * z[3];
+        s8 = y[3] * y[2] * x[3] * z[6] + y[3] * x[2] * y[6] * z[3] -
+             y[3] * z[2] * x[3] * y[6] - y[2] * y[2] * x[7] * z[3] +
+             2.0 * y[2] * y[2] * x[3] * z[6] + y[2] * y[2] * x[3] * z[7] -
+             2.0 * y[1] * x[1] * y[5] * z[0] - x[2] * y[3] * y[3] * z[6] +
+             z[2] * x[6] * y[3] * y[3] + 2.0 * y[6] * x[2] * y[5] * z[6] +
+             2.0 * y[6] * x[6] * y[2] * z[5] - 2.0 * y[6] * x[5] * y[2] * z[6] +
+             2.0 * y[3] * x[2] * y[7] * z[3] - 2.0 * y[3] * z[2] * x[3] * y[7] -
+             y[0] * z[0] * x[7] * y[3] - y[0] * z[2] * x[1] * y[3];
+        s4 = s8 - y[2] * y[6] * x[7] * z[2] + y[0] * z[2] * x[3] * y[1] +
+             y[1] * z[5] * x[1] * y[4] - y[1] * x[5] * y[4] * z[1] +
+             2.0 * y[0] * z[0] * x[3] * y[4] + 2.0 * y[0] * x[0] * y[3] * z[4] +
+             2.0 * z[2] * x[7] * y[3] * y[3] - 2.0 * z[5] * x[7] * y[4] * y[4] +
+             x[6] * y[4] * y[4] * z[7] - z[6] * x[7] * y[4] * y[4] +
+             y[1] * y[1] * x[0] * z[3] + y[3] * x[6] * y[7] * z[2] -
+             y[3] * z[6] * x[2] * y[7] + 2.0 * y[3] * y[2] * x[3] * z[7] + s5 +
+             s7;
+        s8 = s4 + y[2] * x[6] * y[7] * z[2] - y[2] * y[6] * x[7] * z[3] +
+             y[2] * y[6] * x[2] * z[7] - y[2] * z[6] * x[2] * y[7] -
+             y[2] * x[6] * y[3] * z[7] + y[2] * y[6] * x[3] * z[7] +
+             y[2] * z[6] * x[7] * y[3] - 2.0 * y[3] * y[2] * x[7] * z[3] -
+             x[6] * y[3] * y[3] * z[7] + y[1] * y[1] * x[4] * z[0] -
+             y[1] * y[1] * x[3] * z[0] + x[2] * y[6] * y[6] * z[3] -
+             z[2] * x[3] * y[6] * y[6] - y[1] * y[1] * x[0] * z[4];
+        s7 = s8 + y[5] * x[1] * y[0] * z[5] + y[6] * x[2] * y[7] * z[3] -
+             y[6] * y[2] * x[6] * z[3] + y[6] * y[2] * x[3] * z[6] -
+             y[6] * x[2] * y[3] * z[6] + y[6] * z[2] * x[6] * y[3] -
+             y[5] * y[1] * x[0] * z[5] - y[5] * z[1] * x[5] * y[0] +
+             y[5] * y[1] * x[5] * z[0] - y[6] * z[2] * x[3] * y[7] -
+             y[7] * y[6] * x[7] * z[2] + 2.0 * y[6] * y[6] * x[2] * z[7] +
+             y[6] * y[6] * x[3] * z[7] + x[6] * y[7] * y[7] * z[2] -
+             z[6] * x[2] * y[7] * y[7];
+        s8 = -x[2] * y[1] * y[1] * z[3] + 2.0 * y[1] * y[1] * x[0] * z[2] -
+             2.0 * y[1] * y[1] * x[2] * z[0] + z[2] * x[3] * y[1] * y[1] -
+             z[1] * x[0] * y[2] * y[2] + x[1] * y[2] * y[2] * z[0] +
+             y[2] * y[2] * x[0] * z[3] - y[2] * y[2] * x[3] * z[0] -
+             2.0 * y[2] * y[2] * x[3] * z[1] + y[1] * x[1] * y[3] * z[0] -
+             2.0 * y[6] * y[6] * x[7] * z[2] + 2.0 * y[5] * y[5] * x[4] * z[1] -
+             2.0 * y[5] * y[5] * x[1] * z[4] - y[6] * y[6] * x[7] * z[3] -
+             2.0 * y[1] * x[1] * y[0] * z[2];
+        s6 = s8 + 2.0 * y[1] * z[1] * x[2] * y[0] -
+             2.0 * y[1] * z[1] * x[0] * y[2] + 2.0 * y[1] * x[1] * y[2] * z[0] +
+             y[1] * x[2] * y[3] * z[1] - y[1] * y[2] * x[3] * z[1] -
+             y[1] * z[2] * x[1] * y[3] + y[1] * y[2] * x[1] * z[3] -
+             y[2] * x[1] * y[0] * z[2] + y[2] * z[1] * x[2] * y[0] +
+             y[2] * x[2] * y[3] * z[0] - y[7] * x[6] * y[2] * z[7] +
+             y[7] * z[6] * x[7] * y[2] + y[7] * y[6] * x[2] * z[7] -
+             y[6] * x[6] * y[3] * z[7] + y[6] * x[6] * y[7] * z[3] + s7;
+        s8 = s6 - y[6] * z[6] * x[3] * y[7] + y[6] * z[6] * x[7] * y[3] +
+             2.0 * y[2] * y[2] * x[1] * z[3] + x[2] * y[3] * y[3] * z[1] -
+             z[2] * x[1] * y[3] * y[3] + y[1] * x[1] * y[0] * z[4] +
+             y[1] * z[1] * x[3] * y[0] - y[1] * x[1] * y[0] * z[3] +
+             2.0 * y[5] * x[5] * y[1] * z[4] - 2.0 * y[5] * x[5] * y[4] * z[1] +
+             2.0 * y[5] * z[5] * x[1] * y[4] - 2.0 * y[5] * z[5] * x[4] * y[1] -
+             2.0 * y[6] * x[6] * y[2] * z[7] + 2.0 * y[6] * x[6] * y[7] * z[2];
+        s7 = s8 + 2.0 * y[6] * z[6] * x[7] * y[2] -
+             2.0 * y[6] * z[6] * x[2] * y[7] - y[1] * z[1] * x[4] * y[0] +
+             y[1] * z[1] * x[0] * y[4] - y[1] * z[1] * x[0] * y[3] +
+             2.0 * y[6] * y[6] * x[7] * z[5] + 2.0 * y[5] * y[5] * x[6] * z[4] -
+             2.0 * y[5] * y[5] * x[4] * z[6] + x[6] * y[5] * y[5] * z[7] -
+             y[3] * x[2] * y[1] * z[3] - y[3] * y[2] * x[3] * z[1] +
+             y[3] * z[2] * x[3] * y[1] + y[3] * y[2] * x[1] * z[3] -
+             y[2] * x[2] * y[0] * z[3] + y[2] * z[2] * x[3] * y[0];
+        s8 = s7 + 2.0 * y[2] * x[2] * y[3] * z[1] -
+             2.0 * y[2] * x[2] * y[1] * z[3] + y[2] * y[1] * x[0] * z[2] -
+             y[2] * y[1] * x[2] * z[0] + 2.0 * y[2] * z[2] * x[3] * y[1] -
+             2.0 * y[2] * z[2] * x[1] * y[3] - y[2] * z[2] * x[0] * y[3] +
+             y[5] * z[6] * x[5] * y[7] - y[5] * x[6] * y[7] * z[5] -
+             y[5] * y[6] * x[4] * z[7] - y[5] * y[6] * x[5] * z[7] -
+             2.0 * y[5] * x[5] * y[6] * z[4] + 2.0 * y[5] * x[5] * y[4] * z[6] -
+             2.0 * y[5] * z[5] * x[6] * y[4] + 2.0 * y[5] * z[5] * x[4] * y[6];
+        s5 = s8 - y[1] * y[5] * x[0] * z[4] - z[6] * x[7] * y[5] * y[5] +
+             y[6] * y[6] * x[7] * z[4] - y[6] * y[6] * x[4] * z[7] -
+             2.0 * y[6] * y[6] * x[5] * z[7] - x[5] * y[6] * y[6] * z[4] +
+             z[5] * x[4] * y[6] * y[6] + z[6] * x[5] * y[7] * y[7] -
+             x[6] * y[7] * y[7] * z[5] + y[1] * y[5] * x[4] * z[0] +
+             y[7] * y[6] * x[7] * z[5] + y[6] * y[5] * x[7] * z[4] +
+             y[5] * y[6] * x[7] * z[5] + y[6] * y[5] * x[6] * z[4] -
+             y[6] * y[5] * x[4] * z[6] + 2.0 * y[6] * z[6] * x[5] * y[7];
+        s8 = s5 - 2.0 * y[6] * x[6] * y[7] * z[5] +
+             2.0 * y[6] * x[6] * y[5] * z[7] - 2.0 * y[6] * z[6] * x[7] * y[5] -
+             y[6] * x[5] * y[7] * z[4] - y[6] * x[6] * y[7] * z[4] +
+             y[6] * x[6] * y[4] * z[7] - y[6] * z[6] * x[7] * y[4] +
+             y[6] * z[5] * x[4] * y[7] + y[6] * z[6] * x[4] * y[7] +
+             y[6] * x[5] * y[4] * z[6] - y[6] * z[5] * x[6] * y[4] +
+             y[7] * x[6] * y[5] * z[7] - y[7] * z[6] * x[7] * y[5] -
+             2.0 * y[6] * x[6] * y[5] * z[2];
+        s7 = s8 - y[7] * y[6] * x[5] * z[7] + 2.0 * y[4] * y[5] * x[4] * z[0] +
+             2.0 * x[3] * y[7] * y[7] * z[4] - 2.0 * x[4] * y[7] * y[7] * z[3] -
+             z[0] * x[4] * y[7] * y[7] + x[0] * y[7] * y[7] * z[4] -
+             y[0] * z[5] * x[4] * y[1] + y[0] * x[5] * y[1] * z[4] -
+             y[0] * x[5] * y[4] * z[0] + y[0] * z[5] * x[0] * y[4] -
+             y[5] * y[5] * x[0] * z[4] + y[5] * y[5] * x[4] * z[0] +
+             2.0 * y[1] * y[1] * x[2] * z[5] - 2.0 * y[1] * y[1] * x[5] * z[2] +
+             z[1] * x[5] * y[2] * y[2];
+        s8 = s7 - x[1] * y[2] * y[2] * z[5] - y[5] * z[5] * x[4] * y[0] +
+             y[5] * z[5] * x[0] * y[4] - y[5] * x[5] * y[4] * z[0] -
+             y[2] * x[1] * y[6] * z[5] - y[2] * y[1] * x[5] * z[6] +
+             y[2] * z[1] * x[5] * y[6] + y[2] * y[1] * x[6] * z[5] -
+             y[1] * z[1] * x[6] * y[5] - y[1] * x[1] * y[6] * z[5] +
+             y[1] * x[1] * y[5] * z[6] + y[1] * z[1] * x[5] * y[6] +
+             y[5] * x[5] * y[0] * z[4] + y[2] * y[1] * x[2] * z[5] -
+             y[2] * z[1] * x[2] * y[5];
+        s6 = s8 + y[2] * x[1] * y[5] * z[2] - y[2] * y[1] * x[5] * z[2] -
+             y[1] * y[1] * x[5] * z[6] + y[1] * y[1] * x[6] * z[5] -
+             z[1] * x[2] * y[5] * y[5] + x[1] * y[5] * y[5] * z[2] +
+             2.0 * y[1] * z[1] * x[5] * y[2] - 2.0 * y[1] * x[1] * y[2] * z[5] -
+             2.0 * y[1] * z[1] * x[2] * y[5] + 2.0 * y[1] * x[1] * y[5] * z[2] -
+             y[1] * y[1] * x[6] * z[2] + y[1] * y[1] * x[2] * z[6] -
+             2.0 * y[5] * x[1] * y[6] * z[5] - 2.0 * y[5] * y[1] * x[5] * z[6] +
+             2.0 * y[5] * z[1] * x[5] * y[6] + 2.0 * y[5] * y[1] * x[6] * z[5];
+        s8 = s6 - y[6] * z[1] * x[6] * y[5] - y[6] * y[1] * x[5] * z[6] +
+             y[6] * x[1] * y[5] * z[6] + y[6] * y[1] * x[6] * z[5] -
+             2.0 * z[1] * x[6] * y[5] * y[5] + 2.0 * x[1] * y[5] * y[5] * z[6] -
+             x[1] * y[6] * y[6] * z[5] + z[1] * x[5] * y[6] * y[6] +
+             y[5] * z[1] * x[5] * y[2] - y[5] * x[1] * y[2] * z[5] +
+             y[5] * y[1] * x[2] * z[5] - y[5] * y[1] * x[5] * z[2] -
+             y[6] * z[1] * x[2] * y[5] + y[6] * x[1] * y[5] * z[2];
+        s7 = s8 - y[1] * z[1] * x[2] * y[6] - y[1] * x[1] * y[2] * z[6] +
+             y[1] * x[1] * y[6] * z[2] + y[1] * z[1] * x[6] * y[2] +
+             y[5] * x[5] * y[6] * z[2] - y[5] * x[2] * y[6] * z[5] +
+             y[5] * x[6] * y[2] * z[5] - y[5] * x[5] * y[2] * z[6] -
+             x[6] * y[5] * y[5] * z[2] + x[2] * y[5] * y[5] * z[6] -
+             y[5] * y[5] * x[4] * z[7] + y[5] * y[5] * x[7] * z[4] -
+             y[1] * x[6] * y[5] * z[2] + y[1] * x[2] * y[5] * z[6] -
+             y[2] * x[6] * y[5] * z[2] - 2.0 * y[2] * y[1] * x[6] * z[2];
+        s8 = s7 - 2.0 * y[2] * z[1] * x[2] * y[6] +
+             2.0 * y[2] * x[1] * y[6] * z[2] + 2.0 * y[2] * y[1] * x[2] * z[6] -
+             2.0 * x[1] * y[2] * y[2] * z[6] + 2.0 * z[1] * x[6] * y[2] * y[2] +
+             x[6] * y[2] * y[2] * z[5] - x[5] * y[2] * y[2] * z[6] +
+             2.0 * x[5] * y[6] * y[6] * z[2] - 2.0 * x[2] * y[6] * y[6] * z[5] -
+             z[1] * x[2] * y[6] * y[6] - y[6] * y[1] * x[6] * z[2] -
+             y[6] * x[1] * y[2] * z[6] + y[6] * z[1] * x[6] * y[2] +
+             y[6] * y[1] * x[2] * z[6] + x[1] * y[6] * y[6] * z[2];
+        s3 = s8 + y[2] * x[5] * y[6] * z[2] + y[2] * x[2] * y[5] * z[6] -
+             y[2] * x[2] * y[6] * z[5] + y[5] * z[5] * x[4] * y[7] +
+             y[5] * x[5] * y[4] * z[7] - y[5] * z[5] * x[7] * y[4] -
+             y[5] * x[5] * y[7] * z[4] + 2.0 * y[4] * x[5] * y[0] * z[4] -
+             y[3] * z[6] * x[3] * y[7] + y[3] * y[6] * x[3] * z[7] +
+             y[3] * x[6] * y[7] * z[3] - y[3] * y[6] * x[7] * z[3] -
+             y[2] * y[1] * x[3] * z[0] - y[2] * z[1] * x[0] * y[3] +
+             y[2] * y[1] * x[0] * z[3] + y[2] * x[1] * y[3] * z[0];
+        s8 = y[1] * x[0] * z[3] + x[1] * y[3] * z[0] - y[0] * x[3] * z[7] -
+             x[1] * y[5] * z[0] - y[0] * x[3] * z[4] - x[1] * y[0] * z[2] +
+             z[1] * x[2] * y[0] - y[1] * x[0] * z[5] - z[1] * x[0] * y[2] -
+             y[1] * x[0] * z[4] + z[1] * x[5] * y[2] + z[0] * x[7] * y[4] +
+             z[0] * x[3] * y[7] + z[1] * x[0] * y[4] - x[1] * y[2] * z[5] +
+             x[2] * y[3] * z[0] + y[1] * x[2] * z[5] - x[2] * y[3] * z[7];
+        s7 = s8 - z[1] * x[2] * y[5] - y[1] * x[3] * z[0] - x[0] * y[7] * z[3] -
+             z[1] * x[0] * y[3] + y[5] * x[4] * z[0] - x[0] * y[4] * z[3] +
+             y[5] * x[7] * z[4] - z[0] * x[4] * y[3] + x[1] * y[0] * z[4] -
+             z[2] * x[3] * y[7] - y[6] * x[7] * z[2] + x[1] * y[5] * z[2] +
+             y[6] * x[7] * z[5] + x[0] * y[7] * z[4] + x[1] * y[2] * z[0] -
+             z[1] * x[4] * y[0] - z[0] * x[4] * y[7] - z[2] * x[0] * y[3];
+        s8 = x[5] * y[0] * z[4] + z[1] * x[0] * y[5] - x[2] * y[0] * z[3] -
+             z[1] * x[5] * y[0] + y[1] * x[5] * z[0] - x[1] * y[0] * z[3] -
+             x[1] * y[4] * z[0] - y[1] * x[5] * z[2] + x[2] * y[7] * z[3] +
+             y[0] * x[4] * z[3] - x[0] * y[4] * z[7] + x[1] * y[0] * z[5] -
+             y[1] * x[6] * z[2] - y[2] * x[6] * z[3] + y[0] * x[7] * z[3] -
+             y[2] * x[7] * z[3] + z[2] * x[7] * y[3] + y[2] * x[0] * z[3];
+        s6 = s8 + y[2] * x[3] * z[7] - y[2] * x[3] * z[0] - x[6] * y[5] * z[2] -
+             y[5] * x[0] * z[4] + z[2] * x[3] * y[0] + x[2] * y[3] * z[1] +
+             x[0] * y[3] * z[7] - x[2] * y[1] * z[3] + y[1] * x[4] * z[0] +
+             y[1] * x[0] * z[2] - z[1] * x[2] * y[6] + y[2] * x[3] * z[6] -
+             y[1] * x[2] * z[0] + z[1] * x[3] * y[0] - x[1] * y[2] * z[6] -
+             x[2] * y[3] * z[6] + x[0] * y[3] * z[4] + z[0] * x[3] * y[4] + s7;
+        s8 = x[5] * y[4] * z[7] + s6 + y[5] * x[6] * z[4] - y[5] * x[4] * z[6] +
+             z[6] * x[5] * y[7] - x[6] * y[2] * z[7] - x[6] * y[7] * z[5] +
+             x[5] * y[6] * z[2] + x[6] * y[5] * z[7] + x[6] * y[7] * z[2] +
+             y[6] * x[7] * z[4] - y[6] * x[4] * z[7] - y[6] * x[7] * z[3] +
+             z[6] * x[7] * y[2] + x[2] * y[5] * z[6] - x[2] * y[6] * z[5] +
+             y[6] * x[2] * z[7] + x[6] * y[2] * z[5];
+        s7 = s8 - x[5] * y[2] * z[6] - z[6] * x[7] * y[5] - z[5] * x[7] * y[4] +
+             z[5] * x[0] * y[4] - y[5] * x[4] * z[7] + y[0] * x[4] * z[7] -
+             z[6] * x[2] * y[7] - x[5] * y[4] * z[0] - x[5] * y[7] * z[4] -
+             y[0] * x[7] * z[4] + y[5] * x[4] * z[1] - x[6] * y[7] * z[4] +
+             x[7] * y[4] * z[3] - x[4] * y[7] * z[3] + x[3] * y[7] * z[4] -
+             x[7] * y[3] * z[4] - x[6] * y[3] * z[7] + x[6] * y[4] * z[7];
+        s8 = -x[3] * y[4] * z[7] + x[4] * y[3] * z[7] - z[6] * x[7] * y[4] -
+             z[1] * x[6] * y[5] + x[6] * y[7] * z[3] - x[1] * y[6] * z[5] -
+             y[1] * x[5] * z[6] + z[5] * x[4] * y[7] - z[5] * x[4] * y[0] +
+             x[1] * y[5] * z[6] - y[6] * x[5] * z[7] - y[2] * x[3] * z[1] +
+             z[1] * x[5] * y[6] - y[5] * x[1] * z[4] + z[6] * x[4] * y[7] +
+             x[5] * y[1] * z[4] - x[5] * y[6] * z[4] + y[6] * x[3] * z[7] -
+             x[5] * y[4] * z[1];
+        s5 = s8 + x[5] * y[4] * z[6] + z[5] * x[1] * y[4] + y[1] * x[6] * z[5] -
+             z[6] * x[3] * y[7] + z[6] * x[7] * y[3] - z[5] * x[6] * y[4] -
+             z[5] * x[4] * y[1] + z[5] * x[4] * y[6] + x[1] * y[6] * z[2] +
+             x[2] * y[6] * z[3] + z[2] * x[6] * y[3] + z[1] * x[6] * y[2] +
+             z[2] * x[3] * y[1] - z[2] * x[1] * y[3] - z[2] * x[3] * y[6] +
+             y[2] * x[1] * z[3] + y[1] * x[2] * z[6] - z[0] * x[7] * y[3] + s7;
+        s4                    = 1 / s5;
+        s2                    = s3 * s4;
+        const double unknown1 = s1 * s2;
+        s1                    = 1.0 / 6.0;
+        s8 = -z[2] * x[1] * y[2] * z[5] + z[2] * y[1] * x[2] * z[5] -
+             z[2] * z[1] * x[2] * y[5] + z[2] * z[1] * x[5] * y[2] +
+             2.0 * y[5] * x[7] * z[4] * z[4] - y[1] * x[2] * z[0] * z[0] +
+             x[0] * y[3] * z[7] * z[7] - 2.0 * z[5] * z[5] * x[4] * y[1] +
+             2.0 * z[5] * z[5] * x[1] * y[4] + z[5] * z[5] * x[0] * y[4] -
+             2.0 * z[2] * z[2] * x[1] * y[3] + 2.0 * z[2] * z[2] * x[3] * y[1] -
+             x[0] * y[4] * z[7] * z[7] - y[0] * x[3] * z[7] * z[7] +
+             x[1] * y[0] * z[5] * z[5];
+        s7 = s8 - y[1] * x[0] * z[5] * z[5] + z[1] * y[1] * x[2] * z[6] +
+             y[1] * x[0] * z[2] * z[2] + z[2] * z[2] * x[3] * y[0] -
+             z[2] * z[2] * x[0] * y[3] - x[1] * y[0] * z[2] * z[2] +
+             2.0 * z[5] * z[5] * x[4] * y[6] - 2.0 * z[5] * z[5] * x[6] * y[4] -
+             z[5] * z[5] * x[7] * y[4] - x[6] * y[7] * z[5] * z[5] +
+             2.0 * z[2] * y[1] * x[2] * z[6] - 2.0 * z[2] * x[1] * y[2] * z[6] +
+             2.0 * z[2] * z[1] * x[6] * y[2] - y[6] * x[5] * z[7] * z[7] +
+             2.0 * x[6] * y[4] * z[7] * z[7];
+        s8 = -2.0 * y[6] * x[4] * z[7] * z[7] + x[6] * y[5] * z[7] * z[7] -
+             2.0 * z[2] * z[1] * x[2] * y[6] + z[4] * y[6] * x[7] * z[5] +
+             x[5] * y[4] * z[6] * z[6] + z[6] * z[6] * x[4] * y[7] -
+             z[6] * z[6] * x[7] * y[4] - 2.0 * z[6] * z[6] * x[7] * y[5] +
+             2.0 * z[6] * z[6] * x[5] * y[7] - y[5] * x[4] * z[6] * z[6] +
+             2.0 * z[0] * z[0] * x[3] * y[4] - x[6] * y[5] * z[2] * z[2] +
+             z[1] * z[1] * x[5] * y[6] - z[1] * z[1] * x[6] * y[5] -
+             z[5] * z[5] * x[4] * y[0];
+        s6 = s8 + 2.0 * x[1] * y[3] * z[0] * z[0] +
+             2.0 * x[1] * y[6] * z[2] * z[2] - 2.0 * y[1] * x[6] * z[2] * z[2] -
+             y[1] * x[5] * z[2] * z[2] - z[1] * z[1] * x[2] * y[6] -
+             2.0 * z[1] * z[1] * x[2] * y[5] + 2.0 * z[1] * z[1] * x[5] * y[2] +
+             z[1] * y[1] * x[6] * z[5] + y[1] * x[2] * z[5] * z[5] +
+             z[2] * z[1] * x[2] * y[0] + z[1] * x[1] * y[5] * z[6] -
+             z[1] * x[1] * y[6] * z[5] - z[1] * y[1] * x[5] * z[6] -
+             z[1] * x[2] * y[6] * z[5] + z[1] * x[6] * y[2] * z[5] + s7;
+        s8 = -x[1] * y[2] * z[5] * z[5] + z[1] * x[5] * y[6] * z[2] -
+             2.0 * z[2] * z[2] * x[3] * y[6] + 2.0 * z[2] * z[2] * x[6] * y[3] +
+             z[2] * z[2] * x[7] * y[3] - z[2] * z[2] * x[3] * y[7] -
+             z[1] * x[6] * y[5] * z[2] + 2.0 * z[1] * x[1] * y[5] * z[2] -
+             2.0 * x[3] * y[4] * z[7] * z[7] + 2.0 * x[4] * y[3] * z[7] * z[7] +
+             x[5] * y[6] * z[2] * z[2] + y[1] * x[2] * z[6] * z[6] +
+             y[0] * x[4] * z[7] * z[7] + z[2] * x[2] * y[3] * z[0] -
+             x[1] * y[2] * z[6] * z[6];
+        s7 = s8 - z[7] * z[2] * x[3] * y[7] + x[2] * y[6] * z[3] * z[3] -
+             y[2] * x[6] * z[3] * z[3] - z[6] * x[2] * y[3] * z[7] -
+             z[2] * z[1] * x[0] * y[2] + z[6] * z[2] * x[6] * y[3] -
+             z[6] * z[2] * x[3] * y[6] + z[6] * x[2] * y[6] * z[3] +
+             z[2] * x[1] * y[2] * z[0] + z[6] * y[2] * x[3] * z[7] -
+             z[4] * z[5] * x[6] * y[4] + z[4] * z[5] * x[4] * y[6] -
+             z[4] * y[6] * x[5] * z[7] + z[4] * z[6] * x[4] * y[7] +
+             z[4] * x[5] * y[4] * z[6];
+        s8 = -z[6] * y[2] * x[6] * z[3] - z[4] * y[5] * x[4] * z[6] -
+             z[2] * y[1] * x[5] * z[6] + z[2] * x[1] * y[5] * z[6] +
+             z[4] * x[6] * y[4] * z[7] + 2.0 * z[4] * z[5] * x[4] * y[7] -
+             z[4] * z[6] * x[7] * y[4] + x[6] * y[7] * z[3] * z[3] -
+             2.0 * z[4] * z[5] * x[7] * y[4] - 2.0 * z[4] * y[5] * x[4] * z[7] -
+             z[4] * y[6] * x[4] * z[7] + z[4] * x[6] * y[5] * z[7] -
+             z[4] * x[6] * y[7] * z[5] + 2.0 * z[4] * x[5] * y[4] * z[7] +
+             z[2] * x[2] * y[5] * z[6] - z[2] * x[2] * y[6] * z[5];
+        s5 = s8 + z[2] * x[6] * y[2] * z[5] - z[2] * x[5] * y[2] * z[6] -
+             z[2] * x[2] * y[3] * z[7] - x[2] * y[3] * z[7] * z[7] +
+             2.0 * z[2] * x[2] * y[3] * z[1] - z[2] * y[2] * x[3] * z[0] +
+             z[2] * y[2] * x[0] * z[3] - z[2] * x[2] * y[0] * z[3] -
+             z[7] * y[2] * x[7] * z[3] + z[7] * z[2] * x[7] * y[3] +
+             z[7] * x[2] * y[7] * z[3] + z[6] * y[1] * x[2] * z[5] -
+             z[6] * x[1] * y[2] * z[5] + z[5] * x[1] * y[5] * z[2] + s6 + s7;
+        s8 = z[5] * z[1] * x[5] * y[2] - z[5] * z[1] * x[2] * y[5] -
+             y[6] * x[7] * z[2] * z[2] + 2.0 * z[2] * x[2] * y[6] * z[3] -
+             2.0 * z[2] * x[2] * y[3] * z[6] + 2.0 * z[2] * y[2] * x[3] * z[6] +
+             y[2] * x[3] * z[6] * z[6] + y[6] * x[7] * z[5] * z[5] +
+             z[2] * y[2] * x[3] * z[7] - z[2] * y[2] * x[7] * z[3] -
+             2.0 * z[2] * y[2] * x[6] * z[3] + z[2] * x[2] * y[7] * z[3] +
+             x[6] * y[2] * z[5] * z[5] - 2.0 * z[2] * x[2] * y[1] * z[3] -
+             x[2] * y[6] * z[5] * z[5];
+        s7 = s8 - y[1] * x[5] * z[6] * z[6] + z[6] * x[1] * y[6] * z[2] -
+             z[3] * z[2] * x[3] * y[6] + z[6] * z[1] * x[6] * y[2] -
+             z[6] * z[1] * x[2] * y[6] - z[6] * y[1] * x[6] * z[2] -
+             2.0 * x[5] * y[2] * z[6] * z[6] + z[4] * z[1] * x[0] * y[4] -
+             z[3] * x[2] * y[3] * z[6] - z[5] * y[1] * x[5] * z[2] +
+             z[3] * y[2] * x[3] * z[6] + 2.0 * x[2] * y[5] * z[6] * z[6] -
+             z[5] * x[1] * y[5] * z[0] + y[2] * x[3] * z[7] * z[7] -
+             x[2] * y[3] * z[6] * z[6];
+        s8 = z[5] * y[5] * x[4] * z[0] + z[3] * z[2] * x[6] * y[3] +
+             x[1] * y[5] * z[6] * z[6] + z[5] * y[5] * x[7] * z[4] -
+             z[1] * x[1] * y[2] * z[6] + z[1] * x[1] * y[6] * z[2] +
+             2.0 * z[6] * y[6] * x[7] * z[5] - z[7] * y[6] * x[7] * z[2] -
+             z[3] * y[6] * x[7] * z[2] + x[6] * y[7] * z[2] * z[2] -
+             2.0 * z[6] * y[6] * x[7] * z[2] - 2.0 * x[6] * y[3] * z[7] * z[7] -
+             x[6] * y[2] * z[7] * z[7] - z[5] * x[6] * y[5] * z[2] +
+             y[6] * x[2] * z[7] * z[7];
+        s6 = s8 + 2.0 * y[6] * x[3] * z[7] * z[7] + z[6] * z[6] * x[7] * y[3] -
+             y[6] * x[7] * z[3] * z[3] + z[5] * x[5] * y[0] * z[4] +
+             2.0 * z[6] * z[6] * x[7] * y[2] - 2.0 * z[6] * z[6] * x[2] * y[7] -
+             z[6] * z[6] * x[3] * y[7] + z[7] * y[6] * x[7] * z[5] +
+             z[7] * y[5] * x[7] * z[4] - 2.0 * z[7] * x[7] * y[3] * z[4] +
+             2.0 * z[7] * x[3] * y[7] * z[4] - 2.0 * z[7] * x[4] * y[7] * z[3] +
+             2.0 * z[7] * x[7] * y[4] * z[3] - z[7] * y[0] * x[7] * z[4] -
+             2.0 * z[7] * z[6] * x[3] * y[7] + s7;
+        s8 = s6 + 2.0 * z[7] * z[6] * x[7] * y[3] +
+             2.0 * z[7] * x[6] * y[7] * z[3] + z[7] * x[6] * y[7] * z[2] -
+             2.0 * z[7] * y[6] * x[7] * z[3] + z[7] * z[6] * x[7] * y[2] -
+             z[7] * z[6] * x[2] * y[7] + z[5] * y[1] * x[5] * z[0] -
+             z[5] * z[1] * x[5] * y[0] + 2.0 * y[1] * x[6] * z[5] * z[5] -
+             2.0 * x[1] * y[6] * z[5] * z[5] + z[5] * z[1] * x[0] * y[5] +
+             z[6] * y[6] * x[3] * z[7] + 2.0 * z[6] * x[6] * y[7] * z[2] -
+             z[6] * y[6] * x[7] * z[3];
+        s7 = s8 + 2.0 * z[6] * y[6] * x[2] * z[7] - z[6] * x[6] * y[3] * z[7] +
+             z[6] * x[6] * y[7] * z[3] - 2.0 * z[6] * x[6] * y[2] * z[7] -
+             2.0 * z[1] * y[1] * x[5] * z[2] - z[1] * y[1] * x[6] * z[2] -
+             z[7] * z[0] * x[7] * y[3] - 2.0 * z[6] * x[6] * y[5] * z[2] -
+             z[2] * z[6] * x[3] * y[7] + z[2] * x[6] * y[7] * z[3] -
+             z[2] * z[6] * x[2] * y[7] + y[5] * x[6] * z[4] * z[4] +
+             z[2] * y[6] * x[2] * z[7] + y[6] * x[7] * z[4] * z[4] +
+             z[2] * z[6] * x[7] * y[2] - 2.0 * x[5] * y[7] * z[4] * z[4];
+        s8 = -x[6] * y[7] * z[4] * z[4] - z[5] * y[5] * x[0] * z[4] -
+             z[2] * x[6] * y[2] * z[7] - x[5] * y[6] * z[4] * z[4] -
+             2.0 * z[5] * y[1] * x[5] * z[6] + 2.0 * z[5] * z[1] * x[5] * y[6] +
+             2.0 * z[5] * x[1] * y[5] * z[6] - 2.0 * z[5] * z[1] * x[6] * y[5] -
+             z[5] * x[5] * y[2] * z[6] + z[5] * x[5] * y[6] * z[2] +
+             z[5] * x[2] * y[5] * z[6] + z[5] * z[5] * x[4] * y[7] -
+             y[5] * x[4] * z[7] * z[7] + x[5] * y[4] * z[7] * z[7] +
+             z[6] * z[1] * x[5] * y[6] + z[6] * y[1] * x[6] * z[5];
+        s4 = s8 - z[6] * z[1] * x[6] * y[5] - z[6] * x[1] * y[6] * z[5] +
+             z[2] * z[6] * x[7] * y[3] + 2.0 * z[6] * x[6] * y[2] * z[5] +
+             2.0 * z[6] * x[5] * y[6] * z[2] - 2.0 * z[6] * x[2] * y[6] * z[5] +
+             z[7] * z[0] * x[3] * y[7] + z[7] * z[0] * x[7] * y[4] +
+             z[3] * z[6] * x[7] * y[3] - z[3] * z[6] * x[3] * y[7] -
+             z[3] * x[6] * y[3] * z[7] + z[3] * y[6] * x[2] * z[7] -
+             z[3] * x[6] * y[2] * z[7] + z[5] * x[5] * y[4] * z[7] + s5 + s7;
+        s8 = s4 + z[3] * y[6] * x[3] * z[7] - z[7] * x[0] * y[7] * z[3] +
+             z[6] * x[5] * y[4] * z[7] + z[7] * y[0] * x[7] * z[3] +
+             z[5] * z[6] * x[4] * y[7] - 2.0 * z[5] * x[5] * y[6] * z[4] +
+             2.0 * z[5] * x[5] * y[4] * z[6] - z[5] * x[5] * y[7] * z[4] -
+             z[5] * y[6] * x[5] * z[7] - z[5] * z[6] * x[7] * y[4] -
+             z[7] * z[0] * x[4] * y[7] - z[5] * z[6] * x[7] * y[5] -
+             z[5] * y[5] * x[4] * z[7] + z[7] * x[0] * y[7] * z[4];
+        s7 = s8 - 2.0 * z[5] * y[5] * x[4] * z[6] + z[5] * z[6] * x[5] * y[7] +
+             z[5] * x[6] * y[5] * z[7] + 2.0 * z[5] * y[5] * x[6] * z[4] +
+             z[6] * z[5] * x[4] * y[6] - z[6] * x[5] * y[6] * z[4] -
+             z[6] * z[5] * x[6] * y[4] - z[6] * x[6] * y[7] * z[4] -
+             2.0 * z[6] * y[6] * x[5] * z[7] + z[6] * x[6] * y[4] * z[7] -
+             z[6] * y[5] * x[4] * z[7] - z[6] * y[6] * x[4] * z[7] +
+             z[6] * y[6] * x[7] * z[4] + z[6] * y[5] * x[6] * z[4] +
+             2.0 * z[6] * x[6] * y[5] * z[7];
+        s8 = -2.0 * z[6] * x[6] * y[7] * z[5] - z[2] * y[1] * x[2] * z[0] +
+             2.0 * z[7] * z[6] * x[4] * y[7] - 2.0 * z[7] * x[6] * y[7] * z[4] -
+             2.0 * z[7] * z[6] * x[7] * y[4] + z[7] * z[5] * x[4] * y[7] -
+             z[7] * z[5] * x[7] * y[4] - z[7] * x[5] * y[7] * z[4] +
+             2.0 * z[7] * y[6] * x[7] * z[4] - z[7] * z[6] * x[7] * y[5] +
+             z[7] * z[6] * x[5] * y[7] - z[7] * x[6] * y[7] * z[5] +
+             z[1] * z[1] * x[6] * y[2] + s7 + x[1] * y[5] * z[2] * z[2];
+        s6 = s8 + 2.0 * z[2] * y[2] * x[1] * z[3] -
+             2.0 * z[2] * y[2] * x[3] * z[1] - 2.0 * x[1] * y[4] * z[0] * z[0] +
+             2.0 * y[1] * x[4] * z[0] * z[0] + 2.0 * x[2] * y[7] * z[3] * z[3] -
+             2.0 * y[2] * x[7] * z[3] * z[3] - x[1] * y[5] * z[0] * z[0] +
+             z[0] * z[0] * x[7] * y[4] + z[0] * z[0] * x[3] * y[7] +
+             x[2] * y[3] * z[0] * z[0] - 2.0 * y[1] * x[3] * z[0] * z[0] +
+             y[5] * x[4] * z[0] * z[0] - 2.0 * z[0] * z[0] * x[4] * y[3] +
+             x[1] * y[2] * z[0] * z[0] - z[0] * z[0] * x[4] * y[7] +
+             y[1] * x[5] * z[0] * z[0];
+        s8 = s6 - y[2] * x[3] * z[0] * z[0] + y[1] * x[0] * z[3] * z[3] -
+             2.0 * x[0] * y[7] * z[3] * z[3] - x[0] * y[4] * z[3] * z[3] -
+             2.0 * x[2] * y[0] * z[3] * z[3] - x[1] * y[0] * z[3] * z[3] +
+             y[0] * x[4] * z[3] * z[3] - 2.0 * z[0] * y[1] * x[0] * z[4] +
+             2.0 * z[0] * z[1] * x[0] * y[4] + 2.0 * z[0] * x[1] * y[0] * z[4] -
+             2.0 * z[0] * z[1] * x[4] * y[0] - 2.0 * z[3] * x[2] * y[3] * z[7] -
+             2.0 * z[3] * z[2] * x[3] * y[7] + 2.0 * z[3] * z[2] * x[7] * y[3];
+        s7 = s8 + 2.0 * z[3] * y[2] * x[3] * z[7] +
+             2.0 * z[5] * y[5] * x[4] * z[1] + 2.0 * z[0] * y[1] * x[0] * z[3] -
+             z[0] * y[0] * x[3] * z[7] - 2.0 * z[0] * y[0] * x[3] * z[4] -
+             z[0] * x[1] * y[0] * z[2] + z[0] * z[1] * x[2] * y[0] -
+             z[0] * y[1] * x[0] * z[5] - z[0] * z[1] * x[0] * y[2] -
+             z[0] * x[0] * y[7] * z[3] - 2.0 * z[0] * z[1] * x[0] * y[3] -
+             z[5] * x[5] * y[4] * z[0] - 2.0 * z[0] * x[0] * y[4] * z[3] +
+             z[0] * x[0] * y[7] * z[4] - z[0] * z[2] * x[0] * y[3];
+        s8 = s7 + z[0] * x[5] * y[0] * z[4] + z[0] * z[1] * x[0] * y[5] -
+             z[0] * x[2] * y[0] * z[3] - z[0] * z[1] * x[5] * y[0] -
+             2.0 * z[0] * x[1] * y[0] * z[3] + 2.0 * z[0] * y[0] * x[4] * z[3] -
+             z[0] * x[0] * y[4] * z[7] + z[0] * x[1] * y[0] * z[5] +
+             z[0] * y[0] * x[7] * z[3] + z[0] * y[2] * x[0] * z[3] -
+             z[0] * y[5] * x[0] * z[4] + z[0] * z[2] * x[3] * y[0] +
+             z[0] * x[2] * y[3] * z[1] + z[0] * x[0] * y[3] * z[7] -
+             z[0] * x[2] * y[1] * z[3];
+        s5 = s8 + z[0] * y[1] * x[0] * z[2] + z[3] * x[1] * y[3] * z[0] -
+             2.0 * z[3] * y[0] * x[3] * z[7] - z[3] * y[0] * x[3] * z[4] -
+             z[3] * x[1] * y[0] * z[2] + z[3] * z[0] * x[7] * y[4] +
+             2.0 * z[3] * z[0] * x[3] * y[7] + 2.0 * z[3] * x[2] * y[3] * z[0] -
+             z[3] * y[1] * x[3] * z[0] - z[3] * z[1] * x[0] * y[3] -
+             z[3] * z[0] * x[4] * y[3] + z[3] * x[1] * y[2] * z[0] -
+             z[3] * z[0] * x[4] * y[7] - 2.0 * z[3] * z[2] * x[0] * y[3] -
+             z[3] * x[0] * y[4] * z[7] - 2.0 * z[3] * y[2] * x[3] * z[0];
+        s8 = s5 + 2.0 * z[3] * z[2] * x[3] * y[0] + z[3] * x[2] * y[3] * z[1] +
+             2.0 * z[3] * x[0] * y[3] * z[7] + z[3] * y[1] * x[0] * z[2] -
+             z[4] * y[0] * x[3] * z[7] - z[4] * x[1] * y[5] * z[0] -
+             z[4] * y[1] * x[0] * z[5] + 2.0 * z[4] * z[0] * x[7] * y[4] +
+             z[4] * z[0] * x[3] * y[7] + 2.0 * z[4] * y[5] * x[4] * z[0] +
+             2.0 * y[0] * x[7] * z[3] * z[3] + 2.0 * y[2] * x[0] * z[3] * z[3] -
+             x[2] * y[1] * z[3] * z[3] - y[0] * x[3] * z[4] * z[4];
+        s7 = s8 - y[1] * x[0] * z[4] * z[4] + x[1] * y[0] * z[4] * z[4] +
+             2.0 * x[0] * y[7] * z[4] * z[4] + 2.0 * x[5] * y[0] * z[4] * z[4] -
+             2.0 * y[5] * x[0] * z[4] * z[4] + 2.0 * z[1] * z[1] * x[2] * y[0] -
+             2.0 * z[1] * z[1] * x[0] * y[2] + z[1] * z[1] * x[0] * y[4] -
+             z[1] * z[1] * x[0] * y[3] - z[1] * z[1] * x[4] * y[0] +
+             2.0 * z[1] * z[1] * x[0] * y[5] - 2.0 * z[1] * z[1] * x[5] * y[0] +
+             x[2] * y[3] * z[1] * z[1] - x[5] * y[4] * z[0] * z[0] -
+             z[0] * z[0] * x[7] * y[3];
+        s8 = s7 + x[7] * y[4] * z[3] * z[3] - x[4] * y[7] * z[3] * z[3] +
+             y[2] * x[1] * z[3] * z[3] + x[0] * y[3] * z[4] * z[4] -
+             2.0 * y[0] * x[7] * z[4] * z[4] + x[3] * y[7] * z[4] * z[4] -
+             x[7] * y[3] * z[4] * z[4] - y[5] * x[1] * z[4] * z[4] +
+             x[5] * y[1] * z[4] * z[4] + z[1] * z[1] * x[3] * y[0] +
+             y[5] * x[4] * z[1] * z[1] - y[2] * x[3] * z[1] * z[1] -
+             x[5] * y[4] * z[1] * z[1] - z[4] * x[0] * y[4] * z[3] -
+             z[4] * z[0] * x[4] * y[3];
+        s6 = s8 - z[4] * z[1] * x[4] * y[0] - 2.0 * z[4] * z[0] * x[4] * y[7] +
+             z[4] * y[1] * x[5] * z[0] - 2.0 * z[5] * x[5] * y[4] * z[1] -
+             z[4] * x[1] * y[4] * z[0] + z[4] * y[0] * x[4] * z[3] -
+             2.0 * z[4] * x[0] * y[4] * z[7] + z[4] * x[1] * y[0] * z[5] -
+             2.0 * z[1] * x[1] * y[2] * z[5] + z[4] * x[0] * y[3] * z[7] +
+             2.0 * z[5] * x[5] * y[1] * z[4] + z[4] * y[1] * x[4] * z[0] +
+             z[1] * y[1] * x[0] * z[3] + z[1] * x[1] * y[3] * z[0] -
+             2.0 * z[1] * x[1] * y[5] * z[0] - 2.0 * z[1] * x[1] * y[0] * z[2];
+        s8 = s6 - 2.0 * z[1] * y[1] * x[0] * z[5] - z[1] * y[1] * x[0] * z[4] +
+             2.0 * z[1] * y[1] * x[2] * z[5] - z[1] * y[1] * x[3] * z[0] -
+             2.0 * z[5] * y[5] * x[1] * z[4] + z[1] * y[5] * x[4] * z[0] +
+             z[1] * x[1] * y[0] * z[4] + 2.0 * z[1] * x[1] * y[2] * z[0] -
+             z[1] * z[2] * x[0] * y[3] + 2.0 * z[1] * y[1] * x[5] * z[0] -
+             z[1] * x[1] * y[0] * z[3] - z[1] * x[1] * y[4] * z[0] +
+             2.0 * z[1] * x[1] * y[0] * z[5] - z[1] * y[2] * x[3] * z[0];
+        s7 = s8 + z[1] * z[2] * x[3] * y[0] - z[1] * x[2] * y[1] * z[3] +
+             z[1] * y[1] * x[4] * z[0] + 2.0 * z[1] * y[1] * x[0] * z[2] +
+             2.0 * z[0] * z[1] * x[3] * y[0] + 2.0 * z[0] * x[0] * y[3] * z[4] +
+             z[0] * z[5] * x[0] * y[4] + z[0] * y[0] * x[4] * z[7] -
+             z[0] * y[0] * x[7] * z[4] - z[0] * x[7] * y[3] * z[4] -
+             z[0] * z[5] * x[4] * y[0] - z[0] * x[5] * y[4] * z[1] +
+             z[3] * z[1] * x[3] * y[0] + z[3] * x[0] * y[3] * z[4] +
+             z[3] * z[0] * x[3] * y[4] + z[3] * y[0] * x[4] * z[7];
+        s8 = s7 + z[3] * x[3] * y[7] * z[4] - z[3] * x[7] * y[3] * z[4] -
+             z[3] * x[3] * y[4] * z[7] + z[3] * x[4] * y[3] * z[7] -
+             z[3] * y[2] * x[3] * z[1] + z[3] * z[2] * x[3] * y[1] -
+             z[3] * z[2] * x[1] * y[3] - 2.0 * z[3] * z[0] * x[7] * y[3] +
+             z[4] * z[0] * x[3] * y[4] + 2.0 * z[4] * z[5] * x[0] * y[4] +
+             2.0 * z[4] * y[0] * x[4] * z[7] - 2.0 * z[4] * x[5] * y[4] * z[0] +
+             z[4] * y[5] * x[4] * z[1] + z[4] * x[7] * y[4] * z[3] -
+             z[4] * x[4] * y[7] * z[3];
+        s3 = s8 - z[4] * x[3] * y[4] * z[7] + z[4] * x[4] * y[3] * z[7] -
+             2.0 * z[4] * z[5] * x[4] * y[0] - z[4] * x[5] * y[4] * z[1] +
+             z[4] * z[5] * x[1] * y[4] - z[4] * z[5] * x[4] * y[1] -
+             2.0 * z[1] * y[1] * x[2] * z[0] + z[1] * z[5] * x[0] * y[4] -
+             z[1] * z[5] * x[4] * y[0] - z[1] * y[5] * x[1] * z[4] +
+             z[1] * x[5] * y[1] * z[4] + z[1] * z[5] * x[1] * y[4] -
+             z[1] * z[5] * x[4] * y[1] + z[1] * z[2] * x[3] * y[1] -
+             z[1] * z[2] * x[1] * y[3] + z[1] * y[2] * x[1] * z[3];
+        s8 = y[1] * x[0] * z[3] + x[1] * y[3] * z[0] - y[0] * x[3] * z[7] -
+             x[1] * y[5] * z[0] - y[0] * x[3] * z[4] - x[1] * y[0] * z[2] +
+             z[1] * x[2] * y[0] - y[1] * x[0] * z[5] - z[1] * x[0] * y[2] -
+             y[1] * x[0] * z[4] + z[1] * x[5] * y[2] + z[0] * x[7] * y[4] +
+             z[0] * x[3] * y[7] + z[1] * x[0] * y[4] - x[1] * y[2] * z[5] +
+             x[2] * y[3] * z[0] + y[1] * x[2] * z[5] - x[2] * y[3] * z[7];
+        s7 = s8 - z[1] * x[2] * y[5] - y[1] * x[3] * z[0] - x[0] * y[7] * z[3] -
+             z[1] * x[0] * y[3] + y[5] * x[4] * z[0] - x[0] * y[4] * z[3] +
+             y[5] * x[7] * z[4] - z[0] * x[4] * y[3] + x[1] * y[0] * z[4] -
+             z[2] * x[3] * y[7] - y[6] * x[7] * z[2] + x[1] * y[5] * z[2] +
+             y[6] * x[7] * z[5] + x[0] * y[7] * z[4] + x[1] * y[2] * z[0] -
+             z[1] * x[4] * y[0] - z[0] * x[4] * y[7] - z[2] * x[0] * y[3];
+        s8 = x[5] * y[0] * z[4] + z[1] * x[0] * y[5] - x[2] * y[0] * z[3] -
+             z[1] * x[5] * y[0] + y[1] * x[5] * z[0] - x[1] * y[0] * z[3] -
+             x[1] * y[4] * z[0] - y[1] * x[5] * z[2] + x[2] * y[7] * z[3] +
+             y[0] * x[4] * z[3] - x[0] * y[4] * z[7] + x[1] * y[0] * z[5] -
+             y[1] * x[6] * z[2] - y[2] * x[6] * z[3] + y[0] * x[7] * z[3] -
+             y[2] * x[7] * z[3] + z[2] * x[7] * y[3] + y[2] * x[0] * z[3];
+        s6 = s8 + y[2] * x[3] * z[7] - y[2] * x[3] * z[0] - x[6] * y[5] * z[2] -
+             y[5] * x[0] * z[4] + z[2] * x[3] * y[0] + x[2] * y[3] * z[1] +
+             x[0] * y[3] * z[7] - x[2] * y[1] * z[3] + y[1] * x[4] * z[0] +
+             y[1] * x[0] * z[2] - z[1] * x[2] * y[6] + y[2] * x[3] * z[6] -
+             y[1] * x[2] * z[0] + z[1] * x[3] * y[0] - x[1] * y[2] * z[6] -
+             x[2] * y[3] * z[6] + x[0] * y[3] * z[4] + z[0] * x[3] * y[4] + s7;
+        s8 = x[5] * y[4] * z[7] + s6 + y[5] * x[6] * z[4] - y[5] * x[4] * z[6] +
+             z[6] * x[5] * y[7] - x[6] * y[2] * z[7] - x[6] * y[7] * z[5] +
+             x[5] * y[6] * z[2] + x[6] * y[5] * z[7] + x[6] * y[7] * z[2] +
+             y[6] * x[7] * z[4] - y[6] * x[4] * z[7] - y[6] * x[7] * z[3] +
+             z[6] * x[7] * y[2] + x[2] * y[5] * z[6] - x[2] * y[6] * z[5] +
+             y[6] * x[2] * z[7] + x[6] * y[2] * z[5];
+        s7 = s8 - x[5] * y[2] * z[6] - z[6] * x[7] * y[5] - z[5] * x[7] * y[4] +
+             z[5] * x[0] * y[4] - y[5] * x[4] * z[7] + y[0] * x[4] * z[7] -
+             z[6] * x[2] * y[7] - x[5] * y[4] * z[0] - x[5] * y[7] * z[4] -
+             y[0] * x[7] * z[4] + y[5] * x[4] * z[1] - x[6] * y[7] * z[4] +
+             x[7] * y[4] * z[3] - x[4] * y[7] * z[3] + x[3] * y[7] * z[4] -
+             x[7] * y[3] * z[4] - x[6] * y[3] * z[7] + x[6] * y[4] * z[7];
+        s8 = -x[3] * y[4] * z[7] + x[4] * y[3] * z[7] - z[6] * x[7] * y[4] -
+             z[1] * x[6] * y[5] + x[6] * y[7] * z[3] - x[1] * y[6] * z[5] -
+             y[1] * x[5] * z[6] + z[5] * x[4] * y[7] - z[5] * x[4] * y[0] +
+             x[1] * y[5] * z[6] - y[6] * x[5] * z[7] - y[2] * x[3] * z[1] +
+             z[1] * x[5] * y[6] - y[5] * x[1] * z[4] + z[6] * x[4] * y[7] +
+             x[5] * y[1] * z[4] - x[5] * y[6] * z[4] + y[6] * x[3] * z[7] -
+             x[5] * y[4] * z[1];
+        s5 = s8 + x[5] * y[4] * z[6] + z[5] * x[1] * y[4] + y[1] * x[6] * z[5] -
+             z[6] * x[3] * y[7] + z[6] * x[7] * y[3] - z[5] * x[6] * y[4] -
+             z[5] * x[4] * y[1] + z[5] * x[4] * y[6] + x[1] * y[6] * z[2] +
+             x[2] * y[6] * z[3] + z[2] * x[6] * y[3] + z[1] * x[6] * y[2] +
+             z[2] * x[3] * y[1] - z[2] * x[1] * y[3] - z[2] * x[3] * y[6] +
+             y[2] * x[1] * z[3] + y[1] * x[2] * z[6] - z[0] * x[7] * y[3] + s7;
+        s4                    = 1 / s5;
+        s2                    = s3 * s4;
+        const double unknown2 = s1 * s2;
 
-    return {unknown0, unknown1, unknown2};
+        return {unknown0, unknown1, unknown2};
+      }
+    else
+      {
+        // Be somewhat particular in which exception we throw
+        Assert(accessor.reference_cell() != ReferenceCells::Pyramid &&
+                 accessor.reference_cell() != ReferenceCells::Wedge,
+               ExcNotImplemented());
+        Assert(false, ExcInternalError());
+
+        return {};
+      }
   }
 
 
@@ -1245,7 +1277,7 @@ namespace
     // this function catches all the cases not
     // explicitly handled above
     Assert(false, ExcNotImplemented());
-    return Point<spacedim>();
+    return {};
   }
 
 
@@ -1496,7 +1528,7 @@ TriaAccessor<structdim, dim, spacedim>::set_bounding_object_indices(
   const ArrayView<int> bounding_object_index_ref =
     this->objects().get_bounding_object_indices(this->present_index);
 
-  AssertDimension(bounding_object_index_ref.size(), new_indices.size());
+  AssertIndexRange(new_indices.size(), bounding_object_index_ref.size() + 1);
 
   unsigned int i = 0;
   for (const auto &new_index : new_indices)
@@ -1516,7 +1548,7 @@ TriaAccessor<structdim, dim, spacedim>::set_bounding_object_indices(
   const ArrayView<int> bounding_object_index_ref =
     this->objects().get_bounding_object_indices(this->present_index);
 
-  AssertDimension(bounding_object_index_ref.size(), new_indices.size());
+  AssertIndexRange(new_indices.size(), bounding_object_index_ref.size() + 1);
 
   unsigned int i = 0;
   for (const auto &new_index : new_indices)
@@ -1670,11 +1702,9 @@ TriaAccessor<3, 3, 3>::set_all_manifold_ids(
   // for hexes also set manifold_id
   // of bounding quads and lines
 
-  // Six bonding quads
-  for (unsigned int i = 0; i < 6; ++i)
+  for (unsigned int i : this->face_indices())
     this->quad(i)->set_manifold_id(manifold_ind);
-  // Twelve bounding lines
-  for (unsigned int i = 0; i < 12; ++i)
+  for (unsigned int i : this->line_indices())
     this->line(i)->set_manifold_id(manifold_ind);
 }
 
@@ -1859,8 +1889,9 @@ CellAccessor<3>::point_inside(const Point<3> &p) const
     {
       const TriaRawIterator<CellAccessor<dim, spacedim>> cell_iterator(*this);
       return (GeometryInfo<dim>::is_inside_unit_cell(
-        StaticMappingQ1<dim, spacedim>::mapping.transform_real_to_unit_cell(
-          cell_iterator, p)));
+        reference_cell()
+          .template get_default_linear_mapping<dim, spacedim>()
+          .transform_real_to_unit_cell(cell_iterator, p)));
     }
   catch (const Mapping<dim, spacedim>::ExcTransformationFailed &)
     {
@@ -2846,368 +2877,432 @@ CellAccessor<dim, spacedim>::neighbor_child_on_subface(
     {
       case 2:
         {
-          const unsigned int neighbor_neighbor =
-            this->neighbor_of_neighbor(face);
-          const unsigned int neighbor_child_index =
-            GeometryInfo<dim>::child_cell_on_face(
-              this->neighbor(face)->refinement_case(),
-              neighbor_neighbor,
-              subface);
-
-          TriaIterator<CellAccessor<dim, spacedim>> sub_neighbor =
-            this->neighbor(face)->child(neighbor_child_index);
-          // the neighbors child can have children,
-          // which are not further refined along the
-          // face under consideration. as we are
-          // normally interested in one of this
-          // child's child, search for the right one.
-          while (sub_neighbor->has_children())
+          if (this->reference_cell() == ReferenceCells::Triangle)
             {
-              Assert((GeometryInfo<dim>::face_refinement_case(
-                        sub_neighbor->refinement_case(), neighbor_neighbor) ==
-                      RefinementCase<dim>::no_refinement),
-                     ExcInternalError());
-              sub_neighbor =
-                sub_neighbor->child(GeometryInfo<dim>::child_cell_on_face(
-                  sub_neighbor->refinement_case(), neighbor_neighbor, 0));
+              const auto neighbor_cell = this->neighbor(face);
+
+              // only for isotropic refinement at the moment
+              Assert(neighbor_cell->refinement_case() ==
+                       RefinementCase<2>::isotropic_refinement,
+                     ExcNotImplemented());
+
+              // determine indices for this cell's subface from the perspective
+              // of the neighboring cell
+              const unsigned int neighbor_face =
+                this->neighbor_of_neighbor(face);
+              // two neighboring cells have an opposed orientation on their
+              // shared face if both of them follow the same orientation type
+              // (i.e., standard or non-standard).
+              // we verify this with a XOR operation.
+              const unsigned int neighbor_subface =
+                (!(this->line_orientation(face)) !=
+                 !(neighbor_cell->line_orientation(neighbor_face))) ?
+                  (1 - subface) :
+                  subface;
+
+              const unsigned int neighbor_child_index =
+                ReferenceCells::Triangle.child_cell_on_face(neighbor_face,
+                                                            neighbor_subface);
+              const TriaIterator<CellAccessor<dim, spacedim>> sub_neighbor =
+                neighbor_cell->child(neighbor_child_index);
+
+              // neighbor's child is not allowed to be further refined for the
+              // moment
+              Assert(sub_neighbor->refinement_case() ==
+                       RefinementCase<dim>::no_refinement,
+                     ExcNotImplemented());
+
+              return sub_neighbor;
+            }
+          else if (this->reference_cell() == ReferenceCells::Quadrilateral)
+            {
+              const unsigned int neighbor_neighbor =
+                this->neighbor_of_neighbor(face);
+              const unsigned int neighbor_child_index =
+                GeometryInfo<dim>::child_cell_on_face(
+                  this->neighbor(face)->refinement_case(),
+                  neighbor_neighbor,
+                  subface);
+
+              TriaIterator<CellAccessor<dim, spacedim>> sub_neighbor =
+                this->neighbor(face)->child(neighbor_child_index);
+              // the neighbors child can have children,
+              // which are not further refined along the
+              // face under consideration. as we are
+              // normally interested in one of this
+              // child's child, search for the right one.
+              while (sub_neighbor->has_children())
+                {
+                  Assert((GeometryInfo<dim>::face_refinement_case(
+                            sub_neighbor->refinement_case(),
+                            neighbor_neighbor) ==
+                          RefinementCase<dim>::no_refinement),
+                         ExcInternalError());
+                  sub_neighbor =
+                    sub_neighbor->child(GeometryInfo<dim>::child_cell_on_face(
+                      sub_neighbor->refinement_case(), neighbor_neighbor, 0));
+                }
+
+              return sub_neighbor;
             }
 
-          return sub_neighbor;
+          // if no reference cell type matches
+          Assert(false, ExcNotImplemented());
+          return TriaIterator<CellAccessor<dim, spacedim>>();
         }
 
 
       case 3:
         {
-          // this function returns the neighbor's
-          // child on a given face and
-          // subface.
-
-          // we have to consider one other aspect here:
-          // The face might be refined
-          // anisotropically. In this case, the subface
-          // number refers to the following, where we
-          // look at the face from the current cell,
-          // thus the subfaces are in standard
-          // orientation concerning the cell
-          //
-          // for isotropic refinement
-          //
-          // *---*---*
-          // | 2 | 3 |
-          // *---*---*
-          // | 0 | 1 |
-          // *---*---*
-          //
-          // for 2*anisotropic refinement
-          // (first cut_y, then cut_x)
-          //
-          // *---*---*
-          // | 2 | 3 |
-          // *---*---*
-          // | 0 | 1 |
-          // *---*---*
-          //
-          // for 2*anisotropic refinement
-          // (first cut_x, then cut_y)
-          //
-          // *---*---*
-          // | 1 | 3 |
-          // *---*---*
-          // | 0 | 2 |
-          // *---*---*
-          //
-          // for purely anisotropic refinement:
-          //
-          // *---*---*      *-------*
-          // |   |   |        |   1   |
-          // | 0 | 1 |  or  *-------*
-          // |   |   |        |   0   |
-          // *---*---*        *-------*
-          //
-          // for "mixed" refinement:
-          //
-          // *---*---*      *---*---*      *---*---*      *-------*
-          // |   | 2 |      | 1 |   |      | 1 | 2 |      |   2   |
-          // | 0 *---*  or  *---* 2 |  or  *---*---*  or  *---*---*
-          // |   | 1 |      | 0 |   |      |   0   |      | 0 | 1 |
-          // *---*---*      *---*---*      *-------*      *---*---*
-
-          const typename Triangulation<dim, spacedim>::face_iterator
-                             mother_face    = this->face(face);
-          const unsigned int total_children = mother_face->number_of_children();
-          AssertIndexRange(subface, total_children);
-          Assert(total_children <= GeometryInfo<3>::max_children_per_face,
-                 ExcInternalError());
-
-          unsigned int                                    neighbor_neighbor;
-          TriaIterator<CellAccessor<dim, spacedim>>       neighbor_child;
-          const TriaIterator<CellAccessor<dim, spacedim>> neighbor =
-            this->neighbor(face);
-
-
-          const RefinementCase<dim - 1> mother_face_ref_case =
-            mother_face->refinement_case();
-          if (mother_face_ref_case ==
-              static_cast<RefinementCase<dim - 1>>(
-                RefinementCase<2>::cut_xy)) // total_children==4
+          if (this->reference_cell() == ReferenceCells::Hexahedron)
             {
-              // this case is quite easy. we are sure,
-              // that the neighbor is not coarser.
+              // this function returns the neighbor's
+              // child on a given face and
+              // subface.
 
-              // get the neighbor's number for the given
-              // face and the neighbor
-              neighbor_neighbor = this->neighbor_of_neighbor(face);
+              // we have to consider one other aspect here:
+              // The face might be refined
+              // anisotropically. In this case, the subface
+              // number refers to the following, where we
+              // look at the face from the current cell,
+              // thus the subfaces are in standard
+              // orientation concerning the cell
+              //
+              // for isotropic refinement
+              //
+              // *---*---*
+              // | 2 | 3 |
+              // *---*---*
+              // | 0 | 1 |
+              // *---*---*
+              //
+              // for 2*anisotropic refinement
+              // (first cut_y, then cut_x)
+              //
+              // *---*---*
+              // | 2 | 3 |
+              // *---*---*
+              // | 0 | 1 |
+              // *---*---*
+              //
+              // for 2*anisotropic refinement
+              // (first cut_x, then cut_y)
+              //
+              // *---*---*
+              // | 1 | 3 |
+              // *---*---*
+              // | 0 | 2 |
+              // *---*---*
+              //
+              // for purely anisotropic refinement:
+              //
+              // *---*---*      *-------*
+              // |   |   |        |   1   |
+              // | 0 | 1 |  or  *-------*
+              // |   |   |        |   0   |
+              // *---*---*        *-------*
+              //
+              // for "mixed" refinement:
+              //
+              // *---*---*      *---*---*      *---*---*      *-------*
+              // |   | 2 |      | 1 |   |      | 1 | 2 |      |   2   |
+              // | 0 *---*  or  *---* 2 |  or  *---*---*  or  *---*---*
+              // |   | 1 |      | 0 |   |      |   0   |      | 0 | 1 |
+              // *---*---*      *---*---*      *-------*      *---*---*
 
-              // now use the info provided by GeometryInfo
-              // to extract the neighbors child number
-              const unsigned int neighbor_child_index =
-                GeometryInfo<dim>::child_cell_on_face(
-                  neighbor->refinement_case(),
-                  neighbor_neighbor,
-                  subface,
-                  neighbor->face_orientation(neighbor_neighbor),
-                  neighbor->face_flip(neighbor_neighbor),
-                  neighbor->face_rotation(neighbor_neighbor));
-              neighbor_child = neighbor->child(neighbor_child_index);
-
-              // make sure that the neighbor child cell we
-              // have found shares the desired subface.
-              Assert((this->face(face)->child(subface) ==
-                      neighbor_child->face(neighbor_neighbor)),
+              const typename Triangulation<dim, spacedim>::face_iterator
+                                 mother_face = this->face(face);
+              const unsigned int total_children =
+                mother_face->n_active_descendants();
+              AssertIndexRange(subface, total_children);
+              Assert(total_children <= GeometryInfo<3>::max_children_per_face,
                      ExcInternalError());
-            }
-          else //-> the face is refined anisotropically
-            {
-              // first of all, we have to find the
-              // neighbor at one of the anisotropic
-              // children of the
-              // mother_face. determine, which of
-              // these we need.
-              unsigned int first_child_to_find;
-              unsigned int neighbor_child_index;
-              if (total_children == 2)
-                first_child_to_find = subface;
-              else
+
+              unsigned int                                    neighbor_neighbor;
+              TriaIterator<CellAccessor<dim, spacedim>>       neighbor_child;
+              const TriaIterator<CellAccessor<dim, spacedim>> neighbor =
+                this->neighbor(face);
+
+
+              const RefinementCase<dim - 1> mother_face_ref_case =
+                mother_face->refinement_case();
+              if (mother_face_ref_case ==
+                  static_cast<RefinementCase<dim - 1>>(
+                    RefinementCase<2>::cut_xy)) // total_children==4
                 {
-                  first_child_to_find = subface / 2;
-                  if (total_children == 3 && subface == 1 &&
-                      !mother_face->child(0)->has_children())
-                    first_child_to_find = 1;
+                  // this case is quite easy. we are sure,
+                  // that the neighbor is not coarser.
+
+                  // get the neighbor's number for the given
+                  // face and the neighbor
+                  neighbor_neighbor = this->neighbor_of_neighbor(face);
+
+                  // now use the info provided by GeometryInfo
+                  // to extract the neighbors child number
+                  const unsigned int neighbor_child_index =
+                    GeometryInfo<dim>::child_cell_on_face(
+                      neighbor->refinement_case(),
+                      neighbor_neighbor,
+                      subface,
+                      neighbor->face_orientation(neighbor_neighbor),
+                      neighbor->face_flip(neighbor_neighbor),
+                      neighbor->face_rotation(neighbor_neighbor));
+                  neighbor_child = neighbor->child(neighbor_child_index);
+
+                  // make sure that the neighbor child cell we
+                  // have found shares the desired subface.
+                  Assert((this->face(face)->child(subface) ==
+                          neighbor_child->face(neighbor_neighbor)),
+                         ExcInternalError());
                 }
-              if (neighbor_is_coarser(face))
+              else //-> the face is refined anisotropically
                 {
-                  std::pair<unsigned int, unsigned int> indices =
-                    neighbor_of_coarser_neighbor(face);
-                  neighbor_neighbor = indices.first;
-
-
-                  // we have to translate our
-                  // subface_index according to the
-                  // RefineCase and subface index of
-                  // the coarser face (our face is an
-                  // anisotropic child of the coarser
-                  // face), 'a' denotes our
-                  // subface_index 0 and 'b' denotes
-                  // our subface_index 1, whereas 0...3
-                  // denote isotropic subfaces of the
-                  // coarser face
-                  //
-                  // cut_x and coarser_subface_index=0
-                  //
-                  // *---*---*
-                  // |b=2|   |
-                  // |   |   |
-                  // |a=0|   |
-                  // *---*---*
-                  //
-                  // cut_x and coarser_subface_index=1
-                  //
-                  // *---*---*
-                  // |   |b=3|
-                  // |   |   |
-                  // |   |a=1|
-                  // *---*---*
-                  //
-                  // cut_y and coarser_subface_index=0
-                  //
-                  // *-------*
-                  // |       |
-                  // *-------*
-                  // |a=0 b=1|
-                  // *-------*
-                  //
-                  // cut_y and coarser_subface_index=1
-                  //
-                  // *-------*
-                  // |a=2 b=3|
-                  // *-------*
-                  // |       |
-                  // *-------*
-                  unsigned int iso_subface;
-                  if (neighbor->face(neighbor_neighbor)->refinement_case() ==
-                      RefinementCase<2>::cut_x)
-                    iso_subface = 2 * first_child_to_find + indices.second;
+                  // first of all, we have to find the
+                  // neighbor at one of the anisotropic
+                  // children of the
+                  // mother_face. determine, which of
+                  // these we need.
+                  unsigned int first_child_to_find;
+                  unsigned int neighbor_child_index;
+                  if (total_children == 2)
+                    first_child_to_find = subface;
                   else
                     {
-                      Assert(
-                        neighbor->face(neighbor_neighbor)->refinement_case() ==
-                          RefinementCase<2>::cut_y,
-                        ExcInternalError());
-                      iso_subface = first_child_to_find + 2 * indices.second;
+                      first_child_to_find = subface / 2;
+                      if (total_children == 3 && subface == 1 &&
+                          !mother_face->child(0)->has_children())
+                        first_child_to_find = 1;
                     }
-                  neighbor_child_index = GeometryInfo<dim>::child_cell_on_face(
-                    neighbor->refinement_case(),
-                    neighbor_neighbor,
-                    iso_subface,
-                    neighbor->face_orientation(neighbor_neighbor),
-                    neighbor->face_flip(neighbor_neighbor),
-                    neighbor->face_rotation(neighbor_neighbor));
-                }
-              else // neighbor is not coarser
-                {
-                  neighbor_neighbor    = neighbor_of_neighbor(face);
-                  neighbor_child_index = GeometryInfo<dim>::child_cell_on_face(
-                    neighbor->refinement_case(),
-                    neighbor_neighbor,
-                    first_child_to_find,
-                    neighbor->face_orientation(neighbor_neighbor),
-                    neighbor->face_flip(neighbor_neighbor),
-                    neighbor->face_rotation(neighbor_neighbor),
-                    mother_face_ref_case);
+                  if (neighbor_is_coarser(face))
+                    {
+                      std::pair<unsigned int, unsigned int> indices =
+                        neighbor_of_coarser_neighbor(face);
+                      neighbor_neighbor = indices.first;
+
+
+                      // we have to translate our
+                      // subface_index according to the
+                      // RefineCase and subface index of
+                      // the coarser face (our face is an
+                      // anisotropic child of the coarser
+                      // face), 'a' denotes our
+                      // subface_index 0 and 'b' denotes
+                      // our subface_index 1, whereas 0...3
+                      // denote isotropic subfaces of the
+                      // coarser face
+                      //
+                      // cut_x and coarser_subface_index=0
+                      //
+                      // *---*---*
+                      // |b=2|   |
+                      // |   |   |
+                      // |a=0|   |
+                      // *---*---*
+                      //
+                      // cut_x and coarser_subface_index=1
+                      //
+                      // *---*---*
+                      // |   |b=3|
+                      // |   |   |
+                      // |   |a=1|
+                      // *---*---*
+                      //
+                      // cut_y and coarser_subface_index=0
+                      //
+                      // *-------*
+                      // |       |
+                      // *-------*
+                      // |a=0 b=1|
+                      // *-------*
+                      //
+                      // cut_y and coarser_subface_index=1
+                      //
+                      // *-------*
+                      // |a=2 b=3|
+                      // *-------*
+                      // |       |
+                      // *-------*
+                      unsigned int iso_subface;
+                      if (neighbor->face(neighbor_neighbor)
+                            ->refinement_case() == RefinementCase<2>::cut_x)
+                        iso_subface = 2 * first_child_to_find + indices.second;
+                      else
+                        {
+                          Assert(neighbor->face(neighbor_neighbor)
+                                     ->refinement_case() ==
+                                   RefinementCase<2>::cut_y,
+                                 ExcInternalError());
+                          iso_subface =
+                            first_child_to_find + 2 * indices.second;
+                        }
+                      neighbor_child_index =
+                        GeometryInfo<dim>::child_cell_on_face(
+                          neighbor->refinement_case(),
+                          neighbor_neighbor,
+                          iso_subface,
+                          neighbor->face_orientation(neighbor_neighbor),
+                          neighbor->face_flip(neighbor_neighbor),
+                          neighbor->face_rotation(neighbor_neighbor));
+                    }
+                  else // neighbor is not coarser
+                    {
+                      neighbor_neighbor = neighbor_of_neighbor(face);
+                      neighbor_child_index =
+                        GeometryInfo<dim>::child_cell_on_face(
+                          neighbor->refinement_case(),
+                          neighbor_neighbor,
+                          first_child_to_find,
+                          neighbor->face_orientation(neighbor_neighbor),
+                          neighbor->face_flip(neighbor_neighbor),
+                          neighbor->face_rotation(neighbor_neighbor),
+                          mother_face_ref_case);
+                    }
+
+                  neighbor_child = neighbor->child(neighbor_child_index);
+                  // it might be, that the neighbor_child
+                  // has children, which are not refined
+                  // along the given subface. go down that
+                  // list and deliver the last of those.
+                  while (
+                    neighbor_child->has_children() &&
+                    GeometryInfo<dim>::face_refinement_case(
+                      neighbor_child->refinement_case(), neighbor_neighbor) ==
+                      RefinementCase<2>::no_refinement)
+                    neighbor_child = neighbor_child->child(
+                      GeometryInfo<dim>::child_cell_on_face(
+                        neighbor_child->refinement_case(),
+                        neighbor_neighbor,
+                        0));
+
+                  // if there are two total subfaces, we
+                  // are finished. if there are four we
+                  // have to get a child of our current
+                  // neighbor_child. If there are three,
+                  // we have to check which of the two
+                  // possibilities applies.
+                  if (total_children == 3)
+                    {
+                      if (mother_face->child(0)->has_children())
+                        {
+                          if (subface < 2)
+                            neighbor_child = neighbor_child->child(
+                              GeometryInfo<dim>::child_cell_on_face(
+                                neighbor_child->refinement_case(),
+                                neighbor_neighbor,
+                                subface,
+                                neighbor_child->face_orientation(
+                                  neighbor_neighbor),
+                                neighbor_child->face_flip(neighbor_neighbor),
+                                neighbor_child->face_rotation(
+                                  neighbor_neighbor),
+                                mother_face->child(0)->refinement_case()));
+                        }
+                      else
+                        {
+                          Assert(mother_face->child(1)->has_children(),
+                                 ExcInternalError());
+                          if (subface > 0)
+                            neighbor_child = neighbor_child->child(
+                              GeometryInfo<dim>::child_cell_on_face(
+                                neighbor_child->refinement_case(),
+                                neighbor_neighbor,
+                                subface - 1,
+                                neighbor_child->face_orientation(
+                                  neighbor_neighbor),
+                                neighbor_child->face_flip(neighbor_neighbor),
+                                neighbor_child->face_rotation(
+                                  neighbor_neighbor),
+                                mother_face->child(1)->refinement_case()));
+                        }
+                    }
+                  else if (total_children == 4)
+                    {
+                      neighbor_child = neighbor_child->child(
+                        GeometryInfo<dim>::child_cell_on_face(
+                          neighbor_child->refinement_case(),
+                          neighbor_neighbor,
+                          subface % 2,
+                          neighbor_child->face_orientation(neighbor_neighbor),
+                          neighbor_child->face_flip(neighbor_neighbor),
+                          neighbor_child->face_rotation(neighbor_neighbor),
+                          mother_face->child(subface / 2)->refinement_case()));
+                    }
                 }
 
-              neighbor_child = neighbor->child(neighbor_child_index);
-              // it might be, that the neighbor_child
-              // has children, which are not refined
-              // along the given subface. go down that
-              // list and deliver the last of those.
-              while (neighbor_child->has_children() &&
-                     GeometryInfo<dim>::face_refinement_case(
-                       neighbor_child->refinement_case(), neighbor_neighbor) ==
-                       RefinementCase<2>::no_refinement)
+              // it might be, that the neighbor_child has
+              // children, which are not refined along the
+              // given subface. go down that list and
+              // deliver the last of those.
+              while (neighbor_child->has_children())
                 neighbor_child =
                   neighbor_child->child(GeometryInfo<dim>::child_cell_on_face(
                     neighbor_child->refinement_case(), neighbor_neighbor, 0));
 
-              // if there are two total subfaces, we
-              // are finished. if there are four we
-              // have to get a child of our current
-              // neighbor_child. If there are three,
-              // we have to check which of the two
-              // possibilities applies.
-              if (total_children == 3)
-                {
-                  if (mother_face->child(0)->has_children())
-                    {
-                      if (subface < 2)
-                        neighbor_child = neighbor_child->child(
-                          GeometryInfo<dim>::child_cell_on_face(
-                            neighbor_child->refinement_case(),
-                            neighbor_neighbor,
-                            subface,
-                            neighbor_child->face_orientation(neighbor_neighbor),
-                            neighbor_child->face_flip(neighbor_neighbor),
-                            neighbor_child->face_rotation(neighbor_neighbor),
-                            mother_face->child(0)->refinement_case()));
-                    }
-                  else
-                    {
-                      Assert(mother_face->child(1)->has_children(),
-                             ExcInternalError());
-                      if (subface > 0)
-                        neighbor_child = neighbor_child->child(
-                          GeometryInfo<dim>::child_cell_on_face(
-                            neighbor_child->refinement_case(),
-                            neighbor_neighbor,
-                            subface - 1,
-                            neighbor_child->face_orientation(neighbor_neighbor),
-                            neighbor_child->face_flip(neighbor_neighbor),
-                            neighbor_child->face_rotation(neighbor_neighbor),
-                            mother_face->child(1)->refinement_case()));
-                    }
-                }
-              else if (total_children == 4)
-                {
-                  neighbor_child =
-                    neighbor_child->child(GeometryInfo<dim>::child_cell_on_face(
-                      neighbor_child->refinement_case(),
-                      neighbor_neighbor,
-                      subface % 2,
-                      neighbor_child->face_orientation(neighbor_neighbor),
-                      neighbor_child->face_flip(neighbor_neighbor),
-                      neighbor_child->face_rotation(neighbor_neighbor),
-                      mother_face->child(subface / 2)->refinement_case()));
-                }
-            }
-
-          // it might be, that the neighbor_child has
-          // children, which are not refined along the
-          // given subface. go down that list and
-          // deliver the last of those.
-          while (neighbor_child->has_children())
-            neighbor_child =
-              neighbor_child->child(GeometryInfo<dim>::child_cell_on_face(
-                neighbor_child->refinement_case(), neighbor_neighbor, 0));
-
 #ifdef DEBUG
-          // check, whether the face neighbor_child matches the requested
-          // subface.
-          typename Triangulation<dim, spacedim>::face_iterator requested;
-          switch (this->subface_case(face))
-            {
-              case internal::SubfaceCase<3>::case_x:
-              case internal::SubfaceCase<3>::case_y:
-              case internal::SubfaceCase<3>::case_xy:
-                requested = mother_face->child(subface);
-                break;
-              case internal::SubfaceCase<3>::case_x1y2y:
-              case internal::SubfaceCase<3>::case_y1x2x:
-                requested = mother_face->child(subface / 2)->child(subface % 2);
-                break;
+              // check, whether the face neighbor_child matches the requested
+              // subface.
+              typename Triangulation<dim, spacedim>::face_iterator requested;
+              switch (this->subface_case(face))
+                {
+                  case internal::SubfaceCase<3>::case_x:
+                  case internal::SubfaceCase<3>::case_y:
+                  case internal::SubfaceCase<3>::case_xy:
+                    requested = mother_face->child(subface);
+                    break;
+                  case internal::SubfaceCase<3>::case_x1y2y:
+                  case internal::SubfaceCase<3>::case_y1x2x:
+                    requested =
+                      mother_face->child(subface / 2)->child(subface % 2);
+                    break;
 
-              case internal::SubfaceCase<3>::case_x1y:
-              case internal::SubfaceCase<3>::case_y1x:
-                switch (subface)
-                  {
-                    case 0:
-                    case 1:
-                      requested = mother_face->child(0)->child(subface);
-                      break;
-                    case 2:
-                      requested = mother_face->child(1);
-                      break;
-                    default:
-                      Assert(false, ExcInternalError());
-                  }
-                break;
-              case internal::SubfaceCase<3>::case_x2y:
-              case internal::SubfaceCase<3>::case_y2x:
-                switch (subface)
-                  {
-                    case 0:
-                      requested = mother_face->child(0);
-                      break;
-                    case 1:
-                    case 2:
-                      requested = mother_face->child(1)->child(subface - 1);
-                      break;
-                    default:
-                      Assert(false, ExcInternalError());
-                  }
-                break;
-              default:
-                Assert(false, ExcInternalError());
-                break;
-            }
-          Assert(requested == neighbor_child->face(neighbor_neighbor),
-                 ExcInternalError());
+                  case internal::SubfaceCase<3>::case_x1y:
+                  case internal::SubfaceCase<3>::case_y1x:
+                    switch (subface)
+                      {
+                        case 0:
+                        case 1:
+                          requested = mother_face->child(0)->child(subface);
+                          break;
+                        case 2:
+                          requested = mother_face->child(1);
+                          break;
+                        default:
+                          Assert(false, ExcInternalError());
+                      }
+                    break;
+                  case internal::SubfaceCase<3>::case_x2y:
+                  case internal::SubfaceCase<3>::case_y2x:
+                    switch (subface)
+                      {
+                        case 0:
+                          requested = mother_face->child(0);
+                          break;
+                        case 1:
+                        case 2:
+                          requested = mother_face->child(1)->child(subface - 1);
+                          break;
+                        default:
+                          Assert(false, ExcInternalError());
+                      }
+                    break;
+                  default:
+                    Assert(false, ExcInternalError());
+                    break;
+                }
+              Assert(requested == neighbor_child->face(neighbor_neighbor),
+                     ExcInternalError());
 #endif
 
-          return neighbor_child;
+              return neighbor_child;
+            }
+
+          // if no reference cell type matches
+          Assert(false, ExcNotImplemented());
+          return TriaIterator<CellAccessor<dim, spacedim>>();
         }
 
       default:
-        // 1d or more than 3d
+        // if 1d or more than 3d
         Assert(false, ExcNotImplemented());
         return TriaIterator<CellAccessor<dim, spacedim>>();
     }

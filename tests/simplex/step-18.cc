@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -70,11 +70,15 @@
 #include "../tests.h"
 
 // simplex
+#include <deal.II/base/quadrature_lib.h>
+
+#include <deal.II/fe/fe_pyramid_p.h>
+#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_simplex_p_bubbles.h>
+#include <deal.II/fe/fe_wedge_p.h>
 #include <deal.II/fe/mapping_fe.h>
 
-#include <deal.II/simplex/fe_lib.h>
-#include <deal.II/simplex/grid_generator.h>
-#include <deal.II/simplex/quadrature_lib.h>
+#include <deal.II/grid/grid_generator.h>
 
 //#define HEX
 
@@ -417,10 +421,10 @@ namespace Step18
   template <int dim>
   TopLevel<dim>::TopLevel()
     : triangulation()
-    , fe(Simplex::FE_P<dim>(degree), dim)
+    , fe(FE_SimplexP<dim>(degree), dim)
     , dof_handler(triangulation)
-    , quadrature_formula(Simplex::QGauss<dim>(fe.degree + 1))
-    , mapping(Simplex::FE_P<dim>(1))
+    , quadrature_formula(QGaussSimplex<dim>(fe.degree + 1))
+    , mapping(FE_SimplexP<dim>(1))
     , present_time(0.0)
     , present_timestep(1.0)
     , end_time(10.0)
@@ -669,10 +673,7 @@ namespace Step18
     assemble_system();
     deallog << " norm of rhs is " << system_rhs.l2_norm() << std::endl;
 
-    const unsigned int n_iterations = solve_linear_problem();
-
-    deallog << "    Solver converged in " << n_iterations << " iterations."
-            << std::endl;
+    solve_linear_problem();
 
     deallog << "    Updating quadrature point data..." << std::flush;
     update_quadrature_point_history();
@@ -684,6 +685,9 @@ namespace Step18
   unsigned int
   TopLevel<dim>::solve_linear_problem()
   {
+    // avoid output of iterative solver:
+    const unsigned int previous_depth = deallog.depth_file(0);
+
 #ifdef DEAL_II_WITH_PETSC
     PETScWrappers::MPI::Vector distributed_incremental_displacement(
       locally_owned_dofs, mpi_communicator);
@@ -712,6 +716,8 @@ namespace Step18
                  system_rhs,
                  PreconditionIdentity());
 #endif
+
+    deallog.depth_file(previous_depth);
 
     deallog << "norm: " << distributed_incremental_displacement.linfty_norm()
             << " " << distributed_incremental_displacement.l1_norm() << " "
@@ -1011,6 +1017,8 @@ int
 main(int argc, char **argv)
 {
   initlog();
+
+  deallog.depth_file(1);
 
   try
     {

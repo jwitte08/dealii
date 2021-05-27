@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -19,6 +19,7 @@
 
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/mpi.h>
+#include <deal.II/base/quadrature_lib.h>
 
 #include <deal.II/distributed/fully_distributed_tria.h>
 #include <deal.II/distributed/shared_tria.h>
@@ -27,8 +28,12 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_tools.h>
 
+#include <deal.II/fe/fe_pyramid_p.h>
 #include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_simplex_p_bubbles.h>
 #include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/fe_wedge_p.h>
 #include <deal.II/fe/mapping_fe.h>
 #include <deal.II/fe/mapping_q.h>
 
@@ -37,6 +42,8 @@
 #include <deal.II/grid/grid_out.h>
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/tria.h>
+
+#include <deal.II/hp/q_collection.h>
 
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/dynamic_sparsity_pattern.h>
@@ -49,12 +56,11 @@
 #include <deal.II/lac/trilinos_sparsity_pattern.h>
 
 #include <deal.II/numerics/data_out.h>
-
-#include <deal.II/simplex/fe_lib.h>
-#include <deal.II/simplex/grid_generator.h>
-#include <deal.II/simplex/quadrature_lib.h>
+#include <deal.II/numerics/vector_tools.h>
 
 #include "../tests.h"
+
+#include "simplex_grids.h"
 
 using namespace dealii;
 
@@ -93,9 +99,10 @@ void
 test(const Triangulation<dim, spacedim> &tria,
      const FiniteElement<dim, spacedim> &fe,
      const Quadrature<dim> &             quad,
-     const Quadrature<dim - 1> &         face_quad,
+     const hp::QCollection<dim - 1> &    face_quad,
      const Mapping<dim, spacedim> &      mapping,
-     const double                        r_boundary)
+     const double                        r_boundary,
+     const bool                          do_use_fe_face_values = true)
 {
   std::string label =
     (dynamic_cast<const parallel::shared::Triangulation<dim, spacedim> *>(
@@ -188,8 +195,9 @@ test(const Triangulation<dim, spacedim> &tria,
 
   std::shared_ptr<FEFaceValues<dim, spacedim>> fe_face_values;
 
-  fe_face_values.reset(
-    new FEFaceValues<dim, spacedim>(mapping, fe, face_quad, flag));
+  if (do_use_fe_face_values)
+    fe_face_values.reset(
+      new FEFaceValues<dim, spacedim>(mapping, fe, face_quad, flag));
 
   const unsigned int dofs_per_cell = fe.dofs_per_cell;
   const unsigned int n_q_points    = quad.size();
@@ -225,7 +233,7 @@ test(const Triangulation<dim, spacedim> &tria,
           if (face->at_boundary() && (face->boundary_id() == 1))
             {
               fe_face_values->reinit(cell, face);
-              for (unsigned int q = 0; q < face_quad.size(); ++q)
+              for (const auto q : fe_face_values->quadrature_point_indices())
                 for (unsigned int i = 0; i < dofs_per_cell; ++i)
                   cell_rhs(i) +=
                     (1.0 *                               // 1.0
@@ -246,6 +254,8 @@ test(const Triangulation<dim, spacedim> &tria,
   SolverCG<VectorType> solver(solver_control);
   solver.solve(system_matrix, solution, system_rhs, PreconditionIdentity());
 
+  // deallog << solution.l2_norm() << " " << system_rhs.l2_norm() << std::endl;
+
   deallog << "   with " << solver_control.last_step()
           << " CG iterations needed to obtain convergence" << std::endl;
 
@@ -258,6 +268,35 @@ test(const Triangulation<dim, spacedim> &tria,
     hex_mesh &= (cell->n_vertices() == GeometryInfo<dim>::vertices_per_cell);
 
   deallog << std::endl;
+
+
+  if (false)
+    {
+      Vector<double> difference(tria.n_active_cells());
+
+      VectorTools::integrate_difference(mapping,
+                                        dof_handler,
+                                        solution,
+                                        Functions::ZeroFunction<dim>(),
+                                        difference,
+                                        quad,
+                                        VectorTools::NormType::L2_norm);
+
+      deallog << VectorTools::compute_global_error(
+                   tria, difference, VectorTools::NormType::L2_norm)
+              << std::endl;
+      DataOut<dim> data_out;
+
+      data_out.attach_dof_handler(dof_handler);
+      data_out.add_data_vector(solution, "solution");
+
+      data_out.build_patches(mapping);
+
+      static unsigned int counter = 0;
+
+      std::ofstream output("result" + std::to_string(counter++) + ".vtk");
+      data_out.write_vtk(output);
+    }
 }
 
 template <int dim, int spacedim = dim>
@@ -297,7 +336,7 @@ test_tet(const MPI_Comm &comm, const Parameters<dim> &params)
   // ... create triangulation
   if (params.use_grid_generator)
     {
-      // ...via Simplex::GridGenerator
+      // ...via GridGenerator
       GridGenerator::subdivided_hyper_rectangle_with_simplices(
         *tria, params.repetitions, params.p1, params.p2, false);
     }
@@ -334,14 +373,14 @@ test_tet(const MPI_Comm &comm, const Parameters<dim> &params)
   grid_out.write_vtk(*tria, out);
 
   // 3) Select components
-  Simplex::FE_P<dim> fe(params.degree);
+  FE_SimplexP<dim> fe(params.degree);
 
-  Simplex::QGauss<dim> quad(params.degree + 1);
+  QGaussSimplex<dim> quad(params.degree + 1);
 
-  Simplex::QGauss<dim - 1> face_quad(params.degree + 1);
+  hp::QCollection<dim - 1> face_quad{QGaussSimplex<dim - 1>(params.degree + 1)};
 
-  Simplex::FE_P<dim> fe_mapping(1);
-  MappingFE<dim>     mapping(fe_mapping);
+  FE_SimplexP<dim> fe_mapping(1);
+  MappingFE<dim>   mapping(fe_mapping);
 
   // 4) Perform test (independent of mesh type)
   test(*tria, fe, quad, face_quad, mapping, params.p2[0]);
@@ -381,12 +420,194 @@ test_hex(const MPI_Comm &comm, const Parameters<dim> &params)
 
   QGauss<dim> quad(params.degree + 1);
 
-  QGauss<dim - 1> quad_face(params.degree + 1);
+  hp::QCollection<dim - 1> face_quad{QGauss<dim - 1>(params.degree + 1)};
 
   MappingQ<dim, spacedim> mapping(1);
 
   // 4) Perform test (independent of mesh type)
-  test(tria, fe, quad, quad_face, mapping, params.p2[0]);
+  test(tria, fe, quad, face_quad, mapping, params.p2[0]);
+}
+
+template <int dim, int spacedim = dim>
+void
+test_wedge(const MPI_Comm &comm, const Parameters<dim> &params)
+{
+  const unsigned int tria_type = 2;
+
+  // 1) Create triangulation...
+  Triangulation<dim, spacedim> *tria;
+
+  // a) serial triangulation
+  Triangulation<dim, spacedim> tr_1;
+
+  // b) shared triangulation (with artificial cells)
+  parallel::shared::Triangulation<dim> tr_2(
+    MPI_COMM_WORLD,
+    ::Triangulation<dim>::none,
+    true,
+    parallel::shared::Triangulation<dim>::partition_custom_signal);
+
+  tr_2.signals.create.connect([&]() {
+    GridTools::partition_triangulation(Utilities::MPI::n_mpi_processes(comm),
+                                       tr_2);
+  });
+
+  // c) distributed triangulation
+  parallel::fullydistributed::Triangulation<dim> tr_3(comm);
+
+
+  // ... choose the right triangulation
+  if (tria_type == 0 || tria_type == 2)
+    tria = &tr_1;
+  else if (tria_type == 1)
+    tria = &tr_2;
+
+  // ... create triangulation
+  if (params.use_grid_generator)
+    {
+      // ...via GridGenerator
+      GridGenerator::subdivided_hyper_rectangle_with_wedges(
+        *tria, params.repetitions, params.p1, params.p2, false);
+    }
+  else
+    {
+      // ...via GridIn
+      GridIn<dim, spacedim> grid_in;
+      grid_in.attach_triangulation(*tria);
+      std::ifstream input_file(params.file_name_in);
+      grid_in.read_ucd(input_file);
+      // std::ifstream input_file("test_tet_geometry.unv");
+      // grid_in.read_unv(input_file);
+    }
+
+  // ... partition serial triangulation and create distributed triangulation
+  if (tria_type == 0 || tria_type == 2)
+    {
+      GridTools::partition_triangulation(Utilities::MPI::n_mpi_processes(comm),
+                                         tr_1);
+
+      auto construction_data = TriangulationDescription::Utilities::
+        create_description_from_triangulation(tr_1, comm);
+
+      tr_3.create_triangulation(construction_data);
+
+      tria = &tr_3;
+    }
+
+  // 2) Output generated triangulation via GridOut
+  GridOut       grid_out;
+  std::ofstream out(params.file_name_out + "." +
+                    std::to_string(Utilities::MPI::this_mpi_process(comm)) +
+                    ".vtk");
+  grid_out.write_vtk(*tria, out);
+
+  // 3) Select components
+  FE_WedgeP<dim> fe(params.degree);
+
+  QGaussWedge<dim> quad(params.degree + 1);
+
+  hp::QCollection<dim - 1> face_quad{QGaussSimplex<dim - 1>(params.degree + 1),
+                                     QGaussSimplex<dim - 1>(params.degree + 1),
+                                     QGauss<dim - 1>(params.degree + 1),
+                                     QGauss<dim - 1>(params.degree + 1),
+                                     QGauss<dim - 1>(params.degree + 1)};
+
+  FE_WedgeP<dim> fe_mapping(1);
+  MappingFE<dim> mapping(fe_mapping);
+
+  // 4) Perform test (independent of mesh type)
+  test(*tria, fe, quad, face_quad, mapping, params.p2[0], true);
+}
+
+template <int dim, int spacedim = dim>
+void
+test_pyramid(const MPI_Comm &comm, const Parameters<dim> &params)
+{
+  const unsigned int tria_type = 2;
+
+  // 1) Create triangulation...
+  Triangulation<dim, spacedim> *tria;
+
+  // a) serial triangulation
+  Triangulation<dim, spacedim> tr_1;
+
+  // b) shared triangulation (with artificial cells)
+  parallel::shared::Triangulation<dim> tr_2(
+    MPI_COMM_WORLD,
+    ::Triangulation<dim>::none,
+    true,
+    parallel::shared::Triangulation<dim>::partition_custom_signal);
+
+  tr_2.signals.create.connect([&]() {
+    GridTools::partition_triangulation(Utilities::MPI::n_mpi_processes(comm),
+                                       tr_2);
+  });
+
+  // c) distributed triangulation
+  parallel::fullydistributed::Triangulation<dim> tr_3(comm);
+
+
+  // ... choose the right triangulation
+  if (tria_type == 0 || tria_type == 2)
+    tria = &tr_1;
+  else if (tria_type == 1)
+    tria = &tr_2;
+
+  // ... create triangulation
+  if (params.use_grid_generator)
+    {
+      // ...via GridGenerator
+      GridGenerator::subdivided_hyper_rectangle_with_pyramids(
+        *tria, params.repetitions, params.p1, params.p2, false);
+    }
+  else
+    {
+      // ...via GridIn
+      GridIn<dim, spacedim> grid_in;
+      grid_in.attach_triangulation(*tria);
+      std::ifstream input_file(params.file_name_in);
+      grid_in.read_ucd(input_file);
+      // std::ifstream input_file("test_tet_geometry.unv");
+      // grid_in.read_unv(input_file);
+    }
+
+  // ... partition serial triangulation and create distributed triangulation
+  if (tria_type == 0 || tria_type == 2)
+    {
+      GridTools::partition_triangulation(Utilities::MPI::n_mpi_processes(comm),
+                                         tr_1);
+
+      auto construction_data = TriangulationDescription::Utilities::
+        create_description_from_triangulation(tr_1, comm);
+
+      tr_3.create_triangulation(construction_data);
+
+      tria = &tr_3;
+    }
+
+  // 2) Output generated triangulation via GridOut
+  GridOut       grid_out;
+  std::ofstream out(params.file_name_out + "." +
+                    std::to_string(Utilities::MPI::this_mpi_process(comm)) +
+                    ".vtk");
+  grid_out.write_vtk(*tria, out);
+
+  // 3) Select components
+  FE_PyramidP<dim> fe(params.degree);
+
+  QGaussPyramid<dim> quad(params.degree + 1);
+
+  hp::QCollection<dim - 1> face_quad{QGauss<dim - 1>(params.degree + 1),
+                                     QGaussSimplex<dim - 1>(params.degree + 1),
+                                     QGaussSimplex<dim - 1>(params.degree + 1),
+                                     QGaussSimplex<dim - 1>(params.degree + 1),
+                                     QGaussSimplex<dim - 1>(params.degree + 1)};
+
+  FE_PyramidP<dim> fe_mapping(1);
+  MappingFE<dim>   mapping(fe_mapping);
+
+  // 4) Perform test (independent of mesh type)
+  test(*tria, fe, quad, face_quad, mapping, params.p2[0], true);
 }
 
 int
@@ -448,6 +669,30 @@ main(int argc, char **argv)
       params.p1            = Point<3>(1.1, 0, 0);
       params.p2            = Point<3>(2.1, 1, 1);
       test_hex(comm, params);
+    }
+
+    // test WEDGE
+    {
+      deallog << "Solve problem on WEDGE mesh:" << std::endl;
+
+      params.file_name_out = "mesh-wedge";
+      params.p1            = Point<3>(2.2, 0, 0);
+      params.p2            = Point<3>(3.2, 1, 1);
+      test_wedge(comm, params);
+    }
+
+    // test PYRAMID
+    {
+      deallog << "Solve problem on PYRAMID mesh:" << std::endl;
+
+      params.file_name_out = "mesh-pyramid";
+      params.repetitions   = std::vector<unsigned int>{10, 10, 10};
+      params.p1            = Point<3>(3.3, 0, 0);
+      params.p2            = Point<3>(4.3, 1, 1);
+
+      params.degree = 1;
+
+      test_pyramid(comm, params);
     }
   }
 }

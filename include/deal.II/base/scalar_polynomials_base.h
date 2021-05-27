@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2005 - 2020 by the deal.II authors
+// Copyright (C) 2005 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -111,7 +111,7 @@ public:
    * Consider using evaluate() instead.
    */
   virtual double
-  compute_value(const unsigned int /*i*/, const Point<dim> & /*p*/) const = 0;
+  compute_value(const unsigned int i, const Point<dim> &p) const = 0;
 
   /**
    * Compute the <tt>order</tt>th derivative of the <tt>i</tt>th polynomial

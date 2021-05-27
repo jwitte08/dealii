@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -47,8 +47,11 @@ test()
   AffineConstraints<Number> constraint;
   DoFTools::make_hanging_node_constraints(dof_handler, constraint);
 
-  VectorTools::interpolate_boundary_values(
-    dof_handler, 0, Functions::ZeroFunction<dim>(n_components), constraint);
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           0,
+                                           Functions::ZeroFunction<dim, Number>(
+                                             n_components),
+                                           constraint);
 
   constraint.close();
 
@@ -65,6 +68,7 @@ test()
 
   Test<dim, fe_degree, n_points, n_components, Number, VectorizedArrayType>
     test(matrix_free,
+         constraint,
          [](FEEvaluation<dim,
                          fe_degree,
                          n_points,
@@ -88,4 +92,7 @@ main(int argc, char **argv)
 
   test<2, 1, 2, 1>(); // scalar
   test<2, 1, 2, 2>(); // vector
+
+  test<2, 1, 2, 1, float>(); // scalar
+  test<2, 1, 2, 2, float>(); // vector
 }

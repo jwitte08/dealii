@@ -72,7 +72,7 @@ DoFCellAccessor<dim, spacedim, lda>::get_interpolated_dof_values(
         {
           // well, here we need to first get the values from the current
           // cell and then interpolate it to the element requested. this
-          // can clearly only happen for hp::DoFHandler objects
+          // can clearly only happen for DoFHandler objects in hp-mode
           const unsigned int dofs_per_cell = this->get_fe().n_dofs_per_cell();
           if (dofs_per_cell == 0)
             {
@@ -97,7 +97,7 @@ DoFCellAccessor<dim, spacedim, lda>::get_interpolated_dof_values(
     // children recursively.
     {
       // we are on a non-active cell. these do not have any finite
-      // element associated with them in the hp context (in the non-hp
+      // element associated with them in the hp-context (in the non-hp-
       // context, we can simply assume that the FE space to which we
       // want to interpolate is the same as for all elements in the
       // mesh). consequently, we cannot interpolate from children's FE
@@ -107,11 +107,11 @@ DoFCellAccessor<dim, spacedim, lda>::get_interpolated_dof_values(
                (fe_index != DoFHandler<dim, spacedim>::invalid_fe_index),
              ExcMessage(
                "You cannot call this function on non-active cells "
-               "of hp::DoFHandler objects unless you provide an explicit "
+               "of DoFHandler objects unless you provide an explicit "
                "finite element index because they do not have naturally "
                "associated finite element spaces associated: degrees "
                "of freedom are only distributed on active cells for which "
-               "the active_fe_index has been set."));
+               "the active FE index has been set."));
 
       const FiniteElement<dim, spacedim> &fe =
         this->get_dof_handler().get_fe(fe_index);

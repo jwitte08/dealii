@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2009 - 2020 by the deal.II authors
+ * Copyright (C) 2009 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -29,11 +29,8 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_out.h>
 #include <deal.II/grid/grid_refinement.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/fe/mapping_q1.h>
@@ -129,9 +126,9 @@ namespace Step12
   {
     Assert(dim >= 2, ExcNotImplemented());
 
-    Point<dim> wind_field;
-    wind_field(0) = -p(1);
-    wind_field(1) = p(0);
+    Tensor<1, dim> wind_field;
+    wind_field[0] = -p[1];
+    wind_field[1] = p[0];
     wind_field /= wind_field.norm();
 
     return wind_field;

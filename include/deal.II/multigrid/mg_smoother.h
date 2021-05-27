@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 1999 - 2018 by the deal.II authors
+// Copyright (C) 1999 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -1062,8 +1062,9 @@ MGSmootherPrecondition<MatrixType, PreconditionerType, VectorType>::initialize(
       // enough interface to populate reinit_(domain|range)_vector. Thus,
       // apply an empty LinearOperator exemplar.
       matrices[i] =
-        linear_operator<VectorType>(LinearOperator<VectorType>(), m[i]);
-      smoothers[i].initialize(m[i], data[i]);
+        linear_operator<VectorType>(LinearOperator<VectorType>(),
+                                    Utilities::get_underlying_value(m[i]));
+      smoothers[i].initialize(Utilities::get_underlying_value(m[i]), data[i]);
     }
 }
 

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------
  *
- * Copyright (C) 2019 - 2020 by the deal.II authors
+ * Copyright (C) 2019 - 2021 by the deal.II authors
  *
  * This file is part of the deal.II library.
  *
@@ -41,15 +41,12 @@
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <deal.II/grid/tria_iterator.h>
 
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/mapping_q.h>
 
 #include <deal.II/dofs/dof_handler.h>
-#include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/numerics/vector_tools.h>
@@ -408,12 +405,12 @@ namespace Step47
         {
           for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
-              const Tensor<2, dim> hessian_i =
+              const Tensor<2, dim> &hessian_i =
                 fe_values.shape_hessian(i, qpoint);
 
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
                 {
-                  const Tensor<2, dim> hessian_j =
+                  const Tensor<2, dim> &hessian_j =
                     fe_values.shape_hessian(j, qpoint);
 
                   copy_data.cell_matrix(i, j) +=
@@ -769,7 +766,7 @@ namespace Step47
         VectorTools::compute_global_error(triangulation,
                                           norm_per_cell,
                                           VectorTools::L2_norm);
-      std::cout << "   Error in the L2 norm       :     " << error_norm
+      std::cout << "   Error in the L2 norm           :     " << error_norm
                 << std::endl;
     }
 
@@ -860,8 +857,9 @@ namespace Step47
     data_out.add_data_vector(solution, "solution");
     data_out.build_patches();
 
-    std::ofstream output_vtu(
-      ("output_" + Utilities::int_to_string(iteration, 6) + ".vtu").c_str());
+    const std::string filename =
+      ("output_" + Utilities::int_to_string(iteration, 6) + ".vtu");
+    std::ofstream output_vtu(filename);
     data_out.write_vtu(output_vtu);
   }
 
@@ -877,7 +875,7 @@ namespace Step47
     const unsigned int n_cycles = 4;
     for (unsigned int cycle = 0; cycle < n_cycles; ++cycle)
       {
-        std::cout << "Cycle: " << cycle << " of " << n_cycles << std::endl;
+        std::cout << "Cycle " << cycle << " of " << n_cycles << std::endl;
 
         triangulation.refine_global(1);
         setup_system();

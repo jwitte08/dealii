@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2020 by the deal.II authors
+// Copyright (C) 2020 - 2021 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -27,8 +27,12 @@
 
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_interface_values.h>
+#include <deal.II/fe/fe_pyramid_p.h>
 #include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_simplex_p.h>
+#include <deal.II/fe/fe_simplex_p_bubbles.h>
 #include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/fe_wedge_p.h>
 #include <deal.II/fe/mapping_fe.h>
 #include <deal.II/fe/mapping_q.h>
 
@@ -50,10 +54,6 @@
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
-
-#include <deal.II/simplex/fe_lib.h>
-#include <deal.II/simplex/grid_generator.h>
-#include <deal.II/simplex/quadrature_lib.h>
 
 #include <fstream>
 #include <iostream>
@@ -185,14 +185,14 @@ public:
       unsigned int initial_refinement,
       unsigned int number_refinement)
   {
-    return std::make_unique<DGHeat<dim>>(
-      false,
-      new Simplex::FE_DGP<dim>(degree),
-      new MappingFE<dim>(Simplex::FE_P<dim>(1)),
-      new Simplex::QGauss<dim>(degree + 1),
-      new Simplex::QGauss<dim - 1>(degree + 1),
-      initial_refinement,
-      number_refinement);
+    return std::make_unique<DGHeat<dim>>(false,
+                                         new FE_SimplexDGP<dim>(degree),
+                                         new MappingFE<dim>(
+                                           FE_SimplexP<dim>(1)),
+                                         new QGaussSimplex<dim>(degree + 1),
+                                         new QGaussSimplex<dim - 1>(degree + 1),
+                                         initial_refinement,
+                                         number_refinement);
   }
 
 

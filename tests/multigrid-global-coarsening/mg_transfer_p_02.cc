@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2019 by the deal.II authors
+// Copyright (C) 2019 - 2020 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -39,6 +39,8 @@
 
 #include <deal.II/distributed/tria.h>
 
+#include <deal.II/dofs/dof_handler.h>
+
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_tools.h>
@@ -47,7 +49,6 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_out.h>
 
-#include <deal.II/hp/dof_handler.h>
 #include <deal.II/hp/fe_collection.h>
 
 #include <deal.II/matrix_free/fe_evaluation.h>
@@ -58,7 +59,7 @@
 
 #include <limits>
 
-#include "test.h"
+#include "mg_transfer_util.h"
 
 using namespace dealii;
 
@@ -72,8 +73,8 @@ do_test()
   GridGenerator::subdivided_hyper_cube(tria, 2);
 
   // data structures needed on all levels
-  hp::DoFHandler<dim>   dof_handler_fine(tria);
-  hp::DoFHandler<dim>   dof_handler_coarse(tria);
+  DoFHandler<dim>       dof_handler_fine(tria);
+  DoFHandler<dim>       dof_handler_coarse(tria);
   hp::FECollection<dim> fe_collection;
 
 
